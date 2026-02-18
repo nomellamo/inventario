@@ -10,6 +10,15 @@ function requireEnv(name, opts = {}) {
 }
 
 const NODE_ENV = process.env.NODE_ENV || "development";
+const COOKIE_SAMESITE = (process.env.COOKIE_SAMESITE || "strict").toLowerCase();
+
+if (!["strict", "lax", "none"].includes(COOKIE_SAMESITE)) {
+  throw new Error("COOKIE_SAMESITE debe ser strict, lax o none");
+}
+
+if (COOKIE_SAMESITE === "none" && process.env.COOKIE_SECURE !== "true" && NODE_ENV === "production") {
+  throw new Error("COOKIE_SECURE=true es obligatorio cuando COOKIE_SAMESITE=none en production");
+}
 
 const env = {
   NODE_ENV,
@@ -26,6 +35,7 @@ const env = {
   REFRESH_TOKEN_TTL_DAYS: Number(process.env.REFRESH_TOKEN_TTL_DAYS || 7),
   COOKIE_SECURE: process.env.COOKIE_SECURE === "true",
   COOKIE_DOMAIN: process.env.COOKIE_DOMAIN || undefined,
+  COOKIE_SAMESITE,
 };
 
 if (!env.DIRECT_DATABASE_URL && !env.DATABASE_URL) {

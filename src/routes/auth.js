@@ -20,7 +20,7 @@ router.post(
     const cookieOptions = {
       httpOnly: true,
       secure: env.COOKIE_SECURE || env.NODE_ENV === "production",
-      sameSite: "strict",
+      sameSite: env.COOKIE_SAMESITE,
       maxAge: env.REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000,
       ...(env.COOKIE_DOMAIN ? { domain: env.COOKIE_DOMAIN } : {}),
     };
@@ -45,7 +45,7 @@ router.post(
     const cookieOptions = {
       httpOnly: true,
       secure: env.COOKIE_SECURE || env.NODE_ENV === "production",
-      sameSite: "strict",
+      sameSite: env.COOKIE_SAMESITE,
       maxAge: env.REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000,
       ...(env.COOKIE_DOMAIN ? { domain: env.COOKIE_DOMAIN } : {}),
     };
@@ -62,7 +62,7 @@ router.post(
     const cookieOptions = {
       httpOnly: true,
       secure: env.COOKIE_SECURE || env.NODE_ENV === "production",
-      sameSite: "strict",
+      sameSite: env.COOKIE_SAMESITE,
       ...(env.COOKIE_DOMAIN ? { domain: env.COOKIE_DOMAIN } : {}),
     };
     res.clearCookie("refresh_token", cookieOptions);
