@@ -1,0 +1,421 @@
+{
+  "info": {
+    "name": "Inventario - Planchetas",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "token",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth - Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"a.nunezu.n@gmail.com\",\n  \"password\": \"123456789\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": ["{{baseUrl}}"],
+          "path": ["auth", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Guarda token en environment\", function () {",
+              "  var json = pm.response.json();",
+              "  if (json && json.token) {",
+              "    pm.environment.set(\"token\", json.token);",
+              "  }",
+              "});"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "Planchetas - JSON (por establecimiento)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/planchetas?establishmentId=3",
+          "host": ["{{baseUrl}}"],
+          "path": ["planchetas"],
+          "query": [
+            { "key": "establishmentId", "value": "3" }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Planchetas - JSON (por dependencia)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/planchetas?dependencyId=3",
+          "host": ["{{baseUrl}}"],
+          "path": ["planchetas"],
+          "query": [
+            { "key": "dependencyId", "value": "3" }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Planchetas - Excel (por establecimiento)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/planchetas/excel?establishmentId=3",
+          "host": ["{{baseUrl}}"],
+          "path": ["planchetas", "excel"],
+          "query": [
+            { "key": "establishmentId", "value": "3" }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Planchetas - PDF (por dependencia)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/planchetas/pdf?dependencyId=3",
+          "host": ["{{baseUrl}}"],
+          "path": ["planchetas", "pdf"],
+          "query": [
+            { "key": "dependencyId", "value": "3" }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Planchetas - Historial de asset",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/planchetas/123/history",
+          "host": ["{{baseUrl}}"],
+          "path": ["planchetas", "123", "history"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Assets - Crear con CatalogItem",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"catalogItemId\": {{catalogItemId}},\n  \"establishmentId\": 3,\n  \"dependencyId\": 3,\n  \"assetStateId\": 1,\n  \"accountingAccount\": \"ACC-001\",\n  \"analyticCode\": \"AN-001\",\n  \"acquisitionValue\": 100000,\n  \"acquisitionDate\": \"2026-02-10T12:00:00.000Z\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/assets",
+          "host": ["{{baseUrl}}"],
+          "path": ["assets"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Audit Assets - Todos (ADMIN_CENTRAL)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/audit/assets?take=20&skip=0&sortOrder=desc",
+          "host": ["{{baseUrl}}"],
+          "path": ["audit", "assets"],
+          "query": [
+            { "key": "take", "value": "20" },
+            { "key": "skip", "value": "0" },
+            { "key": "sortOrder", "value": "desc" }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Audit Assets - Por AssetId",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/audit/assets?assetId=1",
+          "host": ["{{baseUrl}}"],
+          "path": ["audit", "assets"],
+          "query": [
+            { "key": "assetId", "value": "1" }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Audit Assets - Por Action",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/audit/assets?action=RELOCATE",
+          "host": ["{{baseUrl}}"],
+          "path": ["audit", "assets"],
+          "query": [
+            { "key": "action", "value": "RELOCATE" }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Audit Assets - Buscar (q)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/audit/assets?q=notebook&take=10",
+          "host": ["{{baseUrl}}"],
+          "path": ["audit", "assets"],
+          "query": [
+            { "key": "q", "value": "notebook" },
+            { "key": "take", "value": "10" }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Catalog Items - Listado",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/catalog/items?take=20&skip=0",
+          "host": ["{{baseUrl}}"],
+          "path": ["catalog", "items"],
+          "query": [
+            { "key": "take", "value": "20" },
+            { "key": "skip", "value": "0" }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Catalog Items - Buscar por categoria",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/catalog/items?category=TIC",
+          "host": ["{{baseUrl}}"],
+          "path": ["catalog", "items"],
+          "query": [
+            { "key": "category", "value": "TIC" }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Admin Catalog Items - Crear",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Silla comedor\",\n  \"category\": \"Mobiliario\",\n  \"subcategory\": \"Sillas\",\n  \"brand\": \"Genetica\",\n  \"modelName\": \"STD\",\n  \"description\": \"Silla comedor basica\",\n  \"unit\": \"unidad\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/admin/catalog-items",
+          "host": ["{{baseUrl}}"],
+          "path": ["admin", "catalog-items"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Admin Catalog Items - Listado",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/admin/catalog-items?take=20&skip=0",
+          "host": ["{{baseUrl}}"],
+          "path": ["admin", "catalog-items"],
+          "query": [
+            { "key": "take", "value": "20" },
+            { "key": "skip", "value": "0" }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Admin Catalog Items - Get por ID",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/admin/catalog-items/1",
+          "host": ["{{baseUrl}}"],
+          "path": ["admin", "catalog-items", "1"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Admin Catalog Items - Update",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"description\": \"Silla comedor actualizada\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/admin/catalog-items/1",
+          "host": ["{{baseUrl}}"],
+          "path": ["admin", "catalog-items", "1"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Admin Catalog Items - Delete",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/admin/catalog-items/1",
+          "host": ["{{baseUrl}}"],
+          "path": ["admin", "catalog-items", "1"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Admin Dependencies - Bulk Create",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"items\": [\n    { \"name\": \"Sala 1\", \"establishmentId\": 3 },\n    { \"name\": \"Sala 2\", \"establishmentId\": 3 },\n    { \"name\": \"Biblioteca\", \"establishmentId\": 3 }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/admin/dependencies/bulk",
+          "host": ["{{baseUrl}}"],
+          "path": ["admin", "dependencies", "bulk"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Admin Catalog Items - Bulk Create",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"items\": [\n    {\n      \"name\": \"Mesa redonda reuniones\",\n      \"category\": \"Mobiliario\",\n      \"subcategory\": \"Mesas\",\n      \"brand\": \"Generica\",\n      \"modelName\": \"STD\",\n      \"description\": \"Mesa redonda para reuniones\",\n      \"unit\": \"unidad\"\n    },\n    {\n      \"name\": \"Silla comedor\",\n      \"category\": \"Mobiliario\",\n      \"subcategory\": \"Sillas\",\n      \"brand\": \"Generica\",\n      \"modelName\": \"STD\",\n      \"description\": \"Silla de comedor basica\",\n      \"unit\": \"unidad\"\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/admin/catalog-items/bulk",
+          "host": ["{{baseUrl}}"],
+          "path": ["admin", "catalog-items", "bulk"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Admin Establishments - Bulk Create",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"items\": [\n    {\n      \"name\": \"Liceo Central\",\n      \"type\": \"LICEO\",\n      \"rbd\": \"12345\",\n      \"commune\": \"San Carlos\",\n      \"institutionId\": 1\n    },\n    {\n      \"name\": \"Jardin Infantil Las Flores\",\n      \"type\": \"JARDIN\",\n      \"rbd\": \"54321\",\n      \"commune\": \"San Carlos\",\n      \"institutionId\": 1\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/admin/establishments/bulk",
+          "host": ["{{baseUrl}}"],
+          "path": ["admin", "establishments", "bulk"]
+        }
+      },
+      "response": []
+    }
+  ]
+}

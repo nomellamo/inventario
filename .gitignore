@@ -1,0 +1,31 @@
+node_modules
+# Keep environment variables out of version control
+.env
+
+/generated/prisma
+
+# Local Excel artifacts and import samples
+INVENTARIO_*.xlsx
+catalog_items_template.xlsx
+~$*.xlsx
+
+# Local test/export artifacts (keep out of git)
+TABLA_PARA EXPORTAR.xlsx
+assets_filtrados.xlsx
+establishments.xlsx
+institutions.xlsx
+plancheta.xlsx
+plancheta.pdf
+deepseek_csv_*.txt
+mantene.png
+mover.png
+plancheta.png
+manual-operativo-tecnico.pdf
+backups/
+mover .png
+plancge[}].png
+DSASDFDSDFDFDSDFGHGFVD.png
+login_audit.xlsx
+CATALOGO_MAESTRO_CONTABLE_LISTO.xlsx
+assets_filtrados (1).xlsx
+exel para exportar e importar/
