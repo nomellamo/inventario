@@ -75,6 +75,20 @@ app.get("/health", (req, res) => {
   res.json({ ok: true, time: new Date().toISOString() });
 });
 
+app.get("/", (req, res) => {
+  res.json({
+    ok: true,
+    service: "inventario-api",
+    version: appVersion,
+    docs: {
+      health: "/health",
+      ready: "/ready",
+      metrics: "/metrics",
+    },
+    time: new Date().toISOString(),
+  });
+});
+
 app.get("/ready", async (req, res) => {
   try {
     await Promise.race([
@@ -202,9 +216,100 @@ app.get("/metrics/prometheus", async (req, res) => {
   res.status(payload.ok ? 200 : 503).send(`${lines.join("\n")}\n`);
 });
 
+app.get("/api/health", (req, res) => {
+  res.json({ ok: true, time: new Date().toISOString() });
+});
+
+app.get("/api/ready", async (req, res) => {
+  try {
+    await Promise.race([
+      prisma.$queryRaw`SELECT 1`,
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("READINESS_DB_TIMEOUT")), 3000)
+      ),
+    ]);
+
+    res.json({
+      ok: true,
+      ready: true,
+      db: "up",
+      requestId: req.id || null,
+      time: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(503).json({
+      ok: false,
+      ready: false,
+      db: "down",
+      code: error?.message === "READINESS_DB_TIMEOUT" ? "READINESS_DB_TIMEOUT" : "READINESS_DB_DOWN",
+      requestId: req.id || null,
+      time: new Date().toISOString(),
+    });
+  }
+});
+
+app.get("/api/metrics", async (req, res) => {
+  const payload = await collectOperationalMetrics();
+  payload.requestId = req.id || null;
+  const status = payload.ok ? 200 : 503;
+  if (!payload.ok) payload.code = payload.db.code;
+  res.status(status).json(payload);
+});
+
+app.get("/api/metrics/prometheus", async (req, res) => {
+  const payload = await collectOperationalMetrics();
+  const uptime = Number(payload.service.uptimeSec || 0);
+  const rssBytes = Math.round((payload.memory.rssMb || 0) * 1024 * 1024);
+  const heapUsedBytes = Math.round((payload.memory.heapUsedMb || 0) * 1024 * 1024);
+  const heapTotalBytes = Math.round((payload.memory.heapTotalMb || 0) * 1024 * 1024);
+  const externalBytes = Math.round((payload.memory.externalMb || 0) * 1024 * 1024);
+  const dbUp = payload.db?.ok ? 1 : 0;
+  const dbLatencyMs = Number(payload.db?.latencyMs || 0);
+
+  const lines = [
+    "# HELP inventario_uptime_seconds Process uptime in seconds",
+    "# TYPE inventario_uptime_seconds gauge",
+    `inventario_uptime_seconds ${uptime}`,
+    "# HELP inventario_process_resident_memory_bytes Resident set size in bytes",
+    "# TYPE inventario_process_resident_memory_bytes gauge",
+    `inventario_process_resident_memory_bytes ${rssBytes}`,
+    "# HELP inventario_process_heap_used_bytes Used JS heap in bytes",
+    "# TYPE inventario_process_heap_used_bytes gauge",
+    `inventario_process_heap_used_bytes ${heapUsedBytes}`,
+    "# HELP inventario_process_heap_total_bytes Total JS heap in bytes",
+    "# TYPE inventario_process_heap_total_bytes gauge",
+    `inventario_process_heap_total_bytes ${heapTotalBytes}`,
+    "# HELP inventario_process_external_bytes External memory in bytes",
+    "# TYPE inventario_process_external_bytes gauge",
+    `inventario_process_external_bytes ${externalBytes}`,
+    "# HELP inventario_db_up Database reachability status (1=up,0=down)",
+    "# TYPE inventario_db_up gauge",
+    `inventario_db_up ${dbUp}`,
+    "# HELP inventario_db_latency_ms Database ping latency in milliseconds",
+    "# TYPE inventario_db_latency_ms gauge",
+    `inventario_db_latency_ms ${dbLatencyMs}`,
+    "# HELP inventario_build_info Build and runtime metadata",
+    "# TYPE inventario_build_info gauge",
+    `inventario_build_info{service="${escapePromLabel(payload.service.name)}",version="${escapePromLabel(payload.service.version)}",node="${escapePromLabel(payload.service.node)}",env="${escapePromLabel(payload.service.env)}"} 1`,
+  ];
+
+  res.setHeader("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
+  res.status(payload.ok ? 200 : 503).send(`${lines.join("\n")}\n`);
+});
+
 // Route-level rate limits
 app.use(
   "/auth",
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: env.NODE_ENV === "production" ? 30 : 200,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Demasiados intentos, intenta mas tarde" },
+  })
+);
+app.use(
+  "/api/auth",
   rateLimit({
     windowMs: 15 * 60 * 1000,
     max: env.NODE_ENV === "production" ? 30 : 200,
@@ -225,7 +330,26 @@ app.use(
   })
 );
 app.use(
+  "/api/auth/login",
+  rateLimit({
+    windowMs: 10 * 60 * 1000,
+    max: env.NODE_ENV === "production" ? 10 : 50,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Demasiados intentos de login, espera 10 minutos" },
+  })
+);
+app.use(
   "/admin",
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: env.NODE_ENV === "production" ? 120 : 600,
+    standardHeaders: true,
+    legacyHeaders: false,
+  })
+);
+app.use(
+  "/api/admin",
   rateLimit({
     windowMs: 15 * 60 * 1000,
     max: env.NODE_ENV === "production" ? 120 : 600,
@@ -243,7 +367,26 @@ app.use(
   })
 );
 app.use(
+  "/api/audit",
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: env.NODE_ENV === "production" ? 120 : 600,
+    standardHeaders: true,
+    legacyHeaders: false,
+  })
+);
+app.use(
   "/assets/import/excel",
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: env.NODE_ENV === "production" ? 10 : 60,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Demasiadas importaciones, intenta mas tarde" },
+  })
+);
+app.use(
+  "/api/assets/import/excel",
   rateLimit({
     windowMs: 15 * 60 * 1000,
     max: env.NODE_ENV === "production" ? 10 : 60,
@@ -263,7 +406,27 @@ app.use(
   })
 );
 app.use(
+  "/api/assets/export",
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: env.NODE_ENV === "production" ? 30 : 200,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Demasiadas exportaciones, intenta mas tarde" },
+  })
+);
+app.use(
   "/planchetas/excel",
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: env.NODE_ENV === "production" ? 30 : 200,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Demasiadas exportaciones, intenta mas tarde" },
+  })
+);
+app.use(
+  "/api/planchetas/excel",
   rateLimit({
     windowMs: 15 * 60 * 1000,
     max: env.NODE_ENV === "production" ? 30 : 200,
@@ -282,6 +445,16 @@ app.use(
     message: { error: "Demasiadas exportaciones, intenta mas tarde" },
   })
 );
+app.use(
+  "/api/planchetas/pdf",
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: env.NODE_ENV === "production" ? 30 : 200,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Demasiadas exportaciones, intenta mas tarde" },
+  })
+);
 
 app.use("/assets", assetsRouter);
 app.use("/auth", authRouter);
@@ -289,6 +462,12 @@ app.use("/audit", auditRouter);
 app.use("/planchetas", planchetasRouter);
 app.use("/catalog", catalogRouter);
 app.use("/admin", adminCrudRouter);
+app.use("/api/assets", assetsRouter);
+app.use("/api/auth", authRouter);
+app.use("/api/audit", auditRouter);
+app.use("/api/planchetas", planchetasRouter);
+app.use("/api/catalog", catalogRouter);
+app.use("/api/admin", adminCrudRouter);
 
 app.use(notFound);
 app.use(errorHandler);

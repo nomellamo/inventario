@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-     "start": "node server.js",
+    "start": "node src/server.js",
     "test": "node scripts/criticalSuite.js",
     "test:api": "node scripts/testApiSimple.js",
     "test:critical": "node scripts/criticalSuite.js",
