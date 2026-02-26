@@ -3,6 +3,7 @@ import QRCode from 'qrcode'
 import JsBarcode from 'jsbarcode'
 import jsPDF from 'jspdf'
 import * as XLSX from 'xlsx'
+import { SpeedInsights } from '@vercel/speed-insights/react'
 import logoInventacore from './assets/images/logo-inventacore.png'
 import './App.css'
 
@@ -9965,6 +9966,7 @@ function App() {
           </div>
         </div>
       )}
+      <SpeedInsights />
     </div>
   )
 }
