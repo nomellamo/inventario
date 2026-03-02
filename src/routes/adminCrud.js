@@ -31,6 +31,7 @@ const {
   officialKeyAvailabilityQuery,
   userCreate,
   userUpdate,
+  userResetPasswordBody,
   supportAskBody,
   supportRequestCreate,
   supportRequestQuery,
@@ -98,6 +99,7 @@ const {
   updateUser,
   deactivateUser,
   reactivateUser,
+  resetUserPassword,
   getUserForceDeleteSummary,
   deleteUserPermanentForce,
   setUserPhoto,
@@ -600,6 +602,17 @@ router.put(
   validateBody(userUpdate),
   asyncHandler(async (req, res) => {
     const item = await updateUser(req.params.id, req.body, req.user);
+    res.json(item);
+  })
+);
+
+router.post(
+  "/users/:id/reset-password",
+  validateParams(idParam),
+  requireJson,
+  validateBody(userResetPasswordBody),
+  asyncHandler(async (req, res) => {
+    const item = await resetUserPassword(req.params.id, req.body, req.user);
     res.json(item);
   })
 );

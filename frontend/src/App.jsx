@@ -2820,6 +2820,29 @@ function App() {
     }
   }
 
+  async function resetUserPasswordAdmin(user) {
+    try {
+      const suggestedPassword = 'Temporal2026!'
+      const rawPassword = window.prompt(
+        `Nueva clave temporal para ${user.email}`,
+        suggestedPassword
+      )
+      if (rawPassword === null) return
+      const password = String(rawPassword).trim()
+      if (password.length < 8) {
+        setErr('La clave temporal debe tener al menos 8 caracteres.')
+        return
+      }
+      const result = await api(`/admin/users/${user.id}/reset-password`, {
+        method: 'POST',
+        body: { password },
+      })
+      setOk(`Clave restablecida para ${result.email}. Temporal: ${password}`)
+    } catch (err) {
+      setErr(err)
+    }
+  }
+
   async function askCentralAssistant() {
     try {
       const question = String(assistantQuestion || '').trim()
@@ -7415,6 +7438,13 @@ function App() {
                         onClick={() => updateUserAdmin(u)}
                       >
                         Guardar
+                      </button>
+                      <button
+                        className="ghost"
+                        disabled={Number(currentUser?.id) === Number(u.id)}
+                        onClick={() => resetUserPasswordAdmin(u)}
+                      >
+                        Restablecer clave
                       </button>
                       {u.isActive ? (
                         <button

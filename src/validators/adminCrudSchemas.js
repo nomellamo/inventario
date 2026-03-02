@@ -1,4 +1,5 @@
 const { z } = require("zod");
+const { booleanLike } = require("./boolean");
 
 const optionalPositiveInt = z.preprocess((value) => {
   if (value === undefined || value === null) return undefined;
@@ -11,7 +12,7 @@ const pagination = z.object({
   q: z.string().optional(),
   take: z.coerce.number().int().min(1).max(100).optional(),
   skip: z.coerce.number().int().min(0).optional(),
-  includeInactive: z.coerce.boolean().optional(),
+  includeInactive: booleanLike,
 });
 
 const establishmentsQuery = pagination.extend({
@@ -36,7 +37,7 @@ const adminAuditQuery = z.object({
 
 const loginAuditQuery = z.object({
   email: z.string().optional(),
-  success: z.coerce.boolean().optional(),
+  success: booleanLike,
   userId: z.coerce.number().int().positive().optional(),
   fromDate: z.coerce.date().optional(),
   toDate: z.coerce.date().optional(),
@@ -86,7 +87,7 @@ const usersQuery = z.object({
   institutionId: z.coerce.number().int().positive().optional(),
   establishmentId: z.coerce.number().int().positive().optional(),
   roleType: z.enum(["ADMIN_CENTRAL", "ADMIN_ESTABLISHMENT", "VIEWER"]).optional(),
-  includeInactive: z.coerce.boolean().optional(),
+  includeInactive: booleanLike,
   take: z.coerce.number().int().min(1).max(100).optional(),
   skip: z.coerce.number().int().min(0).optional(),
 });
@@ -144,7 +145,7 @@ const dependencyBulkCreate = z.object({
 const dependencyReplicateBody = z.object({
   sourceEstablishmentId: z.coerce.number().int().positive(),
   targetEstablishmentId: z.coerce.number().int().positive(),
-  includeInactive: z.coerce.boolean().optional(),
+  includeInactive: booleanLike,
 });
 
 const catalogItemsQuery = pagination.extend({
@@ -199,6 +200,10 @@ const userUpdate = z.object({
   roleType: z.enum(["ADMIN_CENTRAL", "ADMIN_ESTABLISHMENT", "VIEWER"]).optional(),
   institutionId: optionalPositiveInt,
   establishmentId: optionalPositiveInt,
+});
+
+const userResetPasswordBody = z.object({
+  password: z.string().min(8).max(100),
 });
 
 const supportAskBody = z.object({
@@ -271,6 +276,7 @@ module.exports = {
   officialKeyAvailabilityQuery,
   userCreate,
   userUpdate,
+  userResetPasswordBody,
   supportAskBody,
   supportRequestCreate,
   supportRequestQuery,

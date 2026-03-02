@@ -434,6 +434,48 @@ async function reactivateUser(userId, actor) {
   return updated;
 }
 
+async function resetUserPassword(userId, data, actor) {
+  requireCentral(actor);
+
+  const existing = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { role: true },
+  });
+  if (!existing) throw notFound("Usuario no existe");
+  if (existing.id === actor.id) {
+    throw badRequest("Usa tu cambio de clave personal para tu propia cuenta");
+  }
+
+  const passwordHash = await hashPassword(data.password);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: userId },
+      data: { password: passwordHash },
+      select: { id: true },
+    });
+
+    await logAdminAudit({
+      userId: actor.id,
+      entityType: "USER",
+      action: "UPDATE",
+      entityId: userId,
+      before: null,
+      after: {
+        passwordReset: true,
+        email: existing.email,
+      },
+      db: tx,
+    });
+  });
+
+  return {
+    id: existing.id,
+    email: existing.email,
+    passwordReset: true,
+  };
+}
+
 async function getUserForceDeleteSummary(userId, actor) {
   requireCentral(actor);
   const existing = await prisma.user.findUnique({ where: { id: userId } });
@@ -624,6 +666,7 @@ module.exports = {
   updateUser,
   deactivateUser,
   reactivateUser,
+  resetUserPassword,
   getUserForceDeleteSummary,
   deleteUserPermanentForce,
   setUserPhoto,
