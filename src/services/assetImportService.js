@@ -10,7 +10,6 @@ const {
   MAX_SHORT_TEXT,
   normalizeCostCenter,
   normalizeRut,
-  validateRutFormat,
 } = require("../utils/assetRules");
 const { ensureUniqueAssetIdentity } = require("../utils/assetIdentity");
 
@@ -102,6 +101,17 @@ function normalizeOptionalImportValue(value) {
   if (isImportPlaceholder(value)) return null;
   const text = normalizeImportText(value);
   return text ? text : null;
+}
+
+function normalizeImportRutValue(value) {
+  const raw = normalizeOptionalImportValue(value);
+  if (!raw) return null;
+  const cleaned = String(raw)
+    .replace(/^'+/, "")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .trim();
+  if (!cleaned) return null;
+  return normalizeRut(cleaned) || null;
 }
 
 function parseImportAcquisitionValue(value) {
@@ -329,7 +339,7 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
         serialNumber: normalizeOptionalImportValue(getRowValue(row, keyMap, "serialnumber")),
         quantityRaw: getRowValue(row, keyMap, "quantity"),
         responsibleName: normalizeOptionalImportValue(getRowValue(row, keyMap, "responsiblename")),
-        responsibleRut: getRowValue(row, keyMap, "responsiblerut"),
+        responsibleRut: normalizeImportRutValue(getRowValue(row, keyMap, "responsiblerut")),
         responsibleRole: normalizeOptionalImportValue(getRowValue(row, keyMap, "responsiblerole")),
         costCenter: normalizeOptionalImportValue(getRowValue(row, keyMap, "costcenter")),
         acquisitionValue: parseImportAcquisitionValue(getRowValue(row, keyMap, "acquisitionvalue")),
@@ -341,7 +351,7 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
           ? 1
           : parsePositiveInt(input.quantityRaw);
       input.quantity = quantity;
-      const normalizedResponsibleRut = normalizeRut(input.responsibleRut);
+      const normalizedResponsibleRut = input.responsibleRut || null;
       const normalizedCostCenter = normalizeCostCenter(input.costCenter);
       const establishmentNameKey = normalizeLookupValue(input.establishmentName);
       const dependencyNameKey = normalizeLookupValue(input.dependencyName);
@@ -596,12 +606,6 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
       if (input.quantity > 1 && input.serialNumber) {
         invalidFields.push("serialNumber");
       }
-      if (validateRutFormat("responsibleRut", input.responsibleRut)) {
-        invalidFields.push("responsibleRut");
-      }
-      if (validateStringMax("responsibleRut", normalizedResponsibleRut, MAX_SHORT_TEXT)) {
-        invalidFields.push("responsibleRut");
-      }
       if (validateStringMax("responsibleRole", input.responsibleRole, MAX_SHORT_TEXT)) {
         invalidFields.push("responsibleRole");
       }
@@ -708,7 +712,7 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
                   responsibleName: input.responsibleName
                     ? String(input.responsibleName)
                     : null,
-                  responsibleRut: normalizedResponsibleRut,
+                  responsibleRut: normalizedResponsibleRut || null,
                   responsibleRole: input.responsibleRole
                     ? String(input.responsibleRole)
                     : null,
