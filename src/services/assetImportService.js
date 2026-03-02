@@ -42,11 +42,30 @@ const HEADER_ALIASES = {
   fechaadquisicion: "acquisitiondate",
   cantidad: "quantity",
   rutresponsable: "responsiblerut",
+  responsable: "responsiblename",
+  cargoresponsable: "responsiblerole",
   centrocosto: "costcenter",
+  centrodecosto: "costcenter",
 };
+
+const IMPORT_PLACEHOLDER_TEXTS = new Set([
+  "s/i",
+  "si",
+  "n/a",
+  "na",
+  "por informar",
+  "por asignar",
+  "sin informacion",
+  "sin informacion.",
+  "sin info",
+  "no informa",
+  "no informado",
+]);
 
 function normalizeHeader(value) {
   return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .replace(/\s+/g, "")
     .replace(/_/g, "")
@@ -76,9 +95,44 @@ function parsePositiveInt(value) {
   return num;
 }
 
+function normalizeImportText(value) {
+  if (value === undefined || value === null) return "";
+  return String(value).trim();
+}
+
+function isImportPlaceholder(value) {
+  const normalized = normalizeImportText(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+  return IMPORT_PLACEHOLDER_TEXTS.has(normalized);
+}
+
+function normalizeOptionalImportValue(value) {
+  if (value === undefined || value === null) return null;
+  if (isImportPlaceholder(value)) return null;
+  const text = normalizeImportText(value);
+  return text ? text : null;
+}
+
+function parseImportAcquisitionValue(value) {
+  if (isImportPlaceholder(value)) return 1;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : Number.NaN;
+}
+
+function parseImportAcquisitionDate(value) {
+  if (isImportPlaceholder(value)) return new Date();
+  return parseExcelDate(value);
+}
+
 function normalizeLookupValue(value) {
   return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .trim()
+    .replace(/\s+/g, " ")
     .toLowerCase();
 }
 
@@ -187,20 +241,42 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
       }),
     ]);
     const establishmentByName = new Map();
+    const establishmentRows = [];
     for (const item of allEstablishments) {
       const key = normalizeLookupValue(item.name);
       if (!key) continue;
+      establishmentRows.push({ id: item.id, key, raw: item.name });
       if (!establishmentByName.has(key)) establishmentByName.set(key, []);
       establishmentByName.get(key).push(item);
     }
     const dependencyByName = new Map();
     const dependencyByEstablishmentAndName = new Map();
+    const dependencyByEstablishmentNameAndName = new Map();
+    const dependencyRows = [];
+    const establishmentNameById = new Map(
+      allEstablishments.map((item) => [item.id, normalizeLookupValue(item.name)])
+    );
     for (const item of allDependencies) {
       const nameKey = normalizeLookupValue(item.name);
       if (!nameKey) continue;
+      dependencyRows.push({
+        id: item.id,
+        establishmentId: item.establishmentId,
+        key: nameKey,
+        raw: item.name,
+        establishmentNameKey: establishmentNameById.get(item.establishmentId) || "",
+      });
       if (!dependencyByName.has(nameKey)) dependencyByName.set(nameKey, []);
       dependencyByName.get(nameKey).push(item);
       dependencyByEstablishmentAndName.set(`${item.establishmentId}:${nameKey}`, item.id);
+      const estNameKey = establishmentNameById.get(item.establishmentId);
+      if (estNameKey) {
+        const pairKey = `${estNameKey}:${nameKey}`;
+        if (!dependencyByEstablishmentNameAndName.has(pairKey)) {
+          dependencyByEstablishmentNameAndName.set(pairKey, []);
+        }
+        dependencyByEstablishmentNameAndName.get(pairKey).push(item);
+      }
     }
     const stateByName = new Map(
       allStates.map((item) => [normalizeLookupValue(item.name), item.id])
@@ -228,14 +304,16 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
         name: getRowValue(row, keyMap, "name"),
         accountingAccount: getRowValue(row, keyMap, "accountingaccount"),
         analyticCode: getRowValue(row, keyMap, "analyticcode"),
-        brand: getRowValue(row, keyMap, "brand"),
-        modelName: getRowValue(row, keyMap, "modelname"),
-        serialNumber: getRowValue(row, keyMap, "serialnumber"),
+        brand: normalizeOptionalImportValue(getRowValue(row, keyMap, "brand")),
+        modelName: normalizeOptionalImportValue(getRowValue(row, keyMap, "modelname")),
+        serialNumber: normalizeOptionalImportValue(getRowValue(row, keyMap, "serialnumber")),
         quantityRaw: getRowValue(row, keyMap, "quantity"),
+        responsibleName: normalizeOptionalImportValue(getRowValue(row, keyMap, "responsiblename")),
         responsibleRut: getRowValue(row, keyMap, "responsiblerut"),
-        costCenter: getRowValue(row, keyMap, "costcenter"),
-        acquisitionValue: Number(getRowValue(row, keyMap, "acquisitionvalue")),
-        acquisitionDate: parseExcelDate(getRowValue(row, keyMap, "acquisitiondate")),
+        responsibleRole: normalizeOptionalImportValue(getRowValue(row, keyMap, "responsiblerole")),
+        costCenter: normalizeOptionalImportValue(getRowValue(row, keyMap, "costcenter")),
+        acquisitionValue: parseImportAcquisitionValue(getRowValue(row, keyMap, "acquisitionvalue")),
+        acquisitionDate: parseImportAcquisitionDate(getRowValue(row, keyMap, "acquisitiondate")),
       };
       const quantityText = String(input.quantityRaw ?? "").trim();
       const quantity =
@@ -250,10 +328,71 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
       const stateNameKey = normalizeLookupValue(input.assetStateName);
       const typeNameKey = normalizeLookupValue(input.assetTypeName);
 
+      // Allow exported templates with summary rows like "TOTAL".
+      const isSummaryRow = ["total", "totales"].includes(
+        String(input.name || "")
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .trim()
+          .toLowerCase()
+      );
+      if (isSummaryRow) {
+        continue;
+      }
+
       if (!input.establishmentId && establishmentNameKey) {
         const matched = establishmentByName.get(establishmentNameKey) || [];
         if (matched.length === 1) {
           input.establishmentId = matched[0].id;
+        } else if (matched.length === 0) {
+          const fuzzy = establishmentRows.filter(
+            (x) => x.key.includes(establishmentNameKey) || establishmentNameKey.includes(x.key)
+          );
+          if (fuzzy.length === 1) {
+            input.establishmentId = fuzzy[0].id;
+          }
+        }
+      }
+      if (
+        !input.establishmentId &&
+        establishmentNameKey &&
+        user.role?.type === "ADMIN_CENTRAL" &&
+        user.institutionId
+      ) {
+        const estNameRaw = String(input.establishmentName || "").trim();
+        if (estNameRaw) {
+          let found = await prisma.establishment.findFirst({
+            where: {
+              institutionId: Number(user.institutionId),
+              name: estNameRaw,
+            },
+            select: { id: true, isActive: true, name: true },
+          });
+          if (!found) {
+            found = await prisma.establishment.create({
+              data: {
+                name: estNameRaw,
+                type: "IMPORTADO",
+                institutionId: Number(user.institutionId),
+                isActive: true,
+              },
+              select: { id: true, isActive: true, name: true },
+            });
+          } else if (!found.isActive) {
+            found = await prisma.establishment.update({
+              where: { id: found.id },
+              data: { isActive: true },
+              select: { id: true, isActive: true, name: true },
+            });
+          }
+          input.establishmentId = found.id;
+          const key = normalizeLookupValue(found.name);
+          if (key) {
+            if (!establishmentByName.has(key)) establishmentByName.set(key, []);
+            establishmentByName.get(key).push({ id: found.id, name: found.name });
+            establishmentRows.push({ id: found.id, key, raw: found.name });
+            establishmentNameById.set(found.id, key);
+          }
         }
       }
       if (!input.assetStateId && stateNameKey) {
@@ -268,10 +407,99 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
             dependencyByEstablishmentAndName.get(
               `${input.establishmentId}:${dependencyNameKey}`
             ) || null;
+          if (!input.dependencyId) {
+            const fuzzy = dependencyRows.filter(
+              (x) =>
+                x.establishmentId === input.establishmentId &&
+                (x.key.includes(dependencyNameKey) || dependencyNameKey.includes(x.key))
+            );
+            if (fuzzy.length === 1) {
+              input.dependencyId = fuzzy[0].id;
+            }
+          }
+          if (
+            !input.dependencyId &&
+            user.role?.type === "ADMIN_CENTRAL" &&
+            input.establishmentId
+          ) {
+            const depNameRaw = String(input.dependencyName || "").trim();
+            if (depNameRaw) {
+              let depFound = await prisma.dependency.findFirst({
+                where: {
+                  establishmentId: input.establishmentId,
+                  name: depNameRaw,
+                },
+                select: { id: true, name: true, establishmentId: true, isActive: true },
+              });
+              if (!depFound) {
+                depFound = await prisma.dependency.create({
+                  data: {
+                    name: depNameRaw,
+                    establishmentId: input.establishmentId,
+                    isActive: true,
+                  },
+                  select: { id: true, name: true, establishmentId: true, isActive: true },
+                });
+              } else if (!depFound.isActive) {
+                depFound = await prisma.dependency.update({
+                  where: { id: depFound.id },
+                  data: { isActive: true },
+                  select: { id: true, name: true, establishmentId: true, isActive: true },
+                });
+              }
+              input.dependencyId = depFound.id;
+              const depKey = normalizeLookupValue(depFound.name);
+              if (depKey) {
+                if (!dependencyByName.has(depKey)) dependencyByName.set(depKey, []);
+                dependencyByName.get(depKey).push(depFound);
+                dependencyByEstablishmentAndName.set(
+                  `${depFound.establishmentId}:${depKey}`,
+                  depFound.id
+                );
+                const estNameKey = establishmentNameById.get(depFound.establishmentId);
+                if (estNameKey) {
+                  const pairKey = `${estNameKey}:${depKey}`;
+                  if (!dependencyByEstablishmentNameAndName.has(pairKey)) {
+                    dependencyByEstablishmentNameAndName.set(pairKey, []);
+                  }
+                  dependencyByEstablishmentNameAndName.get(pairKey).push(depFound);
+                }
+                dependencyRows.push({
+                  id: depFound.id,
+                  establishmentId: depFound.establishmentId,
+                  key: depKey,
+                  raw: depFound.name,
+                  establishmentNameKey:
+                    establishmentNameById.get(depFound.establishmentId) || "",
+                });
+              }
+            }
+          }
+        } else if (establishmentNameKey) {
+          const byPair =
+            dependencyByEstablishmentNameAndName.get(
+              `${establishmentNameKey}:${dependencyNameKey}`
+            ) || [];
+          if (byPair.length === 1) {
+            input.dependencyId = byPair[0].id;
+            input.establishmentId = byPair[0].establishmentId;
+          } else if (byPair.length === 0) {
+            const fuzzy = dependencyRows.filter(
+              (x) =>
+                (x.establishmentNameKey.includes(establishmentNameKey) ||
+                  establishmentNameKey.includes(x.establishmentNameKey)) &&
+                (x.key.includes(dependencyNameKey) || dependencyNameKey.includes(x.key))
+            );
+            if (fuzzy.length === 1) {
+              input.dependencyId = fuzzy[0].id;
+              input.establishmentId = fuzzy[0].establishmentId;
+            }
+          }
         } else {
           const matched = dependencyByName.get(dependencyNameKey) || [];
           if (matched.length === 1) {
             input.dependencyId = matched[0].id;
+            input.establishmentId = matched[0].establishmentId;
           }
         }
       }
@@ -308,14 +536,23 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
       if (validateStringMax("analyticCode", input.analyticCode, MAX_SHORT_TEXT)) {
         invalidFields.push("analyticCode");
       }
+      if (validateStringMax("responsibleName", input.responsibleName, MAX_SHORT_TEXT)) {
+        invalidFields.push("responsibleName");
+      }
       if (!Number.isInteger(input.quantity) || input.quantity <= 0) {
         invalidFields.push("quantity");
+      }
+      if (input.quantity > 1 && input.serialNumber) {
+        invalidFields.push("serialNumber");
       }
       if (validateRutFormat("responsibleRut", input.responsibleRut)) {
         invalidFields.push("responsibleRut");
       }
       if (validateStringMax("responsibleRut", normalizedResponsibleRut, MAX_SHORT_TEXT)) {
         invalidFields.push("responsibleRut");
+      }
+      if (validateStringMax("responsibleRole", input.responsibleRole, MAX_SHORT_TEXT)) {
+        invalidFields.push("responsibleRole");
       }
       if (validateStringMax("costCenter", normalizedCostCenter, MAX_SHORT_TEXT)) {
         invalidFields.push("costCenter");
@@ -326,6 +563,12 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
           row: rowIndex,
           error: "Datos requeridos incompletos o invalidos",
           fields: invalidFields,
+          values: {
+            establishmentName: input.establishmentName || null,
+            dependencyName: input.dependencyName || null,
+            assetStateName: input.assetStateName || null,
+            assetTypeName: input.assetTypeName || null,
+          },
         });
         continue;
       }
@@ -336,11 +579,13 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
           throw forbidden("No autorizado para este establecimiento");
         }
 
-        let asset = null;
-        let lastUniqueErr = null;
-        for (let attempt = 0; attempt < 3; attempt++) {
-          try {
-            asset = await prisma.$transaction(async (tx) => {
+        const createdAssets = await prisma.$transaction(async (tx) => {
+          const assetsInRow = [];
+          for (let unit = 0; unit < input.quantity; unit++) {
+            let asset = null;
+            let lastUniqueErr = null;
+            for (let attempt = 0; attempt < 3; attempt++) {
+              try {
               const establishment = await tx.establishment.findUnique({
                 where: { id: input.establishmentId },
                 select: { id: true, institutionId: true, isActive: true },
@@ -404,10 +649,16 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
                   brand: input.brand ? String(input.brand) : null,
                   modelName: input.modelName ? String(input.modelName) : null,
                   serialNumber: input.serialNumber ? String(input.serialNumber) : null,
-                  quantity: input.quantity,
+                  quantity: 1,
                   accountingAccount: String(input.accountingAccount),
                   analyticCode: String(input.analyticCode),
+                  responsibleName: input.responsibleName
+                    ? String(input.responsibleName)
+                    : null,
                   responsibleRut: normalizedResponsibleRut,
+                  responsibleRole: input.responsibleRole
+                    ? String(input.responsibleRole)
+                    : null,
                   costCenter: normalizedCostCenter,
                   acquisitionValue: Number(input.acquisitionValue),
                   acquisitionDate: new Date(input.acquisitionDate),
@@ -428,26 +679,29 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
                 },
               });
 
-              return createdAsset;
-            });
-            break;
-          } catch (e) {
-            if (isPrismaUniqueConstraintError(e)) {
-              lastUniqueErr = e;
-              continue;
+                asset = createdAsset;
+                break;
+              } catch (e) {
+                if (isPrismaUniqueConstraintError(e)) {
+                  lastUniqueErr = e;
+                  continue;
+                }
+                throw e;
+              }
             }
-            throw e;
+
+            if (!asset && lastUniqueErr) {
+              throw badRequest("Conflicto de codigo interno durante importacion");
+            }
+            if (!asset) {
+              throw badRequest("No se pudo crear asset durante importacion");
+            }
+            assetsInRow.push(asset);
           }
-        }
+          return assetsInRow;
+        });
 
-        if (!asset && lastUniqueErr) {
-          throw badRequest("Conflicto de codigo interno durante importacion");
-        }
-        if (!asset) {
-          throw badRequest("No se pudo crear asset durante importacion");
-        }
-
-        created.push(asset.id);
+        created.push(...createdAssets.map((item) => item.id));
       } catch (e) {
         errors.push({
           row: rowIndex,
@@ -494,13 +748,18 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
 
 async function buildAssetImportTemplate() {
   const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet("Assets");
+  const sheet = workbook.addWorksheet("Inventario");
   sheet.addRow([
     "Codigo Interno",
     "Nombre",
+    "Cantidad",
     "Marca",
     "Modelo",
     "Serie",
+    "Responsable",
+    "RUT Responsable",
+    "Cargo Responsable",
+    "Centro de Costo",
     "Cuenta Contable",
     "Analitico",
     "Tipo",
@@ -509,6 +768,8 @@ async function buildAssetImportTemplate() {
     "Dependencia",
     "Valor Adquisicion",
     "Fecha Adquisicion",
+    "DESCRIPCI\u00d3N DEL BIEN",
+    "DEPRECIACI\u00d3N",
   ]);
   sheet.getRow(1).font = { bold: true };
 
@@ -534,17 +795,24 @@ async function buildAssetImportTemplate() {
       sheet.addRow([
         "",
         "Ejemplo",
+        1,
         "Marca",
         "Modelo",
         "Serie",
+        "Encargado de Dependencia",
+        "11111111-1",
+        "Jefe de Dependencia",
+        "CC-001",
         "CT-001",
         "AN-001",
         "CONTROL",
         "BUENO",
         establishment.name,
         dependency.name,
-        10000,
-        new Date().toISOString().split("T")[0],
+        "POR INFORMAR",
+        "POR INFORMAR",
+        "Detalle referencial del bien",
+        "",
       ]);
     }
   } catch {

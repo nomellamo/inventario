@@ -1,5 +1,5 @@
 const { prisma } = require("../prisma");
-const { forbidden, badRequest } = require("../utils/httpError");
+const { badRequest } = require("../utils/httpError");
 
 function snapshotAsset(asset) {
   if (!asset) return null;
@@ -46,20 +46,28 @@ function clampSkip(skip) {
   return Math.max(skip || 0, 0);
 }
 
+function parsePositiveInt(value) {
+  if (value === undefined || value === null || value === "") return undefined;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) return undefined;
+  return parsed;
+}
+
 async function listAssetAudits(query, user) {
-  const take = clampTake(query.take);
-  const skip = clampSkip(query.skip);
+  const take = clampTake(Number(query.take));
+  const skip = clampSkip(Number(query.skip));
   const sortOrder = query.sortOrder === "asc" ? "asc" : "desc";
 
-  if (user.role.type === "ADMIN_ESTABLISHMENT") {
-    if (!user.establishmentId) {
-      throw badRequest("ADMIN_ESTABLISHMENT sin establishmentId");
-    }
+  if (user.role.type === "ADMIN_ESTABLISHMENT" && !user.establishmentId) {
+    throw badRequest("ADMIN_ESTABLISHMENT sin establishmentId");
   }
 
+  const assetId = parsePositiveInt(query.assetId);
+  const userId = parsePositiveInt(query.userId);
+
   const where = {
-    ...(query.assetId ? { assetId: query.assetId } : {}),
-    ...(query.userId ? { userId: query.userId } : {}),
+    ...(assetId ? { assetId } : {}),
+    ...(userId ? { userId } : {}),
     ...(query.action ? { action: query.action } : {}),
   };
 
@@ -77,13 +85,18 @@ async function listAssetAudits(query, user) {
   if (query.q) {
     const q = query.q.trim();
     const qNum = Number(q);
-    where.OR = [
-      ...(Number.isFinite(qNum) ? [{ assetId: qNum }] : []),
+    const or = [
       { asset: { name: { contains: q, mode: "insensitive" } } },
-      { asset: { internalCode: Number.isFinite(qNum) ? qNum : undefined } },
       { user: { name: { contains: q, mode: "insensitive" } } },
       { user: { email: { contains: q, mode: "insensitive" } } },
     ];
+
+    if (Number.isFinite(qNum)) {
+      or.push({ assetId: qNum });
+      or.push({ asset: { internalCode: qNum } });
+    }
+
+    where.OR = or;
   }
 
   const items = await prisma.assetAudit.findMany({

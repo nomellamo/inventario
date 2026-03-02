@@ -29,3 +29,7 @@ login_audit.xlsx
 CATALOGO_MAESTRO_CONTABLE_LISTO.xlsx
 assets_filtrados (1).xlsx
 exel para exportar e importar/
+
+# Local browser exports / snapshots
+inventario * Render Dashboard.html
+inventario * Render Dashboard_files/

@@ -182,12 +182,23 @@ async function deleteEstablishment(id, user) {
         _count: { _all: true },
       });
       if (activeAssetsByDep.length > 0) {
+        const blockedAssetsByDep = new Map(
+          activeAssetsByDep.map((x) => [Number(x.dependencyId), Number(x._count?._all || 0)])
+        );
+        const blockedDependencies = activeDependencies
+          .filter((dep) => blockedAssetsByDep.has(Number(dep.id)))
+          .map((dep) => ({
+            id: dep.id,
+            name: dep.name,
+            activeAssets: blockedAssetsByDep.get(Number(dep.id)) || 0,
+          }));
         throw conflict(
           "No se puede dar de baja: hay dependencias activas con activos vigentes asociados",
           ESTABLISHMENT_CONFLICT_CODES.HAS_ACTIVE_DEPENDENCIES,
           {
             activeDependencies: activeDependencies.length,
             blockedDependencyIds: activeAssetsByDep.map((x) => x.dependencyId),
+            blockedDependencies,
           }
         );
       }
@@ -286,7 +297,7 @@ async function deleteEstablishmentPermanent(id, user) {
   await logAdminAudit({
     userId: user.id,
     entityType: "ESTABLISHMENT",
-    action: "HARD_DELETE",
+    action: "DELETE",
     entityId: id,
     before: exists,
     after: null,
@@ -311,6 +322,7 @@ async function getEstablishmentForceDeleteSummary(id, user) {
     entityName: exists.name,
     confirmationText: FORCE_DELETE_CONFIRMATION_TEXT,
     summary: plan.summary,
+    details: plan.details || null,
   };
 }
 
@@ -341,7 +353,7 @@ async function deleteEstablishmentPermanentForce(id, data, user) {
     await logAdminAudit({
       userId: user.id,
       entityType: "ESTABLISHMENT",
-      action: "HARD_DELETE_FORCE",
+      action: "DELETE",
       entityId: id,
       before: exists,
       after: {
@@ -451,3 +463,4 @@ module.exports = {
   deleteEstablishmentPermanentForce,
   createEstablishmentsBulk,
 };
+

@@ -467,39 +467,51 @@ async function createCatalogItemsBulk(data, user) {
     toCreate.push(item);
   }
 
-  const created = [];
-  await prisma.$transaction(async (tx) => {
-    for (const item of toCreate) {
-      const createdItem = await tx.catalogItem.create({
-        data: {
-          name: item.name,
-          category: item.category,
-          subcategory: item.subcategory,
-          brand: item.brand,
-          modelName: item.modelName,
-          description: item.description,
-          unit: item.unit,
-          officialKey: item.officialKey,
-        },
-      });
-      created.push(createdItem);
-      await logAdminAudit({
-        userId: user.id,
-        entityType: "CATALOG_ITEM",
-        action: "CREATE",
-        entityId: createdItem.id,
-        before: null,
-        after: createdItem,
-        db: tx,
-      });
-    }
-  });
+  const createManyData = toCreate.map((item) => ({
+    name: item.name,
+    category: item.category,
+    subcategory: item.subcategory,
+    brand: item.brand,
+    modelName: item.modelName,
+    description: item.description,
+    unit: item.unit,
+    officialKey: item.officialKey,
+  }));
+
+  // Bulk insert avoids interactive transaction timeout on large files.
+  const createManyResult = createManyData.length
+    ? await prisma.catalogItem.createMany({
+        data: createManyData,
+        skipDuplicates: true,
+      })
+    : { count: 0 };
+
+  const createdCount = Number(createManyResult?.count || 0);
+  const raceSkipped = Math.max(0, toCreate.length - createdCount);
+  if (raceSkipped > 0) {
+    skipped.push({
+      reason: "ALREADY_EXISTS",
+      dedupeBy: "OFFICIAL_KEY_OR_COMPOSITE",
+      count: raceSkipped,
+    });
+  }
+
+  if (createdCount > 0) {
+    await logAdminAudit({
+      userId: user.id,
+      entityType: "CATALOG_ITEM",
+      action: "CREATE",
+      entityId: 0,
+      before: null,
+      after: { bulk: true, createdCount, skippedCount: skipped.length },
+    });
+  }
 
   return {
-    createdCount: created.length,
+    createdCount,
     skippedCount: skipped.length,
     skipped,
-    items: created,
+    items: [],
     dedupePolicy: DEDUPE_POLICY,
   };
 }
@@ -545,7 +557,14 @@ async function importCatalogItemsFromExcel(buffer, user, filename = "catalogo.xl
   requireCentral(user);
 
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(buffer);
+  try {
+    await workbook.xlsx.load(buffer);
+  } catch {
+    throw badRequest(
+      "Archivo Excel invalido o corrupto. Usa un .xlsx valido.",
+      "CATALOG_IMPORT_INVALID_FILE"
+    );
+  }
   const sheet = workbook.worksheets[0];
   if (!sheet) {
     return {

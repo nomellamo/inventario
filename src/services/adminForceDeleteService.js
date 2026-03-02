@@ -206,6 +206,43 @@ async function buildEstablishmentForceDeletePlan(db, establishmentId) {
       ? db.supportRequestComment.count({ where: { requestId: { in: supportRequestIds } } })
       : 0,
   ]);
+  const [dependencyRows, assetsByDependency, supportByDependency] = await Promise.all([
+    db.dependency.findMany({
+      where: { establishmentId },
+      select: { id: true, name: true, isActive: true },
+      orderBy: { name: "asc" },
+      take: 200,
+    }),
+    dependencyIds.length
+      ? db.asset.groupBy({
+          by: ["dependencyId"],
+          where: { dependencyId: { in: dependencyIds } },
+          _count: { _all: true },
+        })
+      : [],
+    dependencyIds.length
+      ? db.supportRequest.groupBy({
+          by: ["dependencyId"],
+          where: { dependencyId: { in: dependencyIds } },
+          _count: { _all: true },
+        })
+      : [],
+  ]);
+  const assetsByDepMap = new Map(
+    assetsByDependency.map((row) => [Number(row.dependencyId), Number(row._count?._all || 0)])
+  );
+  const supportByDepMap = new Map(
+    supportByDependency
+      .filter((row) => Number.isInteger(Number(row.dependencyId)))
+      .map((row) => [Number(row.dependencyId), Number(row._count?._all || 0)])
+  );
+  const dependencyDetails = dependencyRows.map((dep) => ({
+    id: dep.id,
+    name: dep.name,
+    isActive: dep.isActive,
+    assets: assetsByDepMap.get(Number(dep.id)) || 0,
+    supportRequests: supportByDepMap.get(Number(dep.id)) || 0,
+  }));
 
   return {
     dependencyIds,
@@ -227,6 +264,15 @@ async function buildEstablishmentForceDeletePlan(db, establishmentId) {
       ...assetSummary,
       ...userSummary,
       confirmationText: FORCE_DELETE_CONFIRMATION_TEXT,
+    },
+    details: {
+      dependencies: dependencyDetails,
+      branches: {
+        users: userIds.length,
+        assets: assetIds.length,
+        movements: movementIds.length,
+        supportRequests: supportRequestIds.length,
+      },
     },
   };
 }

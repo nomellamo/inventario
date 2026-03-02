@@ -222,7 +222,7 @@ async function deleteDependencyPermanent(id, user) {
   await logAdminAudit({
     userId: user.id,
     entityType: "DEPENDENCY",
-    action: "HARD_DELETE",
+    action: "DELETE",
     entityId: id,
     before: exists,
     after: null,
@@ -277,7 +277,7 @@ async function deleteDependencyPermanentForce(id, data, user) {
     await logAdminAudit({
       userId: user.id,
       entityType: "DEPENDENCY",
-      action: "HARD_DELETE_FORCE",
+      action: "DELETE",
       entityId: id,
       before: exists,
       after: {
@@ -490,3 +490,4 @@ module.exports = {
   createDependenciesBulk,
   replicateDependencies,
 };
+

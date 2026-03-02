@@ -156,7 +156,10 @@ router.get(
       "Content-Type",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     );
-    res.setHeader("Content-Disposition", "attachment; filename=assets_filtrados.xlsx");
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename=carga_masiva_activo_fijo.xlsx"
+    );
 
     await workbook.xlsx.write(res);
     res.end();

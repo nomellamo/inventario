@@ -11,17 +11,29 @@ function App() {
   const STORAGE_KEY = 'admin_panel_prefs'
   const CATALOG_ADMIN_TAKE = 20
   const MAX_TAKE = 100
-  const IMPORT_REQUIRED = [
-    'establishmentId',
-    'dependencyId',
-    'assetStateId',
-    'assetTypeId',
-    'Nombre',
-    'Cuenta Contable',
-    'Analítico',
-    'Valor Adquisición',
-    'Fecha Adquisición',
+  const IMPORT_REQUIRED_GROUPS = [
+    { label: 'Establecimiento', keys: ['establishmentId', 'Establecimiento'] },
+    { label: 'Dependencia', keys: ['dependencyId', 'Dependencia'] },
+    { label: 'Estado', keys: ['assetStateId', 'Estado'] },
+    { label: 'Tipo', keys: ['assetTypeId', 'Tipo'] },
+    { label: 'Nombre', keys: ['Nombre'] },
+    { label: 'Cuenta Contable', keys: ['Cuenta Contable'] },
+    { label: 'Analitico', keys: ['Analitico', 'Anal\u00edtico'] },
+    { label: 'Valor Adquisicion', keys: ['Valor Adquisicion', 'Valor Adquisici\u00f3n'] },
+    { label: 'Fecha Adquisicion', keys: ['Fecha Adquisicion', 'Fecha Adquisici\u00f3n'] },
   ]
+  const IMPORT_PLACEHOLDER_VALUES = new Set([
+    's/i',
+    'si',
+    'n/a',
+    'na',
+    'por informar',
+    'por asignar',
+    'sin informacion',
+    'sin info',
+    'no informa',
+    'no informado',
+  ])
   const [token, setToken] = useState(() => localStorage.getItem('admin_token') || '')
   const [currentUser, setCurrentUser] = useState(() => {
     const raw = localStorage.getItem('admin_user')
@@ -33,7 +45,7 @@ function App() {
     }
   })
   const [login, setLogin] = useState({
-    email: 'admin@cordillera.local',
+    email: 'admin@inventacore.local',
     password: 'admin123',
   })
   const [status, setStatus] = useState({
@@ -65,10 +77,17 @@ function App() {
     entityId: null,
     entityLabel: '',
     summary: null,
+    details: null,
     confirmationText: '',
     expectedConfirmationText: 'ELIMINAR DEFINITIVO',
     loading: false,
     deleting: false,
+  })
+  const [deleteBlockState, setDeleteBlockState] = useState({
+    open: false,
+    title: '',
+    summary: null,
+    dependencies: [],
   })
   const [activeTab, setActiveTab] = useState('institutions')
   const [importsView, setImportsView] = useState('assets')
@@ -201,6 +220,13 @@ function App() {
   const [assetCreating, setAssetCreating] = useState(false)
   const [assetHasResponsible, setAssetHasResponsible] = useState(true)
   const [createdAsset, setCreatedAsset] = useState(null)
+  const [createdAssetBatch, setCreatedAssetBatch] = useState([])
+  const [assetMultiProductEnabled, setAssetMultiProductEnabled] = useState(false)
+  const [assetMultiProductCount, setAssetMultiProductCount] = useState('2')
+  const [assetMultiProducts, setAssetMultiProducts] = useState([
+    { catalogItemId: '', quantity: '1', acquisitionValue: '' },
+    { catalogItemId: '', quantity: '1', acquisitionValue: '' },
+  ])
   const [qrCodeUrl, setQrCodeUrl] = useState('')
   const [assetErrors, setAssetErrors] = useState({})
   const [selectedCatalogItem, setSelectedCatalogItem] = useState(null)
@@ -407,10 +433,23 @@ function App() {
   })
   const [showHeroNotice, setShowHeroNotice] = useState(true)
 
+  const tokenClaims = useMemo(() => {
+    if (!token) return null
+    try {
+      const parts = String(token).split('.')
+      if (parts.length < 2) return null
+      const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+      const padded = `${b64}${'='.repeat((4 - (b64.length % 4)) % 4)}`
+      const json = atob(padded)
+      return JSON.parse(json)
+    } catch {
+      return null
+    }
+  }, [token])
   const isAuthed = useMemo(() => Boolean(token), [token])
   const roleType = useMemo(
-    () => currentUser?.role?.type || currentUser?.role || currentUser?.roleType || '',
-    [currentUser]
+    () => currentUser?.role?.type || currentUser?.role || currentUser?.roleType || tokenClaims?.role || '',
+    [currentUser, tokenClaims]
   )
   const isCentral = useMemo(() => roleType === 'ADMIN_CENTRAL', [roleType])
   const planchetaQuery = useMemo(() => buildPlanchetaQuery(), [planchetaFilters])
@@ -574,7 +613,8 @@ function App() {
     UNSUPPORTED_MEDIA_TYPE: 'Formato de envio inválido. Usa application/json.',
     PAYLOAD_TOO_LARGE: 'El archivo o payload excede el tamaño permitido.',
     ASSET_IMPORT_FILE_REQUIRED: 'Debes adjuntar un archivo Excel para importar activos fijos.',
-    CATALOG_IMPORT_FILE_REQUIRED: 'Debes adjuntar un archivo Excel para importar catálogo.',
+    CATALOG_IMPORT_FILE_REQUIRED: 'Debes adjuntar un archivo Excel para importar catalogo.',
+    CATALOG_IMPORT_INVALID_FILE: 'El archivo no es un Excel .xlsx valido o esta danado.',
     PLANCHETA_EMPTY_EXPORT: 'No hay datos para exportar con los filtros actuales.',
     INVALID_ASSET_ID: 'El identificador de activo fijo no es valido.',
     FORCE_DELETE_CONFIRMATION_INVALID: 'Confirmacion invalida para eliminacion forzada.',
@@ -1024,10 +1064,22 @@ function App() {
 
   function normalizePreviewHeader(value) {
     return String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
       .trim()
       .replace(/\s+/g, '')
       .replace(/_/g, '')
       .toLowerCase()
+  }
+
+  function isImportPlaceholderValue(value) {
+    const normalized = String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .replace(/\s+/g, ' ')
+      .toLowerCase()
+    return IMPORT_PLACEHOLDER_VALUES.has(normalized)
   }
 
   function normalizeSnCell(value) {
@@ -1190,7 +1242,7 @@ function App() {
       if (!sheetName) {
         setPreviewHeaders([])
         setPreviewRows([])
-        setPreviewMissing(IMPORT_REQUIRED)
+        setPreviewMissing(IMPORT_REQUIRED_GROUPS.map((group) => group.label))
         setPreviewInvalidCells({})
         return
       }
@@ -1198,12 +1250,10 @@ function App() {
       const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
       const headers = Array.isArray(rows[0]) ? rows[0] : []
       const normalized = headers.map((h) => normalizePreviewHeader(h))
-      const requiredNormalized = IMPORT_REQUIRED.map((col) =>
-        normalizePreviewHeader(col)
-      )
-      const missing = IMPORT_REQUIRED.filter(
-        (_, idx) => !normalized.includes(requiredNormalized[idx])
-      )
+      const missing = IMPORT_REQUIRED_GROUPS.filter((group) => {
+        const normalizedKeys = group.keys.map((key) => normalizePreviewHeader(key))
+        return !normalizedKeys.some((key) => normalized.includes(key))
+      }).map((group) => group.label)
 
       const preview = rows.slice(1, 11)
       const invalidMap = {}
@@ -1224,8 +1274,11 @@ function App() {
       preview.forEach((row, rowIdx) => {
         const base = rowIdx + 1
         const invalidCols = []
-        IMPORT_REQUIRED.forEach((required) => {
-          const colIdx = columnIndexByKey[normalizePreviewHeader(required)]
+        IMPORT_REQUIRED_GROUPS.forEach((group) => {
+          const normalizedKeys = group.keys.map((key) => normalizePreviewHeader(key))
+          const colIdx = normalizedKeys
+            .map((key) => columnIndexByKey[key])
+            .find((idx) => idx !== undefined)
           if (colIdx === undefined) return
           const value = row[colIdx]
           const str = String(value || '').trim()
@@ -1233,9 +1286,13 @@ function App() {
             invalidCols.push(colIdx)
             return
           }
-          if (normalizePreviewHeader(required) === 'acquisitionvalue') {
+          if (group.label === 'Valor Adquisicion') {
+            if (isImportPlaceholderValue(value)) return
             const num = Number(value)
             if (!Number.isFinite(num) || num <= 0) invalidCols.push(colIdx)
+          }
+          if (group.label === 'Fecha Adquisicion' && isImportPlaceholderValue(value)) {
+            return
           }
         })
 
@@ -1268,7 +1325,7 @@ function App() {
     } catch {
       setPreviewHeaders([])
       setPreviewRows([])
-      setPreviewMissing(IMPORT_REQUIRED)
+      setPreviewMissing(IMPORT_REQUIRED_GROUPS.map((group) => group.label))
       setPreviewInvalidCells({})
     }
   }
@@ -1708,6 +1765,24 @@ function App() {
     setConfirmState({ open: false, title: '', message: '', onConfirm: null })
   }
 
+  function openDeleteBlockModal({ title, summary, dependencies }) {
+    setDeleteBlockState({
+      open: true,
+      title: title || 'No se puede completar la acción',
+      summary: summary || null,
+      dependencies: Array.isArray(dependencies) ? dependencies : [],
+    })
+  }
+
+  function closeDeleteBlockModal() {
+    setDeleteBlockState({
+      open: false,
+      title: '',
+      summary: null,
+      dependencies: [],
+    })
+  }
+
   function getForceDeleteConfig(entityType, entityId) {
     if (entityType === 'institution') {
       return {
@@ -1775,6 +1850,7 @@ function App() {
       entityId,
       entityLabel: entityLabel || `#${entityId}`,
       summary: null,
+      details: null,
       confirmationText: '',
       expectedConfirmationText: 'ELIMINAR DEFINITIVO',
       loading: true,
@@ -1785,6 +1861,7 @@ function App() {
       setForceDeleteState((prev) => ({
         ...prev,
         summary: data?.summary || null,
+        details: data?.details || null,
         expectedConfirmationText: data?.confirmationText || 'ELIMINAR DEFINITIVO',
         loading: false,
       }))
@@ -1805,6 +1882,7 @@ function App() {
       entityId: null,
       entityLabel: '',
       summary: null,
+      details: null,
       confirmationText: '',
       expectedConfirmationText: 'ELIMINAR DEFINITIVO',
       loading: false,
@@ -2880,19 +2958,45 @@ function App() {
 
   function validateAssetForm() {
     const errors = {}
+    const useMultiProduct = assetMultiProductEnabled
     if (!assetForm.establishmentId) errors.establishmentId = 'Requerido'
     if (!assetForm.dependencyId) errors.dependencyId = 'Requerido'
     if (!assetForm.assetStateId) errors.assetStateId = 'Requerido'
     if (!assetForm.assetTypeId) errors.assetTypeId = 'Requerido'
-    if (!assetForm.catalogItemId && !assetForm.name) {
+    if (!useMultiProduct && !assetForm.catalogItemId && !assetForm.name) {
       errors.name = 'Requerido si no hay catálogo'
     }
     if (!assetForm.accountingAccount) errors.accountingAccount = 'Requerido'
-    const quantity = Number(assetForm.quantity)
-    if (!assetForm.quantity || !Number.isInteger(quantity) || quantity <= 0) {
-      errors.quantity = 'Debe ser un entero mayor a 0'
+    if (useMultiProduct) {
+      if (!assetMultiProducts.length) {
+        errors.multiProducts = 'Debes agregar al menos un producto.'
+      } else {
+        for (let i = 0; i < assetMultiProducts.length; i++) {
+          const row = assetMultiProducts[i]
+          const rowCatalogId = toPositiveIntOrNull(row.catalogItemId)
+          const rowQuantity = Number(row.quantity)
+          const rowValue = Number(row.acquisitionValue)
+          if (!rowCatalogId) {
+            errors.multiProducts = `Producto ${i + 1}: selecciona un item de catálogo.`
+            break
+          }
+          if (!Number.isInteger(rowQuantity) || rowQuantity <= 0) {
+            errors.multiProducts = `Producto ${i + 1}: cantidad inválida (entero > 0).`
+            break
+          }
+          if (!row.acquisitionValue || !Number.isFinite(rowValue) || rowValue <= 0) {
+            errors.multiProducts = `Producto ${i + 1}: precio inválido (> 0).`
+            break
+          }
+        }
+      }
+    } else {
+      const quantity = Number(assetForm.quantity)
+      if (!assetForm.quantity || !Number.isInteger(quantity) || quantity <= 0) {
+        errors.quantity = 'Debe ser un entero mayor a 0'
+      }
     }
-    if (!assetForm.acquisitionValue) errors.acquisitionValue = 'Requerido'
+    if (!useMultiProduct && !assetForm.acquisitionValue) errors.acquisitionValue = 'Requerido'
     if (!assetForm.acquisitionDate) errors.acquisitionDate = 'Requerido'
     if (assetHasResponsible && assetForm.responsibleRut) {
       const rut = String(assetForm.responsibleRut).trim()
@@ -3020,6 +3124,51 @@ function App() {
     doc.addImage(qr, 'PNG', qrX, qrY, qrSize, qrSize)
     doc.addImage(barcode, 'PNG', barcodeX, barcodeY, barcodeWidth, barcodeHeight)
     doc.save(`label_${label.code}.pdf`)
+  }
+
+  async function downloadBatchLabelsPdf() {
+    const batch = (createdAssetBatch || [])
+      .filter((item) => item?.internalCode)
+      .sort((a, b) => Number(a.internalCode || 0) - Number(b.internalCode || 0))
+    if (!batch.length) return
+    const doc = new jsPDF({ unit: 'mm', format: [LABEL.widthMm, LABEL.heightMm] })
+    for (let index = 0; index < batch.length; index++) {
+      if (index > 0) doc.addPage([LABEL.widthMm, LABEL.heightMm], 'portrait')
+      const label = getLabelData(batch[index])
+      const baseX = LABEL.marginMm + LABEL.offsetX
+      const baseY = LABEL.marginMm + LABEL.offsetY
+      const contentWidth = LABEL.widthMm - 2 * LABEL.marginMm
+      const centerX = baseX + contentWidth / 2
+      doc.setFontSize(8.8)
+      doc.text(String(label.code || '').substring(0, 22), centerX, baseY + 3.2, { align: 'center' })
+      const name = label.name || 'Activo Fijo'
+      doc.setFontSize(8)
+      doc.text(name.substring(0, 22), centerX, baseY + 6.3, { align: 'center' })
+      doc.setFontSize(6.2)
+      const metaLines = [
+        label.establishment ? `Est: ${label.establishment.substring(0, 20)}` : null,
+        label.dependency ? `Dep: ${label.dependency.substring(0, 20)}` : null,
+        label.assetState ? `Estado: ${label.assetState.substring(0, 16)}` : null,
+      ].filter(Boolean)
+      let y = baseY + 8.6
+      for (const line of metaLines.slice(0, 3)) {
+        doc.text(line, centerX, y, { align: 'center' })
+        y += 2.3
+      }
+      const qr = await QRCode.toDataURL(label.code, { margin: 1, width: 160 })
+      const barcode = buildBarcodeDataUrl(label.code)
+      const qrSize = 8
+      const barcodeWidth = 24
+      const barcodeHeight = 5
+      const mediaY = LABEL.heightMm - LABEL.marginMm - qrSize - 1 + LABEL.offsetY
+      const qrX = baseX + (contentWidth - (qrSize + 1 + barcodeWidth)) / 2
+      const qrY = mediaY
+      const barcodeX = qrX + qrSize + 1
+      const barcodeY = qrY + (qrSize - barcodeHeight) / 2
+      doc.addImage(qr, 'PNG', qrX, qrY, qrSize, qrSize)
+      doc.addImage(barcode, 'PNG', barcodeX, barcodeY, barcodeWidth, barcodeHeight)
+    }
+    doc.save(`labels_lote_${Date.now()}.pdf`)
   }
 
   async function openPrintLabel() {
@@ -3171,6 +3320,157 @@ function App() {
     win.document.close()
   }
 
+  async function openPrintBatchLabels() {
+    const batch = (createdAssetBatch || [])
+      .filter((item) => item?.internalCode)
+      .sort((a, b) => Number(a.internalCode || 0) - Number(b.internalCode || 0))
+    if (!batch.length) return
+    const win = window.open('', '_blank', 'width=640,height=520')
+    if (!win) {
+      setErr('El navegador bloqueó la ventana de impresión.')
+      return
+    }
+
+    const sheets = []
+    for (const item of batch) {
+      const label = getLabelData(item)
+      const qr = await QRCode.toDataURL(label.code, { margin: 1, width: 160 })
+      const barcode = buildBarcodeDataUrl(label.code)
+      const metaLines = [
+        label.establishment && `Est: ${escapeHtml(label.establishment)}`,
+        label.dependency && `Dep: ${escapeHtml(label.dependency)}`,
+        label.assetState && `Estado: ${escapeHtml(label.assetState)}`,
+      ]
+        .filter(Boolean)
+        .map((line) => `<div>${line}</div>`)
+        .join('')
+      sheets.push(`
+  <div class="sheet">
+    <div class="top">
+      <div class="code">${escapeHtml(label.code)}</div>
+      <div class="name">${escapeHtml(label.name)}</div>
+      <div class="meta">${metaLines}</div>
+    </div>
+    <div class="media">
+      <img class="qr" src="${qr}" alt="QR" />
+      <img class="barcode" src="${barcode}" alt="Barcode" />
+    </div>
+  </div>`)
+    }
+
+    const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Etiquetas lote (${batch.length})</title>
+  <style>
+    @page { size: ${LABEL.widthMm}mm ${LABEL.heightMm}mm; margin: 0; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      color: #0f172a;
+    }
+    .sheet {
+      width: ${LABEL.widthMm}mm;
+      height: ${LABEL.heightMm}mm;
+      padding: ${LABEL.marginMm}mm;
+      transform: translate(${LABEL.offsetX}mm, ${LABEL.offsetY}mm);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      text-align: center;
+      overflow: hidden;
+      page-break-after: always;
+    }
+    .sheet:last-child { page-break-after: auto; }
+    .top {
+      width: 100%;
+      min-height: 16mm;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 0.6mm;
+    }
+    .code {
+      font-weight: 700;
+      font-size: 8.8px;
+      line-height: 1.05;
+      max-width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .name {
+      font-size: 8px;
+      line-height: 1.05;
+      max-width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .meta {
+      font-size: 6.3px;
+      line-height: 1.05;
+      color: #334155;
+      width: 100%;
+      display: grid;
+      gap: 0.2mm;
+    }
+    .meta div {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .media {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1.1mm;
+      margin-bottom: 0.4mm;
+    }
+    .qr {
+      width: 8mm;
+      height: 8mm;
+      border: 0.2mm solid #e2e8f0;
+      padding: 0.25mm;
+      object-fit: contain;
+      background: #fff;
+    }
+    .barcode {
+      width: 24mm;
+      height: 5mm;
+      object-fit: contain;
+    }
+  </style>
+</head>
+<body>${sheets.join('\n')}
+  <script>
+    window.addEventListener('load', () => {
+      const imgs = Array.from(document.images);
+      let loaded = 0;
+      const done = () => { window.print(); setTimeout(() => window.close(), 300); };
+      if (!imgs.length) return done();
+      imgs.forEach(img => {
+        if (img.complete) { loaded++; if (loaded === imgs.length) done(); }
+        else img.onload = img.onerror = () => {
+          loaded++;
+          if (loaded === imgs.length) done();
+        };
+      });
+    });
+  </script>
+</body>
+</html>`
+    win.document.open()
+    win.document.write(html)
+    win.document.close()
+  }
+
   async function handleCreateAsset() {
     setAssetCreating(true)
     try {
@@ -3180,31 +3480,65 @@ function App() {
         setAssetCreating(false)
         return
       }
-      const payload = {
+      const useMultiProduct = assetMultiProductEnabled
+      const requestedQuantity = Number(assetForm.quantity)
+      const serialValue = String(assetForm.serialNumber || '').trim()
+      const basePayload = {
         establishmentId: Number(assetForm.establishmentId),
         dependencyId: Number(assetForm.dependencyId),
         assetStateId: Number(assetForm.assetStateId),
         assetTypeId: Number(assetForm.assetTypeId),
-        quantity: Number(assetForm.quantity),
         accountingAccount: assetForm.accountingAccount,
-        acquisitionValue: Number(assetForm.acquisitionValue),
         acquisitionDate: assetForm.acquisitionDate,
       }
-      if (assetForm.catalogItemId) payload.catalogItemId = Number(assetForm.catalogItemId)
-      if (assetForm.name) payload.name = assetForm.name
-      if (assetForm.brand) payload.brand = assetForm.brand
-      if (assetForm.modelName) payload.modelName = assetForm.modelName
-      if (assetForm.serialNumber) payload.serialNumber = assetForm.serialNumber
       if (assetHasResponsible) {
-        if (assetForm.responsibleName) payload.responsibleName = assetForm.responsibleName
-        if (assetForm.responsibleRut) payload.responsibleRut = normalizeRutValue(assetForm.responsibleRut)
-        if (assetForm.responsibleRole) payload.responsibleRole = assetForm.responsibleRole
-        if (assetForm.costCenter) payload.costCenter = normalizeCostCenterValue(assetForm.costCenter)
+        if (assetForm.responsibleName) basePayload.responsibleName = assetForm.responsibleName
+        if (assetForm.responsibleRut) {
+          basePayload.responsibleRut = normalizeRutValue(assetForm.responsibleRut)
+        }
+        if (assetForm.responsibleRole) basePayload.responsibleRole = assetForm.responsibleRole
+        if (assetForm.costCenter) basePayload.costCenter = normalizeCostCenterValue(assetForm.costCenter)
       }
 
-      const created = await api('/assets', { method: 'POST', body: payload })
-      let resolved = created
-      const createdId = toPositiveIntOrNull(created?.id)
+      let createdFromSingle = null
+      let createdItems = []
+      if (useMultiProduct) {
+        for (const row of assetMultiProducts) {
+          const rowPayload = {
+            ...basePayload,
+            catalogItemId: Number(row.catalogItemId),
+            quantity: Number(row.quantity),
+            acquisitionValue: Number(row.acquisitionValue),
+          }
+          const created = await api('/assets', { method: 'POST', body: rowPayload })
+          const rowItems = Array.isArray(created?.items) ? created.items : created ? [created] : []
+          createdItems.push(...rowItems)
+        }
+      } else {
+        const payload = {
+          ...basePayload,
+          quantity: requestedQuantity,
+          acquisitionValue: Number(assetForm.acquisitionValue),
+        }
+        if (assetForm.catalogItemId) payload.catalogItemId = Number(assetForm.catalogItemId)
+        if (assetForm.name) payload.name = assetForm.name
+        if (assetForm.brand) payload.brand = assetForm.brand
+        if (assetForm.modelName) payload.modelName = assetForm.modelName
+        if (serialValue && requestedQuantity === 1) payload.serialNumber = serialValue
+        createdFromSingle = await api('/assets', { method: 'POST', body: payload })
+        createdItems = Array.isArray(createdFromSingle?.items)
+          ? createdFromSingle.items
+          : createdFromSingle
+            ? [createdFromSingle]
+            : []
+      }
+      const primaryCreated = createdItems[0] || null
+      if (!primaryCreated) {
+        setErr('No se recibieron activos creados desde el servidor.')
+        return
+      }
+      let resolved = primaryCreated
+      const createdId = toPositiveIntOrNull(primaryCreated?.id)
       if (createdId) {
         try {
           resolved = await api(`/assets/${createdId}`)
@@ -3213,11 +3547,23 @@ function App() {
         }
       }
       setCreatedAsset(resolved)
+      setCreatedAssetBatch(createdItems.length > 1 ? createdItems : [])
       const resolvedId = toPositiveIntOrNull(resolved?.id)
       if (resolvedId) {
         localStorage.setItem('last_asset_id', String(resolvedId))
       }
-      setOk('Activo fijo creado correctamente.')
+      const totalCreated = useMultiProduct
+        ? createdItems.length
+        : Number(createdFromSingle?.createdCount || createdItems.length || 1)
+      if (totalCreated > 1) {
+        if (!useMultiProduct && serialValue) {
+          setOk(`Activos fijos creados: ${totalCreated}. Serie omitida por creación en lote.`)
+        } else {
+          setOk(`Activos fijos creados: ${totalCreated}.`)
+        }
+      } else {
+        setOk('Activo fijo creado correctamente.')
+      }
       setAssetErrors({})
     } catch (err) {
       const message = getAssetCreateConflictMessage(
@@ -3254,7 +3600,10 @@ function App() {
     if (type === 'edit') {
       setEditAssetForm({
         name: target.name || '',
-        quantity: target.quantity ?? '',
+        quantity:
+          target.quantity !== undefined && target.quantity !== null
+            ? String(target.quantity)
+            : '',
         brand: target.brand || '',
         modelName: target.modelName || '',
         serialNumber: target.serialNumber || '',
@@ -3315,14 +3664,16 @@ function App() {
         return
       }
       if (!assetStates.length) {
-        setErr('No hay estados disponibles. Carga estados primero.')
-        setCatalogAction(null)
-        return
+        loadAssetStates().catch((err) => setErr(err))
+      }
+      if (!(movementReasonCodes.statusChange || []).length) {
+        loadMovementReasonCodes().catch((err) => setErr(err))
       }
       const baja = assetStates.find((s) => s.name === 'BAJA')
+      const statusReasons = movementReasonCodes.statusChange || []
       setStatusAssetForm({
         assetStateId: baja ? String(baja.id) : '',
-        reasonCode: '',
+        reasonCode: statusReasons[0]?.code || '',
         docType: 'ACTA',
         note: '',
         file: null,
@@ -3363,6 +3714,7 @@ function App() {
         return
       }
       setCreatedAsset(asset)
+      setCreatedAssetBatch([])
       setSelectedCatalogItem(asset?.catalogItem || null)
       const scannedAssetId = toPositiveIntOrNull(asset.id)
       if (scannedAssetId) {
@@ -3389,6 +3741,7 @@ function App() {
       return
     }
     setCreatedAsset(asset)
+    setCreatedAssetBatch([])
     setSelectedCatalogItem(asset?.catalogItem || null)
     localStorage.setItem('last_asset_id', String(assetId))
     setCatalogModalOpen(true)
@@ -3619,6 +3972,38 @@ function App() {
     return [item.name, item.category].filter(Boolean).join(' · ')
   }
 
+  function sanitizeMultiProductCount(value) {
+    const parsed = Number(value)
+    if (!Number.isFinite(parsed)) return 1
+    return Math.max(1, Math.min(20, Math.trunc(parsed)))
+  }
+
+  function resizeMultiProducts(rawCount) {
+    const nextCount = sanitizeMultiProductCount(rawCount)
+    setAssetMultiProductCount(String(nextCount))
+    setAssetMultiProducts((prev) => {
+      const next = []
+      for (let i = 0; i < nextCount; i++) {
+        const current = prev[i] || {}
+        next.push({
+          catalogItemId: String(current.catalogItemId || ''),
+          quantity: current.quantity ? String(current.quantity) : '1',
+          acquisitionValue:
+            current.acquisitionValue !== undefined && current.acquisitionValue !== null
+              ? String(current.acquisitionValue)
+              : '',
+        })
+      }
+      return next
+    })
+  }
+
+  function updateMultiProductRow(index, patch) {
+    setAssetMultiProducts((prev) =>
+      prev.map((item, idx) => (idx === index ? { ...item, ...patch } : item))
+    )
+  }
+
   function uniqueById(items) {
     const map = new Map()
     for (const item of items || []) {
@@ -3830,13 +4215,26 @@ function App() {
     setLoadingPlancheta(true)
     try {
       const data = await api('/catalog/institutions?take=100&includeInactive=true')
-      setPlanchetaInstitutions(data.items || [])
-      if (!(data.items || []).length) {
+      const institutions = data.items || []
+      setPlanchetaInstitutions(institutions)
+      if (!institutions.length) {
         setPlanchetaMessage(
           'No hay instituciónes disponibles. Crea estructura base antes de usar planchetas.'
         )
       } else {
         setPlanchetaMessage('')
+        setPlanchetaFilters((prev) => {
+          if (prev.institutionId) return prev
+          const preferredInstitutionId =
+            (currentUser?.institutionId && String(currentUser.institutionId)) ||
+            (tokenClaims?.institutionId && String(tokenClaims.institutionId)) ||
+            String(institutions[0].id || '')
+          if (!preferredInstitutionId) return prev
+          return {
+            ...prev,
+            institutionId: preferredInstitutionId,
+          }
+        })
       }
     } catch (err) {
       setPlanchetaMessage(err.message)
@@ -3857,11 +4255,42 @@ function App() {
       params.set('take', '100')
       params.set('includeInactive', 'true')
       const data = await api(`/catalog/establishments?${params.toString()}`)
-      setPlanchetaEstablishments(data.items || [])
-      if (!(data.items || []).length) {
+      const establishments = data.items || []
+      setPlanchetaEstablishments(establishments)
+      if (!establishments.length) {
+        const scopedInstitutionId =
+          (currentUser?.institutionId && String(currentUser.institutionId)) ||
+          (tokenClaims?.institutionId && String(tokenClaims.institutionId)) ||
+          ''
+        if (scopedInstitutionId && String(scopedInstitutionId) !== String(institutionId)) {
+          setPlanchetaFilters((prev) => ({
+            ...prev,
+            institutionId: scopedInstitutionId,
+            establishmentId: '',
+            dependencyId: '',
+          }))
+          return
+        }
+        setPlanchetaFilters((prev) => ({
+          ...prev,
+          establishmentId: '',
+          dependencyId: '',
+        }))
         setPlanchetaMessage('No hay establecimientos en esta institución.')
       } else {
         setPlanchetaMessage('')
+        setPlanchetaFilters((prev) => {
+          if (prev.establishmentId) return prev
+          const preferredEstablishmentId =
+            (currentUser?.establishmentId && String(currentUser.establishmentId)) ||
+            (tokenClaims?.establishmentId && String(tokenClaims.establishmentId)) ||
+            String(establishments[0].id || '')
+          if (!preferredEstablishmentId) return prev
+          return {
+            ...prev,
+            establishmentId: preferredEstablishmentId,
+          }
+        })
       }
     } catch (err) {
       setPlanchetaEstablishments([])
@@ -4054,6 +4483,20 @@ function App() {
     }
     loadPlanchetaDependencies(planchetaFilters.establishmentId)
   }, [isAuthed, activeTab, planchetaFilters.establishmentId])
+
+  useEffect(() => {
+    if (activeTab !== 'planchetas') return
+    setPlanchetaPreview([])
+    setPlanchetaSummary([])
+  }, [
+    activeTab,
+    planchetaFilters.institutionId,
+    planchetaFilters.establishmentId,
+    planchetaFilters.dependencyId,
+    planchetaFilters.fromDate,
+    planchetaFilters.toDate,
+    planchetaFilters.includeHistory,
+  ])
 
   useEffect(() => {
     if (!isAuthed) return
@@ -4263,12 +4706,16 @@ function App() {
       }
       const created = await api('/admin/institutions', {
         method: 'POST',
-        body: instForm,
+        body: { name: instForm.name.trim() },
       })
       setInstForm({ name: '' })
       await Promise.all([loadInstitutions(), loadInstitutionCatalog()])
       setOk(`Institución creada: ${created.name}`)
     } catch (err) {
+      if (err?.status === 403) {
+        setErr('Tu sesion no tiene permisos ADMIN_CENTRAL. Cierra sesion y vuelve a ingresar.')
+        return
+      }
       setErr(err)
     }
   }
@@ -4331,6 +4778,11 @@ function App() {
           await loadInstitutions()
           setOk('Institucion eliminada definitivamente.')
         } catch (err) {
+          if (err?.code === 'INSTITUTION_HARD_DELETE_HAS_RELATIONS') {
+            openForceDelete('institution', id, `#${id}`)
+            setOk('La institución tiene relaciones. Usa eliminación forzada confirmada.')
+            return
+          }
           const message = getInstitutionConflictMessage(
             err,
             'No se pudo eliminar definitivamente la institucion.'
@@ -4394,6 +4846,18 @@ function App() {
         body: {
           name: payload.name || undefined,
           type: payload.type || undefined,
+          rbd:
+            payload.rbd === undefined
+              ? undefined
+              : String(payload.rbd).trim()
+                ? String(payload.rbd).trim()
+                : undefined,
+          commune:
+            payload.commune === undefined
+              ? undefined
+              : String(payload.commune).trim()
+                ? String(payload.commune).trim()
+                : undefined,
           institutionId: payload.institutionId
             ? Number(payload.institutionId)
             : undefined,
@@ -4421,6 +4885,16 @@ function App() {
             setOk('Establecimiento dado de baja.')
           }
         } catch (err) {
+          if (err?.code === 'ESTABLISHMENT_HAS_ACTIVE_DEPENDENCIES') {
+            openDeleteBlockModal({
+              title: 'No se puede dar de baja el establecimiento',
+              summary: {
+                activeDependencies: Number(err?.details?.activeDependencies || 0),
+              },
+              dependencies: err?.details?.blockedDependencies || [],
+            })
+            return
+          }
           const message = getEstablishmentConflictMessage(
             err,
             'No se pudo dar de baja el establecimiento.'
@@ -4458,6 +4932,11 @@ function App() {
           await loadEstablishments()
           setOk('Establecimiento eliminado definitivamente.')
         } catch (err) {
+          if (err?.code === 'ESTABLISHMENT_HARD_DELETE_HAS_RELATIONS') {
+            openForceDelete('establishment', id, `#${id}`)
+            setOk('El establecimiento tiene relaciones. Usa eliminación forzada confirmada.')
+            return
+          }
           const message = getEstablishmentConflictMessage(
             err,
             'No se pudo eliminar definitivamente el establecimiento.'
@@ -4618,6 +5097,11 @@ function App() {
           await loadDependencies()
           setOk('Dependencia eliminada definitivamente.')
         } catch (err) {
+          if (err?.code === 'DEPENDENCY_HARD_DELETE_HAS_RELATIONS') {
+            openForceDelete('dependency', id, `#${id}`)
+            setOk('La dependencia tiene relaciones. Usa eliminación forzada confirmada.')
+            return
+          }
           const message = getDependencyConflictMessage(
             err,
             'No se pudo eliminar definitivamente la dependencia.'
@@ -4739,6 +5223,11 @@ function App() {
   const labelData = createdAsset ? getLabelData(createdAsset) : null
   const createdLabel = createdAsset ? getLabelData(createdAsset) : null
   const modalCatalogItem = selectedCatalogItem || createdAsset?.catalogItem || null
+  const multiProductsTotalQuantity = assetMultiProducts.reduce((acc, row) => {
+    const qty = Number(row?.quantity)
+    if (!Number.isInteger(qty) || qty <= 0) return acc
+    return acc + qty
+  }, 0)
   const selectedAssetInstitution = institutionsCatalog.find(
     (inst) => String(inst.id) === String(assetInstitutionId)
   )
@@ -5593,7 +6082,7 @@ function App() {
                   type="email"
                   value={login.email}
                   onChange={(e) => setLogin({ ...login, email: e.target.value })}
-                  placeholder="admin@cordillera.local"
+                  placeholder="admin@inventacore.local"
                 />
               </div>
               <div className="field">
@@ -5684,8 +6173,8 @@ function App() {
           ))}
           <a
             className="ghost"
-            href="/manual/manual-operativo-técnico.pdf"
-            download="manual-operativo-técnico.pdf"
+            href="/manual/manual-operativo-tecnico.pdf"
+            download="manual-operativo-tecnico.pdf"
           >
             Descargar manual
           </a>
@@ -5758,7 +6247,7 @@ function App() {
               <div className="chip-row">
                 <span className="chip">
                   Búsqueda: {instQuery}
-                  <button onClick={() => setInstQuery('')}>×</button>
+                  <button onClick={() => setInstQuery('')}>x</button>
                 </span>
               </div>
             )}
@@ -5769,7 +6258,12 @@ function App() {
                   <input
                     placeholder="Nombre"
                     value={instForm.name}
-                    onChange={(e) => setInstForm({ name: e.target.value })}
+                    onChange={(e) => {
+                      setInstForm({ name: e.target.value })
+                      if (formErrors.instName) {
+                        setFormErrors((prev) => ({ ...prev, instName: '' }))
+                      }
+                    }}
                   />
                   {formErrors.instName && <p className="error">{formErrors.instName}</p>}
                   <button className="primary" onClick={createInstitution}>
@@ -5811,10 +6305,11 @@ function App() {
                   const dir = instSort.order === 'asc' ? 1 : -1
                   return a.name.localeCompare(b.name) * dir
                 })
-                .map((i) => (
+                .map((i, idx) => (
                 <div key={i.id} className="row">
                   <div className="row-main">
-                    <strong>#{i.id}</strong>
+                    <strong>#{isCentral ? (instPage - 1) * 20 + idx + 1 : idx + 1}</strong>
+                    <span className="pill">ID real: {i.id}</span>
                     {!i.isActive && <span className="pill danger-pill">INACTIVA</span>}
                     {isCentral ? (
                       <input
@@ -5969,7 +6464,7 @@ function App() {
                   <span className="chip">
                     Búsqueda: {estFilters.q}
                     <button onClick={() => setEstFilters({ ...estFilters, q: '' })}>
-                      ×
+                      x
                     </button>
                   </span>
                 )}
@@ -5979,7 +6474,7 @@ function App() {
                     <button
                       onClick={() => setEstFilters({ ...estFilters, institutionId: '' })}
                     >
-                      ×
+                      x
                     </button>
                   </span>
                 )}
@@ -6117,10 +6612,11 @@ function App() {
                     return (a.institutionId - b.institutionId) * dir
                   return a.name.localeCompare(b.name) * dir
                 })
-                .map((e) => (
+                .map((e, idx) => (
                 <div key={e.id} className="row">
                   <div className="row-main">
-                    <strong>#{e.id}</strong>
+                    <strong>#{(estPage - 1) * 20 + idx + 1}</strong>
+                    <span className="pill">ID real: {e.id}</span>
                     {!e.isActive && <span className="pill danger-pill">INACTIVO</span>}
                     <input
                       className="inline-input"
@@ -6307,7 +6803,7 @@ function App() {
                   <span className="chip">
                     Búsqueda: {depFilters.q}
                     <button onClick={() => setDepFilters({ ...depFilters, q: '' })}>
-                      ×
+                      x
                     </button>
                   </span>
                 )}
@@ -6322,7 +6818,7 @@ function App() {
                         setDepFilters({ ...depFilters, establishmentId: '' })
                       }
                     >
-                      ×
+                      x
                     </button>
                   </span>
                 )}
@@ -6502,10 +6998,11 @@ function App() {
                     return (a.establishmentId - b.establishmentId) * dir
                   return a.name.localeCompare(b.name) * dir
                 })
-                .map((d) => (
+                .map((d, idx) => (
                 <div key={d.id} className="row">
                   <div className="row-main">
-                    <strong>#{d.id}</strong>
+                    <strong>#{(depPage - 1) * 20 + idx + 1}</strong>
+                    <span className="pill">ID real: {d.id}</span>
                     {!d.isActive && <span className="pill danger-pill">INACTIVA</span>}
                     <input
                       className="inline-input"
@@ -6764,7 +7261,7 @@ function App() {
 
               {usersLoading && <p className="muted">Cargando usuarios...</p>}
               {!usersLoading &&
-                users.map((u) => (
+                users.map((u, idx) => (
                   <div key={u.id} className="row">
                     <div className="row-main">
                       <div className="user-thumb-wrap">
@@ -6774,7 +7271,8 @@ function App() {
                           <div className="user-thumb user-thumb-empty">Sin foto</div>
                         )}
                       </div>
-                      <strong>#{u.id}</strong>
+                      <strong>#{(usersPage - 1) * 20 + idx + 1}</strong>
+                      <span className="pill">ID real: {u.id}</span>
                       {!u.isActive && <span className="pill danger-pill">INACTIVO</span>}
                       <input
                         className="inline-input"
@@ -7113,10 +7611,11 @@ function App() {
               </div>
               {supportLoading && <p className="muted">Cargando solicitudes...</p>}
               {!supportLoading &&
-                supportRequests.map((item) => (
+                supportRequests.map((item, idx) => (
                   <div key={item.id} className="row">
                     <div className="row-main">
-                      <strong>#{item.id}</strong>
+                      <strong>#{(supportPage - 1) * 10 + idx + 1}</strong>
+                      <span className="pill">ID real: {item.id}</span>
                       <span className="pill">{item.status}</span>
                       <span className="pill">{item.priority}</span>
                       <span>{item.subject}</span>
@@ -7333,6 +7832,7 @@ function App() {
                   <p className="muted">Selecciona desde la lista de catálogo disponible.</p>
                   <select
                     value={assetForm.catalogItemId}
+                    disabled={assetMultiProductEnabled}
                     onChange={(e) => handleSelectCatalogItem(e.target.value)}
                   >
                     <option value="">Sin catálogo (manual)</option>
@@ -7347,6 +7847,7 @@ function App() {
                   <label>Nombre</label>
                   <input
                     value={assetForm.name}
+                    disabled={assetMultiProductEnabled}
                     onChange={(e) =>
                       setAssetForm((prev) => ({ ...prev, name: e.target.value }))
                     }
@@ -7358,6 +7859,7 @@ function App() {
                   <label>Marca</label>
                   <input
                     value={assetForm.brand}
+                    disabled={assetMultiProductEnabled}
                     onChange={(e) =>
                       setAssetForm((prev) => ({ ...prev, brand: e.target.value }))
                     }
@@ -7367,6 +7869,7 @@ function App() {
                   <label>Modelo</label>
                   <input
                     value={assetForm.modelName}
+                    disabled={assetMultiProductEnabled}
                     onChange={(e) =>
                       setAssetForm((prev) => ({ ...prev, modelName: e.target.value }))
                     }
@@ -7376,10 +7879,16 @@ function App() {
                   <label>Serie</label>
                   <input
                     value={assetForm.serialNumber}
+                    disabled={assetMultiProductEnabled || Number(assetForm.quantity) > 1}
                     onChange={(e) =>
                       setAssetForm((prev) => ({ ...prev, serialNumber: e.target.value }))
                     }
                   />
+                  {(assetMultiProductEnabled || Number(assetForm.quantity) > 1) && (
+                    <p className="muted">
+                      Para creación en lote la serie debe quedar vacía (se crean activos individuales).
+                    </p>
+                  )}
                 </div>
                 <div className="field">
                   <label>Cantidad</label>
@@ -7388,12 +7897,96 @@ function App() {
                     min="1"
                     step="1"
                     value={assetForm.quantity}
-                    onChange={(e) =>
-                      setAssetForm((prev) => ({ ...prev, quantity: e.target.value }))
-                    }
+                    disabled={assetMultiProductEnabled}
+                    onChange={(e) => {
+                      const nextQuantity = e.target.value
+                      setAssetForm((prev) => ({
+                        ...prev,
+                        quantity: nextQuantity,
+                        serialNumber:
+                          Number(nextQuantity) > 1 ? '' : prev.serialNumber,
+                      }))
+                    }}
                   />
                   {assetErrors.quantity && <p className="error">{assetErrors.quantity}</p>}
                 </div>
+                <label className="inline-check">
+                  <input
+                    type="checkbox"
+                    checked={assetMultiProductEnabled}
+                    onChange={(e) => {
+                      const enabled = e.target.checked
+                      setAssetMultiProductEnabled(enabled)
+                      if (enabled) {
+                        resizeMultiProducts(assetMultiProductCount || '2')
+                        setSelectedCatalogItem(null)
+                        setAssetForm((prev) => ({
+                          ...prev,
+                          serialNumber: '',
+                        }))
+                      }
+                    }}
+                  />
+                  Crear varios productos distintos (lote)
+                </label>
+                {assetMultiProductEnabled && (
+                  <div className="field">
+                    <label>¿Cuántos productos distintos deseas agregar?</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="20"
+                      value={assetMultiProductCount}
+                      onChange={(e) => resizeMultiProducts(e.target.value)}
+                    />
+                    <p className="muted">
+                      Define cada producto con su catálogo, cantidad y precio propio.
+                    </p>
+                    {assetMultiProducts.map((row, index) => (
+                      <div
+                        key={`multi-row-${index}`}
+                        style={{ borderTop: '1px solid #e2e8f0', paddingTop: 8, marginTop: 8 }}
+                      >
+                        <label>Producto {index + 1} · Catálogo</label>
+                        <select
+                          value={row.catalogItemId}
+                          onChange={(e) =>
+                            updateMultiProductRow(index, { catalogItemId: e.target.value })
+                          }
+                        >
+                          <option value="">Selecciona item de catálogo</option>
+                          {assetCatalogItems.map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {formatCatalogItemDisplay(item)}
+                            </option>
+                          ))}
+                        </select>
+                        <label>Cantidad producto {index + 1}</label>
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={row.quantity}
+                          onChange={(e) =>
+                            updateMultiProductRow(index, { quantity: e.target.value })
+                          }
+                        />
+                        <label>Precio producto {index + 1}</label>
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={row.acquisitionValue}
+                          onChange={(e) =>
+                            updateMultiProductRow(index, { acquisitionValue: e.target.value })
+                          }
+                        />
+                      </div>
+                    ))}
+                    <p className="muted">Total de bienes a crear: {multiProductsTotalQuantity}</p>
+                    {assetErrors.multiProducts && <p className="error">{assetErrors.multiProducts}</p>}
+                  </div>
+                )}
                 <div className="field">
                   <label>Cuenta contable</label>
                   <input
@@ -7501,10 +8094,14 @@ function App() {
                   <input
                     type="number"
                     value={assetForm.acquisitionValue}
+                    disabled={assetMultiProductEnabled}
                     onChange={(e) =>
                       setAssetForm((prev) => ({ ...prev, acquisitionValue: e.target.value }))
                     }
                   />
+                  {assetMultiProductEnabled && (
+                    <p className="muted">En modo lote, el precio se define por producto.</p>
+                  )}
                   {assetErrors.acquisitionValue && (
                     <p className="error">{assetErrors.acquisitionValue}</p>
                   )}
@@ -7524,7 +8121,11 @@ function App() {
                 </div>
                 <div className="actions">
                   <button className="primary" onClick={handleCreateAsset} disabled={assetCreating}>
-                    {assetCreating ? 'Creando...' : 'Crear activo fijo'}
+                    {assetCreating
+                      ? 'Creando...'
+                      : assetMultiProductEnabled
+                        ? 'Crear activos fijos (lote)'
+                        : 'Crear activo fijo'}
                   </button>
                   <button
                     className="ghost"
@@ -7552,6 +8153,13 @@ function App() {
                         })
                         setAssetHasResponsible(true)
                         setCreatedAsset(null)
+                        setCreatedAssetBatch([])
+                        setAssetMultiProductEnabled(false)
+                        setAssetMultiProductCount('2')
+                        setAssetMultiProducts([
+                          { catalogItemId: '', quantity: '1', acquisitionValue: '' },
+                          { catalogItemId: '', quantity: '1', acquisitionValue: '' },
+                        ])
                         setQrCodeUrl('')
                       })()
                     }
@@ -7616,6 +8224,7 @@ function App() {
                           if (asset) {
                             const selectedId = toPositiveIntOrNull(asset.id)
                             setCreatedAsset(asset)
+                            setCreatedAssetBatch([])
                             setSelectedCatalogItem(asset?.catalogItem || null)
                             if (selectedId) {
                               localStorage.setItem('last_asset_id', String(selectedId))
@@ -7640,7 +8249,7 @@ function App() {
                     </div>
                     <div className="label-scan-info">
                       <span>ID: #{createdAsset.id}</span>
-                      <span>Cantidad: {createdAsset.quantity ?? 1}</span>
+                        <span>Cantidad: {createdAsset.quantity ?? 1}</span>
                       {createdAsset.serialNumber && <span>Serie: {createdAsset.serialNumber}</span>}
                       {createdAsset.brand && <span>Marca: {createdAsset.brand}</span>}
                       {createdAsset.modelName && <span>Modelo: {createdAsset.modelName}</span>}
@@ -7664,6 +8273,19 @@ function App() {
                       <button className="ghost" onClick={downloadLabelPdf}>
                         Descargar PDF
                       </button>
+                      {createdAssetBatch.length > 1 &&
+                        createdAssetBatch.some(
+                          (item) => String(item?.id || '') === String(createdAsset?.id || '')
+                        ) && (
+                          <>
+                            <button className="ghost" onClick={openPrintBatchLabels}>
+                              Imprimir todas
+                            </button>
+                            <button className="ghost" onClick={downloadBatchLabelsPdf}>
+                              Descargar todas (PDF)
+                            </button>
+                          </>
+                        )}
                       <button
                         className="ghost"
                         onClick={() => {
@@ -7939,10 +8561,11 @@ function App() {
                   </button>
                 </div>
               </div>
-              {assetsList.map((asset) => (
+              {assetsList.map((asset, idx) => (
                 <div key={asset.id} className="row">
                   <div className="row-main">
-                    <strong>#{asset.id}</strong>
+                    <strong>#{(assetListPage - 1) * 20 + idx + 1}</strong>
+                    <span className="pill">ID real: {asset.id}</span>
                     <span className="pill">INV-{asset.internalCode}</span>
                     <span>{asset.name}</span>
                     <span className="pill">Cant: {asset.quantity ?? 1}</span>
@@ -7998,9 +8621,16 @@ function App() {
                     <button
                       className="danger"
                       disabled={asset.isDeleted || asset.assetState?.name === 'BAJA'}
+                      title={
+                        asset.isDeleted || asset.assetState?.name === 'BAJA'
+                          ? 'Este activo ya está en baja. Revísalo en Basurero para restaurar o eliminar forzado.'
+                          : 'Dar de baja'
+                      }
                       onClick={() => selectAssetForModal(asset, 'status')}
                     >
-                      Dar de baja
+                      {asset.isDeleted || asset.assetState?.name === 'BAJA'
+                        ? 'Ya en baja'
+                        : 'Dar de baja'}
                     </button>
                   </div>
                 </div>
@@ -8073,10 +8703,11 @@ function App() {
                   {trashLoading ? 'Cargando...' : `Mostrando ${trashAssets.length}`}
                 </span>
               </div>
-              {trashAssets.map((asset) => (
+              {trashAssets.map((asset, idx) => (
                 <div key={asset.id} className="row">
                   <div className="row-main">
-                    <strong>#{asset.id}</strong>
+                    <strong>#{idx + 1}</strong>
+                    <span className="pill">ID real: {asset.id}</span>
                     <span className="pill danger-pill">BAJA</span>
                     <span className="pill">INV-{asset.internalCode}</span>
                     <span>{asset.name}</span>
@@ -8144,7 +8775,7 @@ function App() {
                 <button
                   className="ghost"
                   onClick={() =>
-                    downloadFile('/assets/import/template/excel', 'assets_filtrados.xlsx')
+                    downloadFile('/assets/import/template/excel', 'carga_masiva_activo_fijo.xlsx')
                   }
                 >
                   Descargar plantilla Activo Fijo
@@ -8172,7 +8803,7 @@ function App() {
                   }}
                 />
                 <p className="muted">
-                  Columnas requeridas: Establecimiento, Dependencia, Tipo, Estado, Nombre, Cuenta Contable, Analítico, Valor Adquisición, Fecha Adquisición.
+                  Columnas requeridas: Establecimiento, Dependencia, Tipo, Estado, Nombre, Cuenta Contable, Anal\u00edtico, Valor Adquisici\u00f3n y Fecha Adquisici\u00f3n. La plantilla tambi\u00e9n acepta "POR INFORMAR" en valor/fecha.
                 </p>
                 <button className="primary" onClick={handleImportUpload} disabled={importLoading}>
                   {importLoading ? 'Importando...' : 'Importar Excel'}
@@ -8449,19 +9080,19 @@ function App() {
                 {catalogImportResult ? (
                   <div className="import-summary">
                     <p>
-                      Filas leidas: <strong>{catalogImportResult.totalRows ?? 0}</strong>
+                      Filas leidas: <strong>{catalogImportResult.totalRows || 0}</strong>
                     </p>
                     <p>
-                      Parseadas: <strong>{catalogImportResult.parsedCount ?? 0}</strong>
+                      Parseadas: <strong>{catalogImportResult.parsedCount || 0}</strong>
                     </p>
                     <p>
-                      Creadas: <strong>{catalogImportResult.createdCount ?? 0}</strong>
+                      Creadas: <strong>{catalogImportResult.createdCount || 0}</strong>
                     </p>
                     <p>
-                      Omitidas: <strong>{catalogImportResult.skippedCount ?? 0}</strong>
+                      Omitidas: <strong>{catalogImportResult.skippedCount || 0}</strong>
                     </p>
                     <p>
-                      Errores: <strong>{catalogImportResult.errorCount ?? 0}</strong>
+                      Errores: <strong>{catalogImportResult.errorCount || 0}</strong>
                     </p>
                     <p className="muted">
                       Dedupe: {catalogImportResult?.dedupePolicy?.primary || 'N/D'} | fallback:{' '}
@@ -8667,7 +9298,7 @@ function App() {
               {catalogAdminLoading ? (
                 <p className="muted">Cargando catálogo...</p>
               ) : catalogAdminItems.length ? (
-                catalogAdminItems.map((item) => {
+                catalogAdminItems.map((item, idx) => {
                   const original = catalogAdminOriginal[item.id]
                   const rowStatus = catalogAdminRowStatus[item.id]
                   const keyStatus = catalogAdminKeyStatus[item.id]
@@ -8686,7 +9317,8 @@ function App() {
                   return (
                     <div key={item.id} className="row">
                       <div className="row-main">
-                        <strong>#{item.id}</strong>
+                        <strong>#{(catalogAdminPage - 1) * 20 + idx + 1}</strong>
+                        <span className="pill">ID real: {item.id}</span>
                         <input
                           className="inline-input small"
                           placeholder="officialKey"
@@ -9558,7 +10190,7 @@ function App() {
                     <strong>{m.day}</strong>
                   </div>
                   <div className="muted">
-                    Éxitos: {m.success} · Fallos: {m.failed}
+                    Exitos: {m.success} · Fallos: {m.failed}
                   </div>
                 </div>
               ))}
@@ -9577,7 +10209,7 @@ function App() {
                         <div
                           className="bar-success"
                           style={{ width: `${successPct}%` }}
-                          title={`Éxitos: ${m.success}`}
+                          title={`Exitos: ${m.success}`}
                         />
                         <div
                           className="bar-fail"
@@ -9597,7 +10229,7 @@ function App() {
               <div className="table">
                 <div className="table-head">
                   <h4>Por hora</h4>
-                  <span className="muted">Éxitos / Fallos</span>
+                  <span className="muted">Exitos / Fallos</span>
                   <div className="sort-controls">
                     <label>Orden</label>
                     <select
@@ -9607,7 +10239,7 @@ function App() {
                       }
                     >
                       <option value="hour">Hora</option>
-                      <option value="success">Éxitos</option>
+                      <option value="success">Exitos</option>
                       <option value="failed">Fallos</option>
                     </select>
                     <button
@@ -9668,7 +10300,7 @@ function App() {
               <div className="table">
                 <div className="table-head">
                   <h4>Por IP</h4>
-                  <span className="muted">Éxitos / Fallos</span>
+                  <span className="muted">Exitos / Fallos</span>
                   <div className="sort-controls">
                     <label>Orden</label>
                     <select
@@ -9676,7 +10308,7 @@ function App() {
                       onChange={(e) => setIpSort((s) => ({ ...s, key: e.target.value }))}
                     >
                       <option value="failed">Fallos</option>
-                      <option value="success">Éxitos</option>
+                      <option value="success">Exitos</option>
                       <option value="ip">IP</option>
                     </select>
                     <button
@@ -9738,7 +10370,7 @@ function App() {
               <div className="table">
                 <div className="table-head">
                   <h4>Por Usuario</h4>
-                  <span className="muted">Éxitos / Fallos</span>
+                  <span className="muted">Exitos / Fallos</span>
                   <div className="sort-controls">
                     <label>Orden</label>
                     <select
@@ -9746,7 +10378,7 @@ function App() {
                       onChange={(e) => setUserSort((s) => ({ ...s, key: e.target.value }))}
                     >
                       <option value="failed">Fallos</option>
-                      <option value="success">Éxitos</option>
+                      <option value="success">Exitos</option>
                       <option value="name">Usuario</option>
                     </select>
                     <button
@@ -9915,6 +10547,45 @@ function App() {
         </div>
       )}
 
+      {deleteBlockState.open && (
+        <div className="modal-backdrop modal-backdrop-scroll">
+          <div className="modal">
+            <h3>{deleteBlockState.title}</h3>
+            {deleteBlockState.summary && (
+              <div className="modal-summary-grid">
+                {Object.entries(deleteBlockState.summary).map(([key, value]) => (
+                  <div key={key}>
+                    <strong>{key}</strong>
+                    <span>{String(value)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {deleteBlockState.dependencies.length > 0 && (
+              <>
+                <p className="muted">Dependencias bloqueantes:</p>
+                <div className="rows">
+                  {deleteBlockState.dependencies.map((dep) => (
+                    <div key={`blocked-dep-${dep.id}`} className="row">
+                      <div className="row-main">
+                        <strong>#{dep.id}</strong>
+                        <span>{dep.name || 'Sin nombre'}</span>
+                        <span className="pill">Activos vigentes: {Number(dep.activeAssets || 0)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+            <div className="modal-actions">
+              <button className="primary" onClick={closeDeleteBlockModal}>
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {forceDeleteState.open && (
         <div className="modal-backdrop modal-backdrop-scroll">
           <div className="modal modal-force-delete">
@@ -9928,13 +10599,36 @@ function App() {
             ) : (
               <>
                 <div className="modal-summary-grid">
-                  {Object.entries(forceDeleteState.summary || {}).map(([key, value]) => (
+                  {Object.entries(forceDeleteState.summary || {})
+                    .filter(([key]) => key !== 'confirmationText')
+                    .map(([key, value]) => (
                     <div key={key}>
                       <strong>{key}</strong>
                       <span>{String(value)}</span>
                     </div>
-                  ))}
+                    ))}
                 </div>
+                {Array.isArray(forceDeleteState.details?.dependencies) &&
+                  forceDeleteState.details.dependencies.length > 0 && (
+                    <>
+                      <p className="muted">Dependencias y ramas relacionadas:</p>
+                      <div className="rows">
+                        {forceDeleteState.details.dependencies.map((dep) => (
+                          <div key={`fd-dep-${dep.id}`} className="row">
+                            <div className="row-main">
+                              <strong>#{dep.id}</strong>
+                              <span>{dep.name || 'Sin nombre'}</span>
+                              {!dep.isActive && <span className="pill danger-pill">INACTIVA</span>}
+                              <span className="pill">Activos: {Number(dep.assets || 0)}</span>
+                              <span className="pill">
+                                Solicitudes soporte: {Number(dep.supportRequests || 0)}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 <label className="modal-confirm-label">
                   Escribe <strong>{forceDeleteState.expectedConfirmationText}</strong> para confirmar:
                   <input
@@ -9970,4 +10664,14 @@ function App() {
 }
 
 export default App
+
+
+
+
+
+
+
+
+
+
 

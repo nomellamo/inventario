@@ -115,56 +115,83 @@ async function deleteInstitution(id, user) {
     );
   }
 
-  const [activeEstablishments, activeUsers, activeAssets] = await Promise.all([
-    prisma.establishment.count({
+  const now = new Date();
+
+  const result = await prisma.$transaction(async (tx) => {
+    const bajaState = await tx.assetState.findFirst({
+      where: { name: "BAJA" },
+      select: { id: true },
+    });
+
+    const deactivatedDependencies = await tx.dependency.updateMany({
+      where: {
+        isActive: true,
+        establishment: { institutionId: id },
+      },
+      data: { isActive: false },
+    });
+
+    const deactivatedEstablishments = await tx.establishment.updateMany({
       where: { institutionId: id, isActive: true },
-    }),
-    prisma.user.count({
+      data: { isActive: false },
+    });
+
+    const deactivatedUsers = await tx.user.updateMany({
       where: { institutionId: id, isActive: true },
-    }),
-    prisma.asset.count({
+      data: { isActive: false },
+    });
+
+    const deactivatedAssets = await tx.asset.updateMany({
       where: {
         isDeleted: false,
         establishment: { institutionId: id },
       },
-    }),
-  ]);
+      data: {
+        isDeleted: true,
+        deletedAt: now,
+        deletedById: user.id,
+        ...(bajaState ? { assetStateId: bajaState.id } : {}),
+      },
+    });
 
-  if (activeEstablishments > 0) {
-    throw conflict(
-      "No se puede dar de baja: hay establecimientos activos asociados",
-      INSTITUTION_CONFLICT_CODES.HAS_ACTIVE_ESTABLISHMENTS,
-      { activeEstablishments }
-    );
-  }
-  if (activeUsers > 0) {
-    throw conflict(
-      "No se puede dar de baja: hay usuarios activos asociados",
-      INSTITUTION_CONFLICT_CODES.HAS_ACTIVE_USERS,
-      { activeUsers }
-    );
-  }
-  if (activeAssets > 0) {
-    throw conflict(
-      "No se puede dar de baja: hay activos vigentes asociados",
-      INSTITUTION_CONFLICT_CODES.HAS_ACTIVE_ASSETS,
-      { activeAssets }
-    );
-  }
+    const institution = await tx.institution.update({
+      where: { id },
+      data: { isActive: false },
+    });
 
-  const deleted = await prisma.institution.update({
-    where: { id },
-    data: { isActive: false },
+    return {
+      institution,
+      deactivatedEstablishments: deactivatedEstablishments.count,
+      deactivatedDependencies: deactivatedDependencies.count,
+      deactivatedUsers: deactivatedUsers.count,
+      deactivatedAssets: deactivatedAssets.count,
+    };
   });
+
   await logAdminAudit({
     userId: user.id,
     entityType: "INSTITUTION",
     action: "DEACTIVATE",
-    entityId: deleted.id,
+    entityId: result.institution.id,
     before: exists,
-    after: deleted,
+    after: {
+      ...result.institution,
+      cascade: {
+        deactivatedEstablishments: result.deactivatedEstablishments,
+        deactivatedDependencies: result.deactivatedDependencies,
+        deactivatedUsers: result.deactivatedUsers,
+        deactivatedAssets: result.deactivatedAssets,
+      },
+    },
   });
-  return deleted;
+
+  return {
+    ...result.institution,
+    deactivatedEstablishments: result.deactivatedEstablishments,
+    deactivatedDependencies: result.deactivatedDependencies,
+    deactivatedUsers: result.deactivatedUsers,
+    deactivatedAssets: result.deactivatedAssets,
+  };
 }
 
 async function reactivateInstitution(id, user) {
@@ -222,7 +249,7 @@ async function deleteInstitutionPermanent(id, user) {
   await logAdminAudit({
     userId: user.id,
     entityType: "INSTITUTION",
-    action: "HARD_DELETE",
+    action: "DELETE",
     entityId: id,
     before: exists,
     after: null,
@@ -277,7 +304,7 @@ async function deleteInstitutionPermanentForce(id, data, user) {
     await logAdminAudit({
       userId: user.id,
       entityType: "INSTITUTION",
-      action: "HARD_DELETE_FORCE",
+      action: "DELETE",
       entityId: id,
       before: exists,
       after: {
@@ -307,3 +334,4 @@ module.exports = {
   getInstitutionForceDeleteSummary,
   deleteInstitutionPermanentForce,
 };
+
