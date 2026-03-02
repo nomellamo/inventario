@@ -26,6 +26,7 @@ const {
   importAssetsFromExcel,
   buildAssetImportTemplate,
 } = require("../services/assetImportService");
+const { purgeAssetsAndResetSequence } = require("../services/assetPurgeService");
 const {
   buildAssetImportCatalogWorkbook,
 } = require("../services/assetImportCatalogExportService");
@@ -205,6 +206,15 @@ router.post(
       req.user,
       req.file.originalname
     );
+    res.json(result);
+  })
+);
+
+router.delete(
+  "/purge/reset",
+  blockWriteForViewer,
+  asyncHandler(async (req, res) => {
+    const result = await purgeAssetsAndResetSequence(req.user);
     res.json(result);
   })
 );
