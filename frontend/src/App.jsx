@@ -4388,7 +4388,7 @@ function App() {
     return `${typeLabel} (${reason})`
   }
 
-  async function downloadPlancheta(kind) {
+  async function downloadPlancheta(kind, variant = 'formal') {
     const qs = buildPlanchetaQuery()
     if (!qs) {
       const msg = 'Selecciona establecimiento para descargar plancheta.'
@@ -4396,8 +4396,19 @@ function App() {
       setErr(msg)
       return
     }
-    const path = kind === 'excel' ? `/planchetas/excel?${qs}` : `/planchetas/pdf?${qs}`
-    const filename = kind === 'excel' ? 'plancheta.xlsx' : 'plancheta.pdf'
+    const isExecutive = variant === 'gerencial'
+    const path =
+      kind === 'excel'
+        ? `${isExecutive ? '/planchetas/gerencial/excel' : '/planchetas/excel'}?${qs}`
+        : `${isExecutive ? '/planchetas/gerencial/pdf' : '/planchetas/pdf'}?${qs}`
+    const filename =
+      kind === 'excel'
+        ? isExecutive
+          ? 'plancheta_gerencial.xlsx'
+          : 'plancheta.xlsx'
+        : isExecutive
+          ? 'plancheta_gerencial.pdf'
+          : 'plancheta.pdf'
     try {
       await downloadFile(path, filename)
     } catch (err) {
@@ -9591,17 +9602,33 @@ function App() {
                   className="ghost"
                   disabled={!canExportPlancheta}
                   title={!canExportPlancheta ? 'Previsualiza con datos antes de exportar.' : ''}
-                  onClick={() => downloadPlancheta('excel')}
+                  onClick={() => downloadPlancheta('excel', 'formal')}
                 >
-                  Descargar Excel
+                  Excel Formal
                 </button>
                 <button
                   className="ghost"
                   disabled={!canExportPlancheta}
                   title={!canExportPlancheta ? 'Previsualiza con datos antes de exportar.' : ''}
-                  onClick={() => downloadPlancheta('pdf')}
+                  onClick={() => downloadPlancheta('pdf', 'formal')}
                 >
-                  Descargar PDF
+                  PDF Formal
+                </button>
+                <button
+                  className="ghost"
+                  disabled={!canExportPlancheta}
+                  title={!canExportPlancheta ? 'Previsualiza con datos antes de exportar.' : ''}
+                  onClick={() => downloadPlancheta('excel', 'gerencial')}
+                >
+                  Excel Gerencial
+                </button>
+                <button
+                  className="ghost"
+                  disabled={!canExportPlancheta}
+                  title={!canExportPlancheta ? 'Previsualiza con datos antes de exportar.' : ''}
+                  onClick={() => downloadPlancheta('pdf', 'gerencial')}
+                >
+                  PDF Gerencial
                 </button>
               </div>
             </div>

@@ -4,6 +4,8 @@ const router = express.Router();
 const { getPlanchetaData } = require("../services/planchetaService");
 const { buildPlanchetaExcel } = require("../services/planchetaExcelService");
 const { buildPlanchetaPdf } = require("../services/planchetaPdfService");
+const { buildPlanchetaExecutiveExcel } = require("../services/planchetaExecutiveExcelService");
+const { buildPlanchetaExecutivePdf } = require("../services/planchetaExecutivePdfService");
 const { parsePlanchetaFilters } = require("../utils/parsePlanchetaFilters");
 const { getAssetHistory } = require("../services/assetHistoryService");
 const { sendError } = require("../utils/errorResponse");
@@ -185,6 +187,84 @@ router.get("/pdf", async (req, res, next) => {
     next(e);
   }
 });
+
+router.get("/gerencial/excel", async (req, res, next) => {
+  try {
+    const filters = parsePlanchetaFilters(req.query);
+    const assets = await getPlanchetaData(filters, req.user);
+
+    if (!assets.length) {
+      return sendError(res, {
+        status: 404,
+        error: "No hay assets para exportar",
+        code: "PLANCHETA_EMPTY_EXPORT",
+        requestId: req.id,
+      });
+    }
+
+    const meta = {
+      institution: assets[0].establishment.institution.name,
+      establishment: assets[0].establishment.name,
+      dependency: filters.dependencyId ? assets[0].dependency.name : "Todas",
+      dateRange: buildDateRangeLabel(filters),
+    };
+
+    const workbook = await buildPlanchetaExecutiveExcel(assets, meta);
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=plancheta_gerencial_${Date.now()}.xlsx`
+    );
+
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (e) {
+    console.error("Excel plancheta gerencial error:", e);
+    next(e);
+  }
+});
+
+router.get("/gerencial/pdf", async (req, res, next) => {
+  try {
+    const filters = parsePlanchetaFilters(req.query);
+    const assets = await getPlanchetaData(filters, req.user);
+
+    if (!assets.length) {
+      return sendError(res, {
+        status: 404,
+        error: "No hay assets para exportar",
+        code: "PLANCHETA_EMPTY_EXPORT",
+        requestId: req.id,
+      });
+    }
+
+    const meta = {
+      institution: assets[0].establishment.institution.name,
+      establishment: assets[0].establishment.name,
+      dependency: filters.dependencyId ? assets[0].dependency.name : "Todas",
+      dateRange: buildDateRangeLabel(filters),
+    };
+
+    const doc = buildPlanchetaExecutivePdf(assets, meta);
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=plancheta_gerencial_${Date.now()}.pdf`
+    );
+
+    doc.pipe(res);
+    doc.end();
+  } catch (e) {
+    console.error("plancheta gerencial pdf error:", e);
+    next(e);
+  }
+});
+
 router.get("/:id/history", async (req, res, next) => {
   try {
     const assetId = Number(req.params.id);
