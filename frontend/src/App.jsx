@@ -1242,7 +1242,7 @@ function App() {
       if (!sheetName) {
         setPreviewHeaders([])
         setPreviewRows([])
-        setPreviewMissing(IMPORT_REQUIRED_GROUPS.map((group) => group.label))
+        setPreviewMissing([])
         setPreviewInvalidCells({})
         return
       }
@@ -1250,10 +1250,7 @@ function App() {
       const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
       const headers = Array.isArray(rows[0]) ? rows[0] : []
       const normalized = headers.map((h) => normalizePreviewHeader(h))
-      const missing = IMPORT_REQUIRED_GROUPS.filter((group) => {
-        const normalizedKeys = group.keys.map((key) => normalizePreviewHeader(key))
-        return !normalizedKeys.some((key) => normalized.includes(key))
-      }).map((group) => group.label)
+      const missing = []
 
       const preview = rows.slice(1, 11)
       const invalidMap = {}
@@ -1263,7 +1260,7 @@ function App() {
       })
 
       let catalogSets = null
-      if (!missing.length && token) {
+      if (token) {
         try {
           catalogSets = await fetchCatalogIds()
         } catch {
@@ -1282,10 +1279,7 @@ function App() {
           if (colIdx === undefined) return
           const value = row[colIdx]
           const str = String(value || '').trim()
-          if (!str) {
-            invalidCols.push(colIdx)
-            return
-          }
+          if (!str) return
           if (group.label === 'Valor Adquisicion') {
             if (isImportPlaceholderValue(value)) return
             const num = Number(value)
@@ -1306,6 +1300,8 @@ function App() {
           idChecks.forEach((check) => {
             const colIdx = columnIndexByKey[check.key]
             if (colIdx === undefined) return
+            const raw = String(row[colIdx] || '').trim()
+            if (!raw) return
             const value = Number(row[colIdx])
             if (!Number.isFinite(value) || !check.set.has(value)) {
               invalidCols.push(colIdx)
@@ -1325,7 +1321,7 @@ function App() {
     } catch {
       setPreviewHeaders([])
       setPreviewRows([])
-      setPreviewMissing(IMPORT_REQUIRED_GROUPS.map((group) => group.label))
+      setPreviewMissing([])
       setPreviewInvalidCells({})
     }
   }
@@ -8803,7 +8799,7 @@ function App() {
                   }}
                 />
                 <p className="muted">
-                  Columnas requeridas: Establecimiento, Dependencia, Tipo, Estado, Nombre, Cuenta Contable, Anal\u00edtico, Valor Adquisici\u00f3n y Fecha Adquisici\u00f3n. La plantilla tambi\u00e9n acepta "POR INFORMAR" en valor/fecha.
+                  La importaci\u00f3n completa datos faltantes con valores por defecto. Si faltan RUT, cuenta, anal\u00edtico, fecha o valor, igual se intenta incorporar.
                 </p>
                 <button className="primary" onClick={handleImportUpload} disabled={importLoading}>
                   {importLoading ? 'Importando...' : 'Importar Excel'}

@@ -14,18 +14,6 @@ const {
 } = require("../utils/assetRules");
 const { ensureUniqueAssetIdentity } = require("../utils/assetIdentity");
 
-const REQUIRED_FIELDS = [
-  { label: "establishmentId/Establecimiento", keys: ["establishmentid", "establishmentname"] },
-  { label: "dependencyId/Dependencia", keys: ["dependencyid", "dependencyname"] },
-  { label: "assetStateId/Estado", keys: ["assetstateid", "assetstatename"] },
-  { label: "assetTypeId/Tipo", keys: ["assettypeid", "assettype"] },
-  { label: "Nombre", keys: ["name"] },
-  { label: "Cuenta Contable", keys: ["accountingaccount"] },
-  { label: "Analitico", keys: ["analyticcode"] },
-  { label: "Valor Adquisicion", keys: ["acquisitionvalue"] },
-  { label: "Fecha Adquisicion", keys: ["acquisitiondate"] },
-];
-
 const HEADER_ALIASES = {
   codigointerno: "internalcode",
   nombre: "name",
@@ -117,12 +105,16 @@ function normalizeOptionalImportValue(value) {
 }
 
 function parseImportAcquisitionValue(value) {
+  if (value === undefined || value === null || normalizeImportText(value) === "") return 1;
   if (isImportPlaceholder(value)) return 1;
   const num = Number(value);
   return Number.isFinite(num) ? num : Number.NaN;
 }
 
 function parseImportAcquisitionDate(value) {
+  if (value === undefined || value === null || normalizeImportText(value) === "") {
+    return new Date();
+  }
   if (isImportPlaceholder(value)) return new Date();
   return parseExcelDate(value);
 }
@@ -196,29 +188,19 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
       });
     }
 
-    const missingColumns = REQUIRED_FIELDS.filter(
-      (field) => !field.keys.some((k) => keyMap[k])
-    ).map((field) => field.label);
-
-    if (missingColumns.length) {
+    if (!headersFound.length) {
       await prisma.assetImportBatch.update({
         where: { id: batch.id },
         data: {
           status: "FAILED",
-          errorCount: missingColumns.length,
+          errorCount: 1,
           errors: {
-            missingColumns,
-            headersFound,
-            expectedColumns: REQUIRED_FIELDS.map((f) => f.label),
+            message: "No se detectaron encabezados en el Excel",
           },
           completedAt: new Date(),
         },
       });
-      throw badRequest("Faltan columnas requeridas", "IMPORT_SCHEMA", {
-        missingColumns,
-        headersFound,
-        expectedColumns: REQUIRED_FIELDS.map((f) => f.label),
-      });
+      throw badRequest("No se detectaron encabezados en el Excel", "IMPORT_SCHEMA");
     }
 
     const errors = [];
@@ -240,6 +222,7 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
         select: { id: true, name: true },
       }),
     ]);
+    const establishmentById = new Map(allEstablishments.map((item) => [item.id, item]));
     const establishmentByName = new Map();
     const establishmentRows = [];
     for (const item of allEstablishments) {
@@ -284,6 +267,41 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
     const typeByName = new Map(
       allTypes.map((item) => [normalizeLookupValue(item.name), item.id])
     );
+    const firstDependencyByEstablishmentId = new Map();
+    for (const item of allDependencies) {
+      if (!firstDependencyByEstablishmentId.has(item.establishmentId)) {
+        firstDependencyByEstablishmentId.set(item.establishmentId, item);
+      }
+    }
+    const defaultState =
+      allStates.find((item) => normalizeLookupValue(item.name) === "bueno") || allStates[0] || null;
+    const defaultType =
+      allTypes.find((item) => normalizeLookupValue(item.name) === "control") || allTypes[0] || null;
+
+    let defaultEstablishment = null;
+    if (user.establishmentId) {
+      defaultEstablishment = establishmentById.get(Number(user.establishmentId)) || null;
+    }
+    if (!defaultEstablishment && user.institutionId) {
+      defaultEstablishment =
+        allEstablishments.find(
+          (item) => item.institutionId === Number(user.institutionId)
+        ) || null;
+    }
+    if (!defaultEstablishment) {
+      defaultEstablishment = allEstablishments[0] || null;
+    }
+
+    let defaultDependency = defaultEstablishment
+      ? firstDependencyByEstablishmentId.get(defaultEstablishment.id) || null
+      : null;
+    if (!defaultDependency) {
+      defaultDependency = allDependencies[0] || null;
+      if (defaultDependency) {
+        defaultEstablishment =
+          establishmentById.get(defaultDependency.establishmentId) || defaultEstablishment;
+      }
+    }
 
     for (let rowIndex = 2; rowIndex <= lastRow; rowIndex++) {
       const row = sheet.getRow(rowIndex);
@@ -301,9 +319,11 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
         dependencyName: getRowValue(row, keyMap, "dependencyname"),
         assetStateName: getRowValue(row, keyMap, "assetstatename"),
         assetTypeName: getRowValue(row, keyMap, "assettype"),
-        name: getRowValue(row, keyMap, "name"),
-        accountingAccount: getRowValue(row, keyMap, "accountingaccount"),
-        analyticCode: getRowValue(row, keyMap, "analyticcode"),
+        name: normalizeOptionalImportValue(getRowValue(row, keyMap, "name")),
+        accountingAccount: normalizeOptionalImportValue(
+          getRowValue(row, keyMap, "accountingaccount")
+        ),
+        analyticCode: normalizeOptionalImportValue(getRowValue(row, keyMap, "analyticcode")),
         brand: normalizeOptionalImportValue(getRowValue(row, keyMap, "brand")),
         modelName: normalizeOptionalImportValue(getRowValue(row, keyMap, "modelname")),
         serialNumber: normalizeOptionalImportValue(getRowValue(row, keyMap, "serialnumber")),
@@ -327,6 +347,9 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
       const dependencyNameKey = normalizeLookupValue(input.dependencyName);
       const stateNameKey = normalizeLookupValue(input.assetStateName);
       const typeNameKey = normalizeLookupValue(input.assetTypeName);
+      const rowHasData =
+        Array.isArray(row.values) &&
+        row.values.slice(1).some((value) => normalizeImportText(value) !== "");
 
       // Allow exported templates with summary rows like "TOTAL".
       const isSummaryRow = ["total", "totales"].includes(
@@ -338,6 +361,13 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
       );
       if (isSummaryRow) {
         continue;
+      }
+      if (!rowHasData) {
+        continue;
+      }
+
+      if (!input.name) {
+        input.name = `Activo importado fila ${rowIndex}`;
       }
 
       if (!input.establishmentId && establishmentNameKey) {
@@ -398,8 +428,17 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
       if (!input.assetStateId && stateNameKey) {
         input.assetStateId = stateByName.get(stateNameKey) || null;
       }
+      if (!input.assetStateId && defaultState) {
+        input.assetStateId = defaultState.id;
+      }
       if (!input.assetTypeId && typeNameKey) {
         input.assetTypeId = typeByName.get(typeNameKey) || null;
+      }
+      if (!input.assetTypeId && defaultType) {
+        input.assetTypeId = defaultType.id;
+      }
+      if (!input.establishmentId && defaultEstablishment) {
+        input.establishmentId = defaultEstablishment.id;
       }
       if (!input.dependencyId && dependencyNameKey) {
         if (input.establishmentId) {
@@ -503,15 +542,27 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
           }
         }
       }
+      if (!input.dependencyId && input.establishmentId) {
+        const fallbackDependency = firstDependencyByEstablishmentId.get(input.establishmentId);
+        if (fallbackDependency) {
+          input.dependencyId = fallbackDependency.id;
+        }
+      }
+      if (!input.dependencyId && defaultDependency) {
+        input.dependencyId = defaultDependency.id;
+      }
+      if (!input.establishmentId && input.dependencyId) {
+        const dependency = allDependencies.find((item) => item.id === input.dependencyId);
+        if (dependency) {
+          input.establishmentId = dependency.establishmentId;
+        }
+      }
 
       const invalidFields = [];
       if (!input.establishmentId) invalidFields.push("establishmentId");
       if (!input.dependencyId) invalidFields.push("dependencyId");
       if (!input.assetStateId) invalidFields.push("assetStateId");
       if (!input.assetTypeId) invalidFields.push("assetTypeId");
-      if (!input.name) invalidFields.push("name");
-      if (!String(input.accountingAccount || "").trim()) invalidFields.push("accountingAccount");
-      if (!String(input.analyticCode || "").trim()) invalidFields.push("analyticCode");
       if (validateAcquisitionValue(input.acquisitionValue)) {
         invalidFields.push("acquisitionValue");
       }
@@ -650,8 +701,10 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
                   modelName: input.modelName ? String(input.modelName) : null,
                   serialNumber: input.serialNumber ? String(input.serialNumber) : null,
                   quantity: 1,
-                  accountingAccount: String(input.accountingAccount),
-                  analyticCode: String(input.analyticCode),
+                  accountingAccount: input.accountingAccount
+                    ? String(input.accountingAccount)
+                    : null,
+                  analyticCode: input.analyticCode ? String(input.analyticCode) : null,
                   responsibleName: input.responsibleName
                     ? String(input.responsibleName)
                     : null,
