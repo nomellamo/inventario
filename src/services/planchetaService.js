@@ -109,6 +109,7 @@ async function getPlanchetaData(
           subcategory: true,
           brand: true,
           modelName: true,
+          description: true,
         },
       },
       dependency: true,
