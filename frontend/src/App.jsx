@@ -89,8 +89,8 @@ function App() {
     }
   })
   const [login, setLogin] = useState({
-    email: 'admin@cordillera.local',
-    password: 'admin123',
+    email: '',
+    password: '',
   })
   const [status, setStatus] = useState({
     type: 'idle',
@@ -6538,7 +6538,7 @@ function App() {
               <h2>Acceso Admin</h2>
               <p className="muted">Solo ADMIN_CENTRAL</p>
             </div>
-            <form onSubmit={handleLogin} className="auth-form">
+            <form onSubmit={handleLogin} className="auth-form" autoComplete="off">
               <div className="field">
                 <label>Email</label>
                 <input
@@ -6546,7 +6546,7 @@ function App() {
                   value={login.email}
                   onChange={(e) => setLogin({ ...login, email: e.target.value })}
                   placeholder="admin@cordillera.local"
-                  autoComplete="username"
+                  autoComplete="off"
                 />
               </div>
               <div className="field">
@@ -6556,7 +6556,7 @@ function App() {
                   value={login.password}
                   onChange={(e) => setLogin({ ...login, password: e.target.value })}
                   placeholder="admin123"
-                  autoComplete="current-password"
+                  autoComplete="off"
                 />
               </div>
               <div className="auth-actions">
