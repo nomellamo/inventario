@@ -36,3 +36,21 @@ inventario * Render Dashboard_files/
 
 .vercel
 .env*.local
+
+# Local IDE/workspace settings
+.vscode/
+tmp/
+
+# Frontend local env files (keep example template versioned)
+frontend/.env.development
+frontend/.env.production
+frontend/.env.*
+!frontend/.env.example
+
+# Local build/package artifacts
+frontend/dist.zip
+
+# Local generated exports and documents
+*.pdf
+*.xlsx
+tatus --short
