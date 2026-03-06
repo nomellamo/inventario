@@ -26,6 +26,10 @@ function assert(cond, msg) {
   if (!cond) throw new Error(msg);
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function pickRefreshCookie(headers) {
   if (typeof headers.getSetCookie === "function") {
     const setCookies = headers.getSetCookie();
@@ -95,6 +99,29 @@ async function getDependenciesByEstablishment(establishmentId, token) {
   );
   assert(res.res.ok, `Dependencies fallo para est ${establishmentId}: ${res.res.status}`);
   return res.body?.items || [];
+}
+
+async function waitForAssetImportCompletion(batchId, token, opts = {}) {
+  const timeoutMs = Number(opts.timeoutMs || 90000);
+  const pollMs = Number(opts.pollMs || 1200);
+  const startedAt = Date.now();
+  let lastBody = null;
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const statusRes = await authRequest(`/assets/imports/${batchId}`, token);
+    if (statusRes.res.ok && statusRes.body) {
+      lastBody = statusRes.body;
+      const status = String(statusRes.body.status || "").toUpperCase();
+      if (status === "COMPLETED" || status === "FAILED") {
+        return statusRes.body;
+      }
+    }
+    await sleep(pollMs);
+  }
+
+  throw new Error(
+    `Timeout esperando import assets batch ${batchId}. Ultimo estado: ${JSON.stringify(lastBody)}`
+  );
 }
 
 async function setupServer() {
@@ -1107,9 +1134,16 @@ async function run() {
     importAssetsRes.res.ok,
     `Import assets fallo: ${importAssetsRes.res.status} ${JSON.stringify(importAssetsRes.body)}`
   );
+  const importBatchId = Number(importAssetsRes.body?.id || importAssetsRes.body?.batchId || 0);
+  assert(importBatchId > 0, `Import assets no devolvio batchId valido: ${JSON.stringify(importAssetsRes.body)}`);
+  const importAssetsFinal = await waitForAssetImportCompletion(importBatchId, centralToken);
   assert(
-    Number(importAssetsRes.body?.createdCount || 0) >= 1,
-    `Import assets no creo registros: ${JSON.stringify(importAssetsRes.body)}`
+    String(importAssetsFinal?.status || "").toUpperCase() === "COMPLETED",
+    `Import assets no completo: ${JSON.stringify(importAssetsFinal)}`
+  );
+  assert(
+    Number(importAssetsFinal?.createdCount || 0) >= 1,
+    `Import assets no creo registros: ${JSON.stringify(importAssetsFinal)}`
   );
 
   console.log("OK: suite critica completada");
