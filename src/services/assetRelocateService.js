@@ -82,7 +82,18 @@ async function relocateAsset(assetId, toDependencyId, user) {
     return moved;
   });
 
-  return updated;
+  const hydrated = await prisma.asset.findUnique({
+    where: { id: updated.id },
+    include: {
+      assetType: true,
+      assetState: true,
+      establishment: true,
+      dependency: true,
+      catalogItem: true,
+    },
+  });
+
+  return hydrated || updated;
 }
 
 module.exports = { relocateAsset };

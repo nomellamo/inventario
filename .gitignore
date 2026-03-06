@@ -33,3 +33,6 @@ exel para exportar e importar/
 # Local browser exports / snapshots
 inventario * Render Dashboard.html
 inventario * Render Dashboard_files/
+
+.vercel
+.env*.local

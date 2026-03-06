@@ -4,6 +4,7 @@
 // - Usuarios: create/update/deactivate/list includeInactive
 // - Assets: create/transfer/status/restore
 // - Importacion: catalogo y assets
+require("dotenv").config();
 
 if (typeof fetch !== "function") {
   throw new Error("Este script requiere Node 18+ (fetch global)");
@@ -11,9 +12,15 @@ if (typeof fetch !== "function") {
 
 const ExcelJS = require("exceljs");
 
-const CENTRAL_EMAIL = process.env.TEST_CENTRAL_EMAIL || "admin@cordillera.local";
-const CENTRAL_PASSWORD = process.env.TEST_CENTRAL_PASSWORD || "admin123";
+const CENTRAL_EMAIL = process.env.TEST_CENTRAL_EMAIL || "";
+const CENTRAL_PASSWORD = process.env.TEST_CENTRAL_PASSWORD || "";
 let BASE_URL = process.env.API_BASE_URL || null;
+
+if (!CENTRAL_EMAIL || !CENTRAL_PASSWORD) {
+  throw new Error(
+    "Faltan TEST_CENTRAL_EMAIL y/o TEST_CENTRAL_PASSWORD en el entorno para ejecutar la suite critica"
+  );
+}
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);

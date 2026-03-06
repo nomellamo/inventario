@@ -140,7 +140,7 @@ async function buildPlanchetaExcel(assets, meta) {
     }
   }
 
-  sheet.mergeCells("A1:P1");
+  sheet.mergeCells("A1:F1");
   sheet.getCell("A1").value = "PLANCHETA DE INVENTARIO";
   sheet.getCell("A1").font = { bold: true, size: 14, color: { argb: "FFFFFFFF" } };
   sheet.getCell("A1").alignment = { horizontal: "center", vertical: "middle" };
@@ -472,40 +472,40 @@ async function buildPlanchetaExcel(assets, meta) {
   const signatureHintRow = sheet.addRow([]);
   sheet.addRow([]);
 
-  sheet.mergeCells(`C${signatureLineRow.number}:F${signatureLineRow.number}`);
-  sheet.mergeCells(`J${signatureLineRow.number}:M${signatureLineRow.number}`);
-  sheet.getCell(`C${signatureLineRow.number}`).border = {
+  sheet.mergeCells(`A${signatureLineRow.number}:C${signatureLineRow.number}`);
+  sheet.mergeCells(`D${signatureLineRow.number}:F${signatureLineRow.number}`);
+  sheet.getCell(`A${signatureLineRow.number}`).border = {
     bottom: { style: "thin", color: { argb: "FF475569" } },
   };
-  sheet.getCell(`J${signatureLineRow.number}`).border = {
+  sheet.getCell(`D${signatureLineRow.number}`).border = {
     bottom: { style: "thin", color: { argb: "FF475569" } },
   };
 
-  sheet.mergeCells(`C${signatureNameRow.number}:F${signatureNameRow.number}`);
-  sheet.mergeCells(`J${signatureNameRow.number}:M${signatureNameRow.number}`);
-  sheet.getCell(`C${signatureNameRow.number}`).value =
+  sheet.mergeCells(`A${signatureNameRow.number}:C${signatureNameRow.number}`);
+  sheet.mergeCells(`D${signatureNameRow.number}:F${signatureNameRow.number}`);
+  sheet.getCell(`A${signatureNameRow.number}`).value =
     meta.responsibleName || "Encargado de Dependencia";
-  sheet.getCell(`J${signatureNameRow.number}`).value = meta.chiefName || "Jefe de Dependencia";
-  sheet.getCell(`C${signatureNameRow.number}`).alignment = {
+  sheet.getCell(`D${signatureNameRow.number}`).value = meta.chiefName || "Jefe de Dependencia";
+  sheet.getCell(`A${signatureNameRow.number}`).alignment = {
     horizontal: "center",
     vertical: "middle",
   };
-  sheet.getCell(`J${signatureNameRow.number}`).alignment = {
+  sheet.getCell(`D${signatureNameRow.number}`).alignment = {
     horizontal: "center",
     vertical: "middle",
   };
 
-  sheet.mergeCells(`C${signatureHintRow.number}:F${signatureHintRow.number}`);
-  sheet.mergeCells(`J${signatureHintRow.number}:M${signatureHintRow.number}`);
-  sheet.getCell(`C${signatureHintRow.number}`).value = "Firma responsable";
-  sheet.getCell(`J${signatureHintRow.number}`).value = "Firma jefatura";
-  sheet.getCell(`C${signatureHintRow.number}`).font = { italic: true, color: { argb: "FF64748B" } };
-  sheet.getCell(`J${signatureHintRow.number}`).font = { italic: true, color: { argb: "FF64748B" } };
-  sheet.getCell(`C${signatureHintRow.number}`).alignment = {
+  sheet.mergeCells(`A${signatureHintRow.number}:C${signatureHintRow.number}`);
+  sheet.mergeCells(`D${signatureHintRow.number}:F${signatureHintRow.number}`);
+  sheet.getCell(`A${signatureHintRow.number}`).value = "Firma responsable";
+  sheet.getCell(`D${signatureHintRow.number}`).value = "Firma jefatura";
+  sheet.getCell(`A${signatureHintRow.number}`).font = { italic: true, color: { argb: "FF64748B" } };
+  sheet.getCell(`D${signatureHintRow.number}`).font = { italic: true, color: { argb: "FF64748B" } };
+  sheet.getCell(`A${signatureHintRow.number}`).alignment = {
     horizontal: "center",
     vertical: "middle",
   };
-  sheet.getCell(`J${signatureHintRow.number}`).alignment = {
+  sheet.getCell(`D${signatureHintRow.number}`).alignment = {
     horizontal: "center",
     vertical: "middle",
   };
@@ -514,11 +514,11 @@ async function buildPlanchetaExcel(assets, meta) {
   sheet.addRow([]);
   sheet.addRow([]);
   sheet.addRow([]);
-  sheet.mergeCells(`F${sealStart}:K${sealStart + 2}`);
-  sheet.getCell(`F${sealStart}`).value = "SELLO ESTABLECIMIENTO";
-  sheet.getCell(`F${sealStart}`).alignment = { horizontal: "center", vertical: "middle" };
-  sheet.getCell(`F${sealStart}`).font = { bold: true };
-  sheet.getCell(`F${sealStart}`).border = {
+  sheet.mergeCells(`B${sealStart}:E${sealStart + 2}`);
+  sheet.getCell(`B${sealStart}`).value = "SELLO ESTABLECIMIENTO";
+  sheet.getCell(`B${sealStart}`).alignment = { horizontal: "center", vertical: "middle" };
+  sheet.getCell(`B${sealStart}`).font = { bold: true };
+  sheet.getCell(`B${sealStart}`).border = {
     top: { style: "thin", color: { argb: "FF94A3B8" } },
     left: { style: "thin", color: { argb: "FF94A3B8" } },
     bottom: { style: "thin", color: { argb: "FF94A3B8" } },

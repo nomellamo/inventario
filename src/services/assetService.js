@@ -66,6 +66,12 @@ async function createAsset(input, user) {
   assert(!serialError, badRequest(serialError));
   const qty = Number(input.quantity ?? 1);
   assert(Number.isInteger(qty) && qty > 0, badRequest("quantity invalido"));
+  if (qty > 1 && input.serialNumber) {
+    throw badRequest(
+      "serialNumber no puede repetirse cuando quantity > 1. Crea activos individuales o deja serial vacio.",
+      "ASSET_QUANTITY_SERIAL_CONFLICT"
+    );
+  }
   const accError = validateStringMax("accountingAccount", input.accountingAccount, MAX_SHORT_TEXT);
   assert(!accError, badRequest(accError));
   const responsibleNameError = validateStringMax(
@@ -94,159 +100,175 @@ async function createAsset(input, user) {
     throw forbidden("No tienes permisos para crear assets en este establecimiento");
   }
 
-  let lastUniqueErr = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      return await prisma.$transaction(async (tx) => {
-        const establishment = await tx.establishment.findUnique({
-          where: { id: input.establishmentId },
-          select: { id: true, institutionId: true, isActive: true },
-        });
-        assert(establishment, notFound("Establishment no existe"));
-        assert(establishment.isActive, badRequest("Establishment inactivo"));
-        if (input?.institutionId) {
-          assert(
-            establishment.institutionId === input.institutionId,
-            badRequest("Establishment no pertenece a la institution")
-          );
-        }
-        if (
-          user.role.type === "ADMIN_ESTABLISHMENT" &&
-          user.institutionId &&
-          establishment.institutionId !== user.institutionId
-        ) {
-          throw forbidden("No autorizado para esta institution");
-        }
+  return prisma.$transaction(async (tx) => {
+    const establishment = await tx.establishment.findUnique({
+      where: { id: input.establishmentId },
+      select: { id: true, institutionId: true, isActive: true },
+    });
+    assert(establishment, notFound("Establishment no existe"));
+    assert(establishment.isActive, badRequest("Establishment inactivo"));
+    if (input?.institutionId) {
+      assert(
+        establishment.institutionId === input.institutionId,
+        badRequest("Establishment no pertenece a la institution")
+      );
+    }
+    if (
+      user.role.type === "ADMIN_ESTABLISHMENT" &&
+      user.institutionId &&
+      establishment.institutionId !== user.institutionId
+    ) {
+      throw forbidden("No autorizado para esta institution");
+    }
 
-        const dependency = await tx.dependency.findUnique({
-          where: { id: input.dependencyId },
-          select: { id: true, establishmentId: true, isActive: true },
-        });
-        assert(dependency, notFound("Dependency no existe"));
-        assert(dependency.isActive, badRequest("Dependency inactiva"));
-        assert(
-          dependency.establishmentId === input.establishmentId,
-          badRequest("Dependency no pertenece al establishment")
-        );
+    const dependency = await tx.dependency.findUnique({
+      where: { id: input.dependencyId },
+      select: { id: true, establishmentId: true, isActive: true },
+    });
+    assert(dependency, notFound("Dependency no existe"));
+    assert(dependency.isActive, badRequest("Dependency inactiva"));
+    assert(
+      dependency.establishmentId === input.establishmentId,
+      badRequest("Dependency no pertenece al establishment")
+    );
 
-        const state = await tx.assetState.findUnique({
-          where: { id: input.assetStateId },
-        });
-        assert(state, notFound("AssetState no existe"));
+    const state = await tx.assetState.findUnique({
+      where: { id: input.assetStateId },
+    });
+    assert(state, notFound("AssetState no existe"));
 
-        const assetType = await tx.assetType.findUnique({
-          where: { id: input.assetTypeId },
-        });
-        assert(assetType, notFound("AssetType no existe"));
+    const assetType = await tx.assetType.findUnique({
+      where: { id: input.assetTypeId },
+    });
+    assert(assetType, notFound("AssetType no existe"));
 
-        const seq = await tx.assetSequence.upsert({
-          where: { institutionId: establishment.institutionId },
-          update: { lastNumber: { increment: 1 } },
-          create: { institutionId: establishment.institutionId, lastNumber: 1 },
-        });
+    let catalogItem = null;
+    if (input.catalogItemId) {
+      catalogItem = await tx.catalogItem.findUnique({
+        where: { id: input.catalogItemId },
+      });
+      assert(catalogItem, notFound("CatalogItem no existe"));
+    }
 
-        let internalCode = seq.lastNumber;
-        const existingBySeq = await tx.asset.findUnique({
-          where: { internalCode },
-          select: { id: true },
-        });
-        if (existingBySeq) {
-          const maxCode = await tx.asset.aggregate({ _max: { internalCode: true } });
-          internalCode = Number(maxCode?._max?.internalCode || 0) + 1;
-        }
+    const finalBrand = input.brand ?? catalogItem?.brand ?? null;
+    const finalModel = input.modelName ?? catalogItem?.modelName ?? null;
+    const finalSerial = input.serialNumber ?? null;
+    await ensureUniqueAssetIdentity(tx, {
+      serialNumber: finalSerial,
+      brand: finalBrand,
+      modelName: finalModel,
+    });
 
-        const analyticCode = generateAnalyticCode({
-          institutionId: establishment.institutionId,
-          establishmentId: input.establishmentId,
-          dependencyId: input.dependencyId,
-          internalCode,
-        });
-        const analyticError = validateStringMax("analyticCode", analyticCode, MAX_SHORT_TEXT);
-        assert(!analyticError, badRequest(analyticError));
+    const createdAssets = [];
+    for (let unit = 0; unit < qty; unit++) {
+      let lastUniqueErr = null;
+      let asset = null;
 
-        let catalogItem = null;
-        if (input.catalogItemId) {
-          catalogItem = await tx.catalogItem.findUnique({
-            where: { id: input.catalogItemId },
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const seq = await tx.assetSequence.upsert({
+            where: { institutionId: establishment.institutionId },
+            update: { lastNumber: { increment: 1 } },
+            create: { institutionId: establishment.institutionId, lastNumber: 1 },
           });
-          assert(catalogItem, notFound("CatalogItem no existe"));
-        }
 
-        const finalBrand = input.brand ?? catalogItem?.brand ?? null;
-        const finalModel = input.modelName ?? catalogItem?.modelName ?? null;
-        const finalSerial = input.serialNumber ?? null;
-        await ensureUniqueAssetIdentity(tx, {
-          serialNumber: finalSerial,
-          brand: finalBrand,
-          modelName: finalModel,
-        });
+          let internalCode = seq.lastNumber;
+          const existingBySeq = await tx.asset.findUnique({
+            where: { internalCode },
+            select: { id: true },
+          });
+          if (existingBySeq) {
+            const maxCode = await tx.asset.aggregate({ _max: { internalCode: true } });
+            internalCode = Number(maxCode?._max?.internalCode || 0) + 1;
+          }
 
-        const asset = await tx.asset.create({
-          data: {
-            internalCode,
-            name: input.name ?? catalogItem?.name,
-            quantity: qty,
-            brand: finalBrand,
-            modelName: finalModel,
-            serialNumber: finalSerial,
-            accountingAccount: input.accountingAccount,
-            analyticCode,
-            responsibleName: input.responsibleName ?? null,
-            responsibleRut: normalizedResponsibleRut,
-            responsibleRole: input.responsibleRole ?? null,
-            costCenter: normalizedCostCenter,
-            acquisitionValue: input.acquisitionValue,
-            acquisitionDate: new Date(input.acquisitionDate),
-            assetTypeId: input.assetTypeId,
-            assetStateId: input.assetStateId,
+          const analyticCode = generateAnalyticCode({
+            institutionId: establishment.institutionId,
             establishmentId: input.establishmentId,
             dependencyId: input.dependencyId,
-            catalogItemId: catalogItem?.id ?? null,
-          },
-        });
+            internalCode,
+          });
+          const analyticError = validateStringMax("analyticCode", analyticCode, MAX_SHORT_TEXT);
+          assert(!analyticError, badRequest(analyticError));
 
-        await tx.movement.create({
-          data: {
-            type: "INVENTORY_CHECK",
-            assetId: asset.id,
-            fromDependencyId: null,
-            toDependencyId: input.dependencyId,
-            userId: user.id,
-          },
-        });
-
-        await tx.assetAudit.create({
-          data: {
-            action: "CREATE",
-            assetId: asset.id,
-            userId: user.id,
-            before: null,
-            after: snapshotAsset(asset),
-          },
-        });
-
-        return asset;
-      });
-    } catch (err) {
-      if (isPrismaUniqueConstraintError(err)) {
-        lastUniqueErr = err;
-        continue;
+          asset = await tx.asset.create({
+            data: {
+              internalCode,
+              name: input.name ?? catalogItem?.name,
+              quantity: 1,
+              brand: finalBrand,
+              modelName: finalModel,
+              serialNumber: finalSerial,
+              accountingAccount: input.accountingAccount,
+              analyticCode,
+              responsibleName: input.responsibleName ?? null,
+              responsibleRut: normalizedResponsibleRut,
+              responsibleRole: input.responsibleRole ?? null,
+              costCenter: normalizedCostCenter,
+              acquisitionValue: input.acquisitionValue,
+              acquisitionDate: new Date(input.acquisitionDate),
+              assetTypeId: input.assetTypeId,
+              assetStateId: input.assetStateId,
+              establishmentId: input.establishmentId,
+              dependencyId: input.dependencyId,
+              catalogItemId: catalogItem?.id ?? null,
+            },
+          });
+          break;
+        } catch (err) {
+          if (isPrismaUniqueConstraintError(err)) {
+            lastUniqueErr = err;
+            continue;
+          }
+          throw err;
+        }
       }
-      throw err;
+
+      if (!asset && lastUniqueErr) {
+        throw conflict(
+          "No se pudo generar codigo interno unico. Intenta nuevamente.",
+          "ASSET_INTERNAL_CODE_CONFLICT"
+        );
+      }
+      if (!asset) {
+        throw conflict(
+          "No se pudo crear el activo por conflicto de codigo interno.",
+          "ASSET_INTERNAL_CODE_CONFLICT"
+        );
+      }
+
+      await tx.movement.create({
+        data: {
+          type: "INVENTORY_CHECK",
+          assetId: asset.id,
+          fromDependencyId: null,
+          toDependencyId: input.dependencyId,
+          userId: user.id,
+        },
+      });
+
+      await tx.assetAudit.create({
+        data: {
+          action: "CREATE",
+          assetId: asset.id,
+          userId: user.id,
+          before: null,
+          after: snapshotAsset(asset),
+        },
+      });
+
+      createdAssets.push(asset);
     }
-  }
 
-  if (lastUniqueErr) {
-    throw conflict(
-      "No se pudo generar codigo interno unico. Intenta nuevamente.",
-      "ASSET_INTERNAL_CODE_CONFLICT"
-    );
-  }
+    if (createdAssets.length === 1) {
+      return createdAssets[0];
+    }
 
-  throw conflict(
-    "No se pudo crear el activo por conflicto de codigo interno.",
-    "ASSET_INTERNAL_CODE_CONFLICT"
-  );
+    return {
+      createdCount: createdAssets.length,
+      items: createdAssets,
+    };
+  });
 }
 
 module.exports = { createAsset };

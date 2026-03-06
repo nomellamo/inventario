@@ -23,7 +23,9 @@ const {
 } = require("../services/assetEvidenceService");
 const { listAssetImportBatches } = require("../services/assetImportHistoryService");
 const {
-  importAssetsFromExcel,
+  queueAssetImportJob,
+  getAssetImportJobStatus,
+  resumeAssetImportJob,
   buildAssetImportTemplate,
 } = require("../services/assetImportService");
 const { purgeAssetsAndResetSequence } = require("../services/assetPurgeService");
@@ -201,12 +203,12 @@ router.post(
       });
     }
 
-    const result = await importAssetsFromExcel(
+    const result = await queueAssetImportJob(
       req.file.buffer,
       req.user,
       req.file.originalname
     );
-    res.json(result);
+    res.status(202).json(result);
   })
 );
 
@@ -225,6 +227,25 @@ router.get(
   asyncHandler(async (req, res) => {
     const result = await listAssetImportBatches(req.query, req.user);
     res.json(result);
+  })
+);
+
+router.get(
+  "/imports/:id",
+  validateParams(idParam),
+  asyncHandler(async (req, res) => {
+    const result = await getAssetImportJobStatus(Number(req.params.id), req.user);
+    res.json(result);
+  })
+);
+
+router.post(
+  "/imports/:id/retry",
+  blockWriteForViewer,
+  validateParams(idParam),
+  asyncHandler(async (req, res) => {
+    const result = await resumeAssetImportJob(Number(req.params.id), req.user);
+    res.status(202).json(result);
   })
 );
 

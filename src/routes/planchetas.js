@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const { getPlanchetaData } = require("../services/planchetaService");
+const { getPlanchetaData, getPlanchetaInsights } = require("../services/planchetaService");
 const { buildPlanchetaExcel } = require("../services/planchetaExcelService");
 const { buildPlanchetaPdf } = require("../services/planchetaPdfService");
 const { buildPlanchetaExecutiveExcel } = require("../services/planchetaExecutiveExcelService");
@@ -66,6 +66,7 @@ router.get("/", async (req, res, next) => {
   try {
     const filters = parsePlanchetaFilters(req.query);
     const data = await getPlanchetaData(filters, req.user);
+    const insights = await getPlanchetaInsights(filters, req.user, data);
 
     const first = data[0];
     const meta = first
@@ -83,6 +84,7 @@ router.get("/", async (req, res, next) => {
       count: data.length,
       meta,
       summary: buildPlanchetaSummary(data),
+      insights,
       items: data,
     });
   } catch (e) {
@@ -96,6 +98,7 @@ router.get("/excel", async (req, res, next) => {
   try {
     const filters = parsePlanchetaFilters(req.query);
     const assets = await getPlanchetaData(filters, req.user);
+    const insights = await getPlanchetaInsights(filters, req.user, assets);
 
     if (!assets.length) {
       return sendError(res, {
@@ -120,6 +123,7 @@ router.get("/excel", async (req, res, next) => {
       ministryText:
         filters.ministryText ||
         "Certifico que el presente inventario corresponde a los bienes fisicos verificados en la dependencia indicada, en conformidad con lineamientos ministeriales vigentes.",
+      insights,
     };
 
     const workbook = await buildPlanchetaExcel(assets, meta);
@@ -146,6 +150,7 @@ router.get("/pdf", async (req, res, next) => {
   try {
     const filters = parsePlanchetaFilters(req.query);
     const assets = await getPlanchetaData(filters, req.user);
+    const insights = await getPlanchetaInsights(filters, req.user, assets);
 
     if (!assets.length) {
       return sendError(res, {
@@ -170,6 +175,7 @@ router.get("/pdf", async (req, res, next) => {
       ministryText:
         filters.ministryText ||
         "Certifico que el presente inventario corresponde a los bienes fisicos verificados en la dependencia indicada, en conformidad con lineamientos ministeriales vigentes.",
+      insights,
     };
 
     const doc = buildPlanchetaPdf(assets, meta);
@@ -192,6 +198,7 @@ router.get("/gerencial/excel", async (req, res, next) => {
   try {
     const filters = parsePlanchetaFilters(req.query);
     const assets = await getPlanchetaData(filters, req.user);
+    const insights = await getPlanchetaInsights(filters, req.user, assets);
 
     if (!assets.length) {
       return sendError(res, {
@@ -207,6 +214,7 @@ router.get("/gerencial/excel", async (req, res, next) => {
       establishment: assets[0].establishment.name,
       dependency: filters.dependencyId ? assets[0].dependency.name : "Todas",
       dateRange: buildDateRangeLabel(filters),
+      insights,
     };
 
     const workbook = await buildPlanchetaExecutiveExcel(assets, meta);
@@ -232,6 +240,7 @@ router.get("/gerencial/pdf", async (req, res, next) => {
   try {
     const filters = parsePlanchetaFilters(req.query);
     const assets = await getPlanchetaData(filters, req.user);
+    const insights = await getPlanchetaInsights(filters, req.user, assets);
 
     if (!assets.length) {
       return sendError(res, {
@@ -247,6 +256,7 @@ router.get("/gerencial/pdf", async (req, res, next) => {
       establishment: assets[0].establishment.name,
       dependency: filters.dependencyId ? assets[0].dependency.name : "Todas",
       dateRange: buildDateRangeLabel(filters),
+      insights,
     };
 
     const doc = buildPlanchetaExecutivePdf(assets, meta);

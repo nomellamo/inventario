@@ -137,7 +137,18 @@ async function transferAsset(
   });
 
   return {
-    ...updated.moved,
+    ...(
+      (await prisma.asset.findUnique({
+        where: { id: updated.moved.id },
+        include: {
+          assetType: true,
+          assetState: true,
+          establishment: true,
+          dependency: true,
+          catalogItem: true,
+        },
+      })) || updated.moved
+    ),
     movementId: updated.movementId,
   };
 }

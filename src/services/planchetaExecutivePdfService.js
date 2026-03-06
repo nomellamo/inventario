@@ -84,6 +84,82 @@ function drawRankTable(doc, opts) {
   });
 }
 
+function drawExecutiveInsightsPage(doc, meta) {
+  const insights = meta?.insights;
+  if (!insights) return;
+  doc.addPage();
+  const left = doc.page.margins.left;
+  const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const weeklyUnits = Number(insights?.weekly?.units || 0);
+  const monthlyUnits = Number(insights?.monthly?.units || 0);
+  const maxUnits = Math.max(weeklyUnits, monthlyUnits, 1);
+  const stateOverview = Array.isArray(insights?.stateOverview) ? insights.stateOverview : [];
+  const monthlyCategories = Array.isArray(insights?.monthly?.byCategory)
+    ? insights.monthly.byCategory
+    : [];
+
+  doc.fillColor("#0F172A").font("Helvetica-Bold").fontSize(16).text("RESUMEN DE BAJAS Y ESTADOS", left, 34);
+  doc.fillColor("#475569").font("Helvetica").fontSize(9).text(
+    "Resumen semanal y mensual de activos dados de baja, con distribucion actual por estado.",
+    left,
+    56,
+    { width: pageWidth }
+  );
+
+  drawMetricCard(doc, left, 90, (pageWidth - 24) / 3, 76, "Bajas 7 dias", insights?.weekly?.count || 0, `${weeklyUnits} bienes`);
+  drawMetricCard(doc, left + (pageWidth - 24) / 3 + 12, 90, (pageWidth - 24) / 3, 76, "Bajas 30 dias", insights?.monthly?.count || 0, `${monthlyUnits} bienes`);
+  drawMetricCard(
+    doc,
+    left + ((pageWidth - 24) / 3 + 12) * 2,
+    90,
+    (pageWidth - 24) / 3,
+    76,
+    "Activos sin responsable",
+    insights?.recommendations?.withoutResponsible || 0,
+    "Regularizar custodia"
+  );
+
+  const chartY = 192;
+  doc.roundedRect(left, chartY, pageWidth, 118, 10).fill("#F8FAFC").stroke("#CBD5E1");
+  doc.fillColor("#0F172A").font("Helvetica-Bold").fontSize(10).text("Grafico comparativo de bajas", left + 12, chartY + 10);
+  const chartLeft = left + 18;
+  const barBaseY = chartY + 88;
+  const barMaxHeight = 44;
+  const weeklyBarHeight = Math.max(10, Math.round((weeklyUnits / maxUnits) * barMaxHeight));
+  const monthlyBarHeight = Math.max(10, Math.round((monthlyUnits / maxUnits) * barMaxHeight));
+  doc.fillColor("#64748B").rect(chartLeft + 34, barBaseY - weeklyBarHeight, 54, weeklyBarHeight).fill();
+  doc.fillColor("#1D4ED8").rect(chartLeft + 132, barBaseY - monthlyBarHeight, 54, monthlyBarHeight).fill();
+  doc.fillColor("#334155").font("Helvetica").fontSize(8.5).text("Semanal", chartLeft + 28, barBaseY + 8, { width: 68, align: "center" });
+  doc.text("Mensual", chartLeft + 126, barBaseY + 8, { width: 68, align: "center" });
+  doc.fillColor("#0F172A").text(String(weeklyUnits), chartLeft + 28, barBaseY - weeklyBarHeight - 16, { width: 68, align: "center" });
+  doc.text(String(monthlyUnits), chartLeft + 126, barBaseY - monthlyBarHeight - 16, { width: 68, align: "center" });
+
+  doc.fillColor("#0F172A").font("Helvetica-Bold").fontSize(9).text("Categorias con mas bajas (30 dias)", left + 260, chartY + 18);
+  monthlyCategories.slice(0, 5).forEach((row, idx) => {
+    const y = chartY + 42 + idx * 14;
+    doc.fillColor("#475569").font("Helvetica").fontSize(8.5).text(row.label, left + 260, y, {
+      width: 180,
+      ellipsis: true,
+    });
+    doc.fillColor("#0F172A").text(String(row.count), left + 452, y, { width: 30, align: "right" });
+  });
+
+  if (stateOverview.length) {
+    doc.fillColor("#0F172A").font("Helvetica-Bold").fontSize(9).text("Estados actuales (incluye baja)", left + 510, chartY + 18);
+    stateOverview.slice(0, 5).forEach((row, idx) => {
+      const y = chartY + 42 + idx * 14;
+      doc.fillColor("#475569").font("Helvetica").fontSize(8.5).text(String(row.label || "Sin estado"), left + 510, y, {
+        width: 130,
+        ellipsis: true,
+      });
+      doc.fillColor(barColor(row.label)).rect(left + 646, y + 2, 10, 8).fill();
+      doc.fillColor("#0F172A").text(String(row.count || 0), left + 662, y, { width: 24, align: "right" });
+    });
+  }
+
+  doc.fillColor("black");
+}
+
 function buildPlanchetaExecutivePdf(assets, meta) {
   const summary = summarizeAssets(assets);
   const doc = new PDFDocument({ margin: 32, size: "A4" });
@@ -172,6 +248,8 @@ function buildPlanchetaExecutivePdf(assets, meta) {
     doc.page.height - 42,
     { width: pageWidth, align: "center" }
   );
+
+  drawExecutiveInsightsPage(doc, meta);
 
   return doc;
 }

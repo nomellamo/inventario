@@ -1,4 +1,5 @@
 const { z } = require("zod");
+const { booleanLike } = require("./boolean");
 
 const idParam = z.object({
   id: z.coerce.number().int().positive(),
@@ -108,8 +109,8 @@ const listAssetsQuery = z.object({
   establishmentId: z.coerce.number().int().positive().optional(),
   dependencyId: z.coerce.number().int().positive().optional(),
   assetStateId: z.coerce.number().int().positive().optional(),
-  includeDeleted: z.coerce.boolean().optional(),
-  onlyDeleted: z.coerce.boolean().optional(),
+  includeDeleted: booleanLike,
+  onlyDeleted: booleanLike,
   deletedFrom: z.coerce.date().optional(),
   deletedTo: z.coerce.date().optional(),
   assetType: z.enum(["FIXED", "CONTROL"]).optional(),
@@ -127,7 +128,7 @@ const listAssetsQuery = z.object({
     .enum(["id", "internalCode", "name", "acquisitionDate", "acquisitionValue"])
     .optional(),
   sortOrder: z.enum(["asc", "desc"]).optional(),
-  withCount: z.coerce.boolean().optional(),
+  withCount: booleanLike,
   take: z.coerce.number().int().min(1).max(100).optional(),
   skip: z.coerce.number().int().min(0).optional(),
 });

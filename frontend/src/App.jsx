@@ -1,10 +1,54 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import QRCode from 'qrcode'
-import JsBarcode from 'jsbarcode'
-import jsPDF from 'jspdf'
-import * as XLSX from 'xlsx'
+﻿import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import logoInventacore from './assets/images/logo-inventacore.png'
+import {
+  InstitutionsTabPanel,
+  EstablishmentsTabPanel,
+  DependenciesTabPanel,
+  UsersTabPanel,
+  AssistantTabPanel,
+  AssetsTabPanel,
+  TrashTabPanel,
+  ImportsTabPanel,
+  PlanchetasTabPanel,
+  AuditTabPanel,
+} from './components/tabPanels'
+import PlanchetasSection from './components/PlanchetasSection'
+import AuditSection from './components/AuditSection'
+import ImportsSection from './components/ImportsSection'
+import ImportsAssetsView from './components/ImportsAssetsView'
+import ImportsCatalogView from './components/ImportsCatalogView'
+import ImportsSnView from './components/ImportsSnView'
+import AssetsSection from './components/AssetsSection'
+import AssetsCreateView from './components/AssetsCreateView'
+import AssetsListView from './components/AssetsListView'
+import { UI_TEXT } from './constants/uiText'
+import { UI_ERROR, UI_STATUS, UI_SUCCESS } from './constants/uiMessages'
 import './App.css'
+
+let xlsxLibPromise
+let qrCodeLibPromise
+let jsBarcodeLibPromise
+let jsPdfLibPromise
+
+async function loadXlsxLib() {
+  if (!xlsxLibPromise) xlsxLibPromise = import('xlsx')
+  return xlsxLibPromise
+}
+
+async function loadQrCodeLib() {
+  if (!qrCodeLibPromise) qrCodeLibPromise = import('qrcode')
+  return qrCodeLibPromise
+}
+
+async function loadJsBarcodeLib() {
+  if (!jsBarcodeLibPromise) jsBarcodeLibPromise = import('jsbarcode')
+  return jsBarcodeLibPromise
+}
+
+async function loadJsPdfLib() {
+  if (!jsPdfLibPromise) jsPdfLibPromise = import('jspdf')
+  return jsPdfLibPromise
+}
 
 function App() {
   const API_BASE = import.meta.env.VITE_API_BASE || '/api'
@@ -45,7 +89,7 @@ function App() {
     }
   })
   const [login, setLogin] = useState({
-    email: 'admin@inventacore.local',
+    email: 'admin@cordillera.local',
     password: 'admin123',
   })
   const [status, setStatus] = useState({
@@ -57,6 +101,7 @@ function App() {
   })
   const [statusCopyFeedback, setStatusCopyFeedback] = useState('')
   const [isLoginLoading, setIsLoginLoading] = useState(false)
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false)
   const [isChangingPassword, setIsChangingPassword] = useState(false)
   const [changePasswordForm, setChangePasswordForm] = useState({
@@ -116,7 +161,7 @@ function App() {
 
   const [dependencies, setDependencies] = useState([])
   const [dependenciesCatalog, setDependenciesCatalog] = useState([])
-  const [loadingDependencies, setLoadingDependencies] = useState(false)
+  const [, setLoadingDependencies] = useState(false)
   const [depFilters, setDepFilters] = useState({
     q: '',
     establishmentId: '',
@@ -210,7 +255,7 @@ function App() {
   const [assetListEstablishments, setAssetListEstablishments] = useState([])
   const [assetListDependencies, setAssetListDependencies] = useState([])
   const [assetInstitutionId, setAssetInstitutionId] = useState('')
-  const [catalogFilters, setCatalogFilters] = useState({
+  const [catalogFilters] = useState({
     q: '',
     category: '',
     subcategory: '',
@@ -301,6 +346,7 @@ function App() {
   })
   const [assetListPage, setAssetListPage] = useState(1)
   const [assetListTotal, setAssetListTotal] = useState(0)
+  const [selectedAssetIds, setSelectedAssetIds] = useState([])
   const [trashFilters, setTrashFilters] = useState({
     q: '',
     internalCode: '',
@@ -322,6 +368,7 @@ function App() {
   const [importLoading, setImportLoading] = useState(false)
   const [importResult, setImportResult] = useState(null)
   const [importErrors, setImportErrors] = useState([])
+  const importJobPollRef = useRef(null)
   const [importSchemaDetails, setImportSchemaDetails] = useState(null)
   const [previewHeaders, setPreviewHeaders] = useState([])
   const [previewRows, setPreviewRows] = useState([])
@@ -358,6 +405,7 @@ function App() {
   const catalogKeyCheckTimers = useRef({})
   const assetSearchDebounceRef = useRef(null)
   const usersSearchDebounceRef = useRef(null)
+  const userMenuRef = useRef(null)
 
   const [importHistory, setImportHistory] = useState([])
   const [importHistoryPage, setImportHistoryPage] = useState(1)
@@ -369,6 +417,29 @@ function App() {
     toDate: '',
     userId: '',
   })
+
+  function stopImportJobPolling() {
+    if (importJobPollRef.current) {
+      clearTimeout(importJobPollRef.current)
+      importJobPollRef.current = null
+    }
+  }
+
+  function normalizeImportJobPayload(data) {
+    if (!data) return null
+    return {
+      ...data,
+      metrics: data.metrics || data.errors?.metrics || null,
+      errorItems: data.errorItems || data.errors?.items || [],
+    }
+  }
+
+  function scheduleImportJobPoll(batchId) {
+    stopImportJobPolling()
+    importJobPollRef.current = setTimeout(() => {
+      loadImportJobStatus(batchId, { silent: true }).catch(() => {})
+    }, 2000)
+  }
 
   const [planchetaFilters, setPlanchetaFilters] = useState({
     institutionId: '',
@@ -387,6 +458,7 @@ function App() {
   const [planchetaDependencies, setPlanchetaDependencies] = useState([])
   const [planchetaPreview, setPlanchetaPreview] = useState([])
   const [planchetaSummary, setPlanchetaSummary] = useState([])
+  const [planchetaInsights, setPlanchetaInsights] = useState(null)
   const [planchetaPreviewLoading, setPlanchetaPreviewLoading] = useState(false)
   const [loadingPlancheta, setLoadingPlancheta] = useState(false)
   const [planchetaMessage, setPlanchetaMessage] = useState('')
@@ -452,7 +524,21 @@ function App() {
     [currentUser, tokenClaims]
   )
   const isCentral = useMemo(() => roleType === 'ADMIN_CENTRAL', [roleType])
-  const planchetaQuery = useMemo(() => buildPlanchetaQuery(), [planchetaFilters])
+  const planchetaQuery = useMemo(() => {
+    const params = new URLSearchParams()
+    if (!planchetaFilters.establishmentId) return ''
+    params.set('establishmentId', planchetaFilters.establishmentId)
+    if (planchetaFilters.dependencyId) params.set('dependencyId', planchetaFilters.dependencyId)
+    if (planchetaFilters.fromDate) params.set('fromDate', planchetaFilters.fromDate)
+    if (planchetaFilters.toDate) params.set('toDate', planchetaFilters.toDate)
+    if (planchetaFilters.responsibleName) {
+      params.set('responsibleName', planchetaFilters.responsibleName)
+    }
+    if (planchetaFilters.chiefName) params.set('chiefName', planchetaFilters.chiefName)
+    if (planchetaFilters.ministryText) params.set('ministryText', planchetaFilters.ministryText)
+    params.set('includeHistory', planchetaFilters.includeHistory ? 'true' : 'false')
+    return params.toString()
+  }, [planchetaFilters])
   const canPreviewPlancheta = Boolean(planchetaQuery) && !planchetaPreviewLoading
   const canExportPlancheta = canPreviewPlancheta && planchetaPreview.length > 0
 
@@ -486,7 +572,7 @@ function App() {
       }
     }, 10 * 60 * 1000)
     return () => clearInterval(id)
-  }, [isAuthed])
+  }, [API_BASE, isAuthed])
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -1186,6 +1272,7 @@ function App() {
     setSnBaseLoading(true)
     try {
       const buffer = await file.arrayBuffer()
+      const XLSX = await loadXlsxLib()
       const workbook = XLSX.read(buffer, { type: 'array' })
       const firstSheetName = workbook.SheetNames[0]
       if (!firstSheetName) {
@@ -1237,6 +1324,7 @@ function App() {
     }
     try {
       const buffer = await file.arrayBuffer()
+      const XLSX = await loadXlsxLib()
       const workbook = XLSX.read(buffer, { type: 'array' })
       const sheetName = workbook.SheetNames[0]
       if (!sheetName) {
@@ -1336,6 +1424,7 @@ function App() {
     setImportResult(null)
     setImportSchemaDetails(null)
     setImportErrors([])
+    stopImportJobPolling()
 
     try {
       const formData = new FormData()
@@ -1365,13 +1454,21 @@ function App() {
         throw new Error(msg)
       }
 
-      setImportResult(json)
-      setImportErrors(json?.errors || [])
-      setOk('Importación completada.')
+      const normalized = normalizeImportJobPayload(json)
+      setImportResult(normalized)
+      setImportErrors(normalized?.errorItems || [])
+      if (normalized?.status === 'PROCESSING' && normalized?.id) {
+        loadImportHistory(1)
+        scheduleImportJobPoll(normalized.id)
+        setOk('Importacion en proceso por bloques.')
+      } else {
+        setImportLoading(false)
+        setOk(UI_STATUS.importCompleted)
+      }
     } catch (err) {
-      setErr(err, 'Error al importar Excel.')
-    } finally {
+      stopImportJobPolling()
       setImportLoading(false)
+      setErr(err, 'Error al importar Excel.')
     }
   }
 
@@ -1412,7 +1509,7 @@ function App() {
 
       setCatalogImportResult(json)
       setCatalogImportErrors(json?.errors || [])
-      setOk('Carga masiva de catálogo completada.')
+      setOk(UI_STATUS.catalogBulkImportCompleted)
     } catch (err) {
       setErr(err, 'Error al importar catálogo por Excel.')
     } finally {
@@ -1467,7 +1564,7 @@ function App() {
             `Catálogo vaciado. Eliminados: ${Number(result?.deletedCount || 0)}. Próximo ID: 1.`
           )
         } catch (err) {
-          setErr(err, 'No se pudo vaciar el catálogo.')
+          setErr(err, UI_ERROR.couldNotClear('el catálogo'))
         } finally {
           closeConfirm()
         }
@@ -1539,7 +1636,7 @@ function App() {
       setCatalogAdminRowStatus({})
       setCatalogAdminKeyStatus({})
     } catch (err) {
-      setErr(err, 'No se pudo cargar ítems de catálogo.')
+      setErr(err, UI_ERROR.couldNotLoad('ítems de catálogo'))
     } finally {
       setCatalogAdminLoading(false)
     }
@@ -1549,7 +1646,7 @@ function App() {
     try {
       setCatalogAdminRowStatus((prev) => ({
         ...prev,
-        [item.id]: { type: 'info', message: 'Guardando...' },
+        [item.id]: { type: 'info', message: UI_TEXT.saving },
       }))
       const body = {
         officialKey: item.officialKey?.trim() || undefined,
@@ -1580,7 +1677,7 @@ function App() {
         ...prev,
         [item.id]: { type: 'ok', message: 'Guardado' },
       }))
-      setOk(`Ítem #${item.id} actualizado.`)
+      setOk(UI_SUCCESS.catalogItemUpdated(item.id))
     } catch (err) {
       const message = getCatalogConflictMessage(err, 'Error al guardar')
       setCatalogAdminRowStatus((prev) => ({
@@ -1862,7 +1959,7 @@ function App() {
         loading: false,
       }))
     } catch (err) {
-      setErr(err, 'No se pudo cargar el resumen de eliminación forzada.')
+      setErr(err, UI_ERROR.couldNotLoad('el resumen de eliminación forzada'))
       setForceDeleteState((prev) => ({
         ...prev,
         loading: false,
@@ -1905,10 +2002,10 @@ function App() {
         body: { confirmationText: typed },
       })
       await reload()
-      setOk('Eliminación forzada completada.')
+      setOk(UI_STATUS.forceDeleteCompleted)
       closeForceDelete()
     } catch (err) {
-      setErr(err, 'No se pudo completar la eliminación forzada.')
+      setErr(err, UI_ERROR.couldNotComplete('la eliminación forzada'))
       setForceDeleteState((prev) => ({ ...prev, deleting: false }))
     }
   }
@@ -1933,7 +2030,7 @@ function App() {
         localStorage.setItem('admin_user', JSON.stringify(result.user))
         setCurrentUser(result.user)
       }
-      setOk('Sesión iniciada correctamente.')
+      setOk(UI_STATUS.sessionStarted)
     } catch (err) {
       await waitAtLeastOneSecond()
       setErr(err)
@@ -1952,7 +2049,9 @@ function App() {
       localStorage.removeItem('admin_user')
       setToken('')
       setCurrentUser(null)
-      setOk('Sesión cerrada.')
+      setIsUserMenuOpen(false)
+      setIsChangePasswordOpen(false)
+      setOk(UI_STATUS.sessionClosed)
     }
   }
 
@@ -2000,6 +2099,7 @@ function App() {
   }
 
   function openChangePassword() {
+    setIsUserMenuOpen(true)
     setIsChangePasswordOpen(true)
     setChangePasswordForm({
       currentPassword: '',
@@ -2016,6 +2116,15 @@ function App() {
       newPassword: '',
       confirmPassword: '',
     })
+  }
+
+  function toggleUserMenu() {
+    if (isUserMenuOpen) {
+      if (isChangePasswordOpen) closeChangePassword()
+      setIsUserMenuOpen(false)
+      return
+    }
+    setIsUserMenuOpen(true)
   }
 
   async function handleChangePassword(e) {
@@ -2407,11 +2516,16 @@ function App() {
       params.set('skip', String(skip))
       params.set('withCount', 'true')
       const data = await api(`/assets?${params.toString()}`)
-      setAssetsList(data.items || [])
+      const nextItems = data.items || []
+      setAssetsList(nextItems)
+      setSelectedAssetIds((prev) =>
+        prev.filter((id) => nextItems.some((item) => String(item.id) === String(id)))
+      )
       setAssetListTotal(data.total || 0)
       setAssetListPage(normalizedPage)
     } catch (err) {
       setAssetsList([])
+      setSelectedAssetIds([])
       setAssetListTotal(0)
       setErr(err)
     } finally {
@@ -2572,7 +2686,7 @@ function App() {
         method: 'PUT',
         formData,
       })
-      setOk(`Activo fijo restaurado: ${restoreModal.asset.name}`)
+      setOk(UI_SUCCESS.assetRestored(restoreModal.asset.name))
       setRestoreModal({
         open: false,
         asset: null,
@@ -2670,7 +2784,7 @@ function App() {
     applyUpdatedUserInList(updated)
     syncCurrentUserPhotoIfNeeded(updated)
     setUserPhotoFiles((prev) => ({ ...prev, [userId]: null }))
-    setOk('Foto de usuario actualizada.')
+    setOk(UI_STATUS.photoUpdated)
   }
 
   async function clearUserPhotoAdmin(userId) {
@@ -2754,7 +2868,7 @@ function App() {
       setUserFormPhotoFile(null)
       setUserFormWithoutPhoto(false)
       await loadUsersAdmin(1)
-      setOk(`Usuario creado: ${created.email}`)
+      setOk(UI_SUCCESS.userCreated(created.email))
     } catch (err) {
       setErr(err)
     }
@@ -2785,7 +2899,7 @@ function App() {
         method: 'PUT',
         body: payload,
       })
-      setOk(`Usuario actualizado: ${updated.email}`)
+      setOk(UI_SUCCESS.userUpdated(updated.email))
       await loadUsersAdmin(usersPage)
     } catch (err) {
       setErr(err)
@@ -2800,7 +2914,7 @@ function App() {
         try {
           await api(`/admin/users/${userId}`, { method: 'DELETE' })
           await loadUsersAdmin(usersPage)
-          setOk(`Usuario desactivado: ${email}`)
+          setOk(UI_SUCCESS.userDeactivated(email))
         } catch (err) {
           setErr(err)
         } finally {
@@ -2814,7 +2928,7 @@ function App() {
     try {
       await api(`/admin/users/${userId}/reactivate`, { method: 'PUT' })
       await loadUsersAdmin(usersPage)
-      setOk(`Usuario reactivado: ${email}`)
+      setOk(UI_SUCCESS.userReactivated(email))
     } catch (err) {
       setErr(err)
     }
@@ -2996,7 +3110,7 @@ function App() {
           const rowQuantity = Number(row.quantity)
           const rowValue = Number(row.acquisitionValue)
           if (!rowCatalogId) {
-            errors.multiProducts = `Producto ${i + 1}: selecciona un item de catálogo.`
+            errors.multiProducts = `Producto ${i + 1}: selecciona un ítem de catálogo.`
             break
           }
           if (!Number.isInteger(rowQuantity) || rowQuantity <= 0) {
@@ -3040,7 +3154,8 @@ function App() {
     return String(value || '').trim().toUpperCase()
   }
 
-  function buildBarcodeDataUrl(value) {
+  async function buildBarcodeDataUrl(value) {
+    const { default: JsBarcode } = await loadJsBarcodeLib()
     const canvas = document.createElement('canvas')
     JsBarcode(canvas, value, {
       format: 'CODE39',
@@ -3061,7 +3176,7 @@ function App() {
 
   function getLabelData(asset) {
     const code = asset?.internalCode ? `INV-${asset.internalCode}` : ''
-    const name = asset?.name || asset?.catalogItem?.name || 'Activo Fijo'
+    const name = asset?.name || asset?.catalogItem?.name || UI_TEXT.assetSingular
     const establishment = asset?.establishment?.name || ''
     const dependency = asset?.dependency?.name || ''
     const assetState = asset?.assetState?.name || ''
@@ -3098,12 +3213,13 @@ function App() {
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
-      .replace(/\"/g, '&quot;')
+      .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;')
   }
 
   async function downloadLabelPdf() {
     if (!createdAsset?.internalCode) return
+    const [{ jsPDF }, { default: QRCode }] = await Promise.all([loadJsPdfLib(), loadQrCodeLib()])
     const label = getLabelData(createdAsset)
     const doc = new jsPDF({ unit: 'mm', format: [LABEL.widthMm, LABEL.heightMm] })
     const baseX = LABEL.marginMm + LABEL.offsetX
@@ -3112,7 +3228,7 @@ function App() {
     const centerX = baseX + contentWidth / 2
     doc.setFontSize(8.8)
     doc.text(String(label.code || '').substring(0, 22), centerX, baseY + 3.2, { align: 'center' })
-    const name = label.name || 'Activo Fijo'
+    const name = label.name || UI_TEXT.assetSingular
     doc.setFontSize(8)
     doc.text(name.substring(0, 22), centerX, baseY + 6.3, { align: 'center' })
     doc.setFontSize(6.2)
@@ -3131,7 +3247,7 @@ function App() {
     if (!qr) {
       qr = await QRCode.toDataURL(label.code, { margin: 1, width: 160 })
     }
-    const barcode = buildBarcodeDataUrl(label.code)
+    const barcode = await buildBarcodeDataUrl(label.code)
     const qrSize = 8
     const barcodeWidth = 24
     const barcodeHeight = 5
@@ -3146,10 +3262,19 @@ function App() {
   }
 
   async function downloadBatchLabelsPdf() {
-    const batch = (createdAssetBatch || [])
+    return downloadLabelsPdfForBatch(createdAssetBatch, 'labels_lote')
+  }
+
+  function getPrintableLabelBatch(items) {
+    return (items || [])
       .filter((item) => item?.internalCode)
       .sort((a, b) => Number(a.internalCode || 0) - Number(b.internalCode || 0))
+  }
+
+  async function downloadLabelsPdfForBatch(items, filePrefix = 'labels_lote') {
+    const batch = getPrintableLabelBatch(items)
     if (!batch.length) return
+    const [{ jsPDF }, { default: QRCode }] = await Promise.all([loadJsPdfLib(), loadQrCodeLib()])
     const doc = new jsPDF({ unit: 'mm', format: [LABEL.widthMm, LABEL.heightMm] })
     for (let index = 0; index < batch.length; index++) {
       if (index > 0) doc.addPage([LABEL.widthMm, LABEL.heightMm], 'portrait')
@@ -3160,7 +3285,7 @@ function App() {
       const centerX = baseX + contentWidth / 2
       doc.setFontSize(8.8)
       doc.text(String(label.code || '').substring(0, 22), centerX, baseY + 3.2, { align: 'center' })
-      const name = label.name || 'Activo Fijo'
+      const name = label.name || UI_TEXT.assetSingular
       doc.setFontSize(8)
       doc.text(name.substring(0, 22), centerX, baseY + 6.3, { align: 'center' })
       doc.setFontSize(6.2)
@@ -3175,7 +3300,7 @@ function App() {
         y += 2.3
       }
       const qr = await QRCode.toDataURL(label.code, { margin: 1, width: 160 })
-      const barcode = buildBarcodeDataUrl(label.code)
+      const barcode = await buildBarcodeDataUrl(label.code)
       const qrSize = 8
       const barcodeWidth = 24
       const barcodeHeight = 5
@@ -3187,18 +3312,19 @@ function App() {
       doc.addImage(qr, 'PNG', qrX, qrY, qrSize, qrSize)
       doc.addImage(barcode, 'PNG', barcodeX, barcodeY, barcodeWidth, barcodeHeight)
     }
-    doc.save(`labels_lote_${Date.now()}.pdf`)
+    doc.save(`${filePrefix}_${Date.now()}.pdf`)
   }
 
   async function openPrintLabel() {
     if (!createdAsset?.internalCode) return
+    const { default: QRCode } = await loadQrCodeLib()
     const label = getLabelData(createdAsset)
 
     let qr = qrCodeUrl
     if (!qr) {
       qr = await QRCode.toDataURL(label.code, { margin: 1, width: 160 })
     }
-    const barcode = buildBarcodeDataUrl(label.code)
+    const barcode = await buildBarcodeDataUrl(label.code)
 
     const win = window.open('', '_blank', 'width=480,height=420')
     if (!win) {
@@ -3340,9 +3466,11 @@ function App() {
   }
 
   async function openPrintBatchLabels() {
-    const batch = (createdAssetBatch || [])
-      .filter((item) => item?.internalCode)
-      .sort((a, b) => Number(a.internalCode || 0) - Number(b.internalCode || 0))
+    return openPrintLabelsForBatch(createdAssetBatch)
+  }
+
+  async function openPrintLabelsForBatch(items, title = '') {
+    const batch = getPrintableLabelBatch(items)
     if (!batch.length) return
     const win = window.open('', '_blank', 'width=640,height=520')
     if (!win) {
@@ -3350,11 +3478,12 @@ function App() {
       return
     }
 
+    const { default: QRCode } = await loadQrCodeLib()
     const sheets = []
     for (const item of batch) {
       const label = getLabelData(item)
       const qr = await QRCode.toDataURL(label.code, { margin: 1, width: 160 })
-      const barcode = buildBarcodeDataUrl(label.code)
+      const barcode = await buildBarcodeDataUrl(label.code)
       const metaLines = [
         label.establishment && `Est: ${escapeHtml(label.establishment)}`,
         label.dependency && `Dep: ${escapeHtml(label.dependency)}`,
@@ -3381,7 +3510,7 @@ function App() {
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Etiquetas lote (${batch.length})</title>
+  <title>${escapeHtml(title || `Etiquetas lote (${batch.length})`)}</title>
   <style>
     @page { size: ${LABEL.widthMm}mm ${LABEL.heightMm}mm; margin: 0; }
     * { box-sizing: border-box; }
@@ -3488,6 +3617,184 @@ function App() {
     win.document.open()
     win.document.write(html)
     win.document.close()
+  }
+
+  async function fetchAssetListBatchForLabels() {
+    const total = Number(assetListTotal || assetsList.length || 0)
+    if (!total) return []
+    if (total > 1000) {
+      throw new Error('Hay demasiados activos para imprimir de una vez. Filtra a 1000 o menos.')
+    }
+    const params = new URLSearchParams()
+    const safeId = toPositiveIntOrNull(assetListFilters.id)
+    if (assetListFilters.id && !safeId) {
+      throw new Error('Filtro ID inválido. Usa solo numeros positivos.')
+    }
+    if (safeId) params.set('id', String(safeId))
+    if (assetListFilters.internalCode) params.set('internalCode', assetListFilters.internalCode)
+    if (assetListFilters.q) params.set('q', assetListFilters.q)
+    if (assetListFilters.responsibleName) params.set('responsibleName', assetListFilters.responsibleName)
+    if (assetListFilters.costCenter) params.set('costCenter', assetListFilters.costCenter)
+    if (assetListFilters.institutionId) params.set('institutionId', assetListFilters.institutionId)
+    if (assetListFilters.establishmentId) params.set('establishmentId', assetListFilters.establishmentId)
+    if (assetListFilters.dependencyId) params.set('dependencyId', assetListFilters.dependencyId)
+    if (assetListFilters.assetStateId) params.set('assetStateId', assetListFilters.assetStateId)
+    if (assetListFilters.includeDeleted) params.set('includeDeleted', 'true')
+    if (assetListFilters.fromDate) params.set('fromDate', assetListFilters.fromDate)
+    if (assetListFilters.toDate) params.set('toDate', assetListFilters.toDate)
+    params.set('take', String(total))
+    params.set('skip', '0')
+    params.set('withCount', 'false')
+    const data = await api(`/assets?${params.toString()}`)
+    return data.items || []
+  }
+
+  async function downloadAssetListLabelsPdf() {
+    try {
+      const items = await fetchAssetListBatchForLabels()
+      if (!items.length) {
+        setErr('No hay activos fijos filtrados para exportar QR.')
+        return
+      }
+      await downloadLabelsPdfForBatch(items, 'labels_activos')
+    } catch (err) {
+      setErr(err)
+    }
+  }
+
+  async function loadImportJobStatus(batchId, { silent = false } = {}) {
+    const data = normalizeImportJobPayload(await api(`/assets/imports/${batchId}`))
+    setImportResult(data)
+    setImportErrors(data?.errorItems || [])
+
+    if (data?.status === 'PROCESSING') {
+      setImportLoading(true)
+      scheduleImportJobPoll(batchId)
+      return data
+    }
+
+    stopImportJobPolling()
+    setImportLoading(false)
+    loadImportHistory(1)
+    if (data?.status === 'COMPLETED' && !silent) {
+      setOk(UI_STATUS.importCompleted)
+    }
+    if (data?.status === 'FAILED' && !silent) {
+      setErr('La importacion quedo incompleta. Puedes revisar el detalle o reanudarla.')
+    }
+    return data
+  }
+
+  async function resumeImportJob(batchId) {
+    if (!batchId) return
+    setImportLoading(true)
+    const data = normalizeImportJobPayload(
+      await api(`/assets/imports/${batchId}/retry`, { method: 'POST' })
+    )
+    setImportResult(data)
+    setImportErrors(data?.errorItems || [])
+    if (data?.id) {
+      scheduleImportJobPoll(data.id)
+    }
+  }
+
+  useEffect(() => () => stopImportJobPolling(), [])
+
+  async function openPrintAssetListLabels() {
+    try {
+      const items = await fetchAssetListBatchForLabels()
+      if (!items.length) {
+        setErr('No hay activos fijos filtrados para imprimir QR.')
+        return
+      }
+      await openPrintLabelsForBatch(items, `Etiquetas activos (${items.length})`)
+    } catch (err) {
+      setErr(err)
+    }
+  }
+
+  function toggleSelectedAsset(assetId) {
+    const safeId = toPositiveIntOrNull(assetId)
+    if (!safeId) return
+    setSelectedAssetIds((prev) =>
+      prev.includes(safeId) ? prev.filter((id) => id !== safeId) : [...prev, safeId]
+    )
+  }
+
+  function toggleSelectAllVisibleAssets() {
+    const visibleIds = (assetsList || [])
+      .map((asset) => toPositiveIntOrNull(asset.id))
+      .filter(Boolean)
+    if (!visibleIds.length) return
+    setSelectedAssetIds((prev) => {
+      const allSelected = visibleIds.every((id) => prev.includes(id))
+      if (allSelected) {
+        return prev.filter((id) => !visibleIds.includes(id))
+      }
+      const next = new Set(prev)
+      visibleIds.forEach((id) => next.add(id))
+      return Array.from(next)
+    })
+  }
+
+  function clearSelectedAssets() {
+    setSelectedAssetIds([])
+  }
+
+  async function downloadSelectedAssetLabelsPdf() {
+    try {
+      const selectedItems = (assetsList || []).filter((asset) =>
+        selectedAssetIds.includes(toPositiveIntOrNull(asset.id))
+      )
+      if (!selectedItems.length) {
+        setErr('Selecciona al menos un activo fijo visible para exportar QR.')
+        return
+      }
+      await downloadLabelsPdfForBatch(selectedItems, 'labels_activos_seleccionados')
+    } catch (err) {
+      setErr(err)
+    }
+  }
+
+  async function openPrintSelectedAssetLabels() {
+    try {
+      const selectedItems = (assetsList || []).filter((asset) =>
+        selectedAssetIds.includes(toPositiveIntOrNull(asset.id))
+      )
+      if (!selectedItems.length) {
+        setErr('Selecciona al menos un activo fijo visible para imprimir QR.')
+        return
+      }
+      await openPrintLabelsForBatch(selectedItems, `Etiquetas seleccionadas (${selectedItems.length})`)
+    } catch (err) {
+      setErr(err)
+    }
+  }
+
+  async function downloadPlanchetaLabelsPdf() {
+    try {
+      const items = getPrintableLabelBatch(planchetaPreview)
+      if (!items.length) {
+        setErr('Previsualiza planchetas con activos antes de exportar QR.')
+        return
+      }
+      await downloadLabelsPdfForBatch(items, 'labels_plancheta')
+    } catch (err) {
+      setErr(err)
+    }
+  }
+
+  async function openPrintPlanchetaLabels() {
+    try {
+      const items = getPrintableLabelBatch(planchetaPreview)
+      if (!items.length) {
+        setErr('Previsualiza planchetas con activos antes de imprimir QR.')
+        return
+      }
+      await openPrintLabelsForBatch(items, `Etiquetas plancheta (${items.length})`)
+    } catch (err) {
+      setErr(err)
+    }
   }
 
   async function handleCreateAsset() {
@@ -3840,6 +4147,7 @@ function App() {
         body: { toDependencyId: Number(moveAssetForm.toDependencyId) },
       })
       setCreatedAsset(updated)
+      await loadAssetsList()
       setOk('Activo fijo movido correctamente.')
       setCatalogAction(null)
     } catch (err) {
@@ -3959,7 +4267,7 @@ function App() {
 
   function applyCatalogItem(selected) {
     if (!selected) {
-      setErr('No se encontro el item de catálogo seleccionado.')
+      setErr('No se encontro el ítem de catálogo seleccionado.')
       return
     }
     setSelectedCatalogItem(selected)
@@ -3988,7 +4296,7 @@ function App() {
     const detail = extractCatalogDetail(item.description)
     if (detail) parts.push(detail)
     if (parts.length) return parts.join(' / ')
-    return [item.name, item.category].filter(Boolean).join(' · ')
+    return [item.name, item.category].filter(Boolean).join(' - ')
   }
 
   function sanitizeMultiProductCount(value) {
@@ -4372,6 +4680,7 @@ function App() {
       setPlanchetaMessage('Selecciona establecimiento para previsualizar.')
       setPlanchetaPreview([])
       setPlanchetaSummary([])
+      setPlanchetaInsights(null)
       return
     }
     setPlanchetaPreviewLoading(true)
@@ -4379,8 +4688,10 @@ function App() {
       const data = await api(`/planchetas?${qs}`)
       const items = data.items || []
       const summary = data.summary || []
+      const insights = data.insights || null
       setPlanchetaPreview(items)
       setPlanchetaSummary(summary)
+      setPlanchetaInsights(insights)
       if (!items.length) {
         setPlanchetaMessage(
           'No hay activos fijos para ese filtro. Carga activos fijos en la dependencia y vuelve a intentar.'
@@ -4391,6 +4702,7 @@ function App() {
     } catch (err) {
       setPlanchetaPreview([])
       setPlanchetaSummary([])
+      setPlanchetaInsights(null)
       const message = getPlanchetaErrorMessage(err, 'No se pudo cargar la previsualizacion.')
       setPlanchetaMessage(message)
       setErr(message)
@@ -4444,7 +4756,7 @@ function App() {
     }
   }
 
-  useEffect(() => {
+  const handleActiveTabDataLoad = useEffectEvent(() => {
     if (!isAuthed) return
     if (activeTab === 'institutions') {
       if (isCentral) {
@@ -4510,38 +4822,157 @@ function App() {
       loadPlanchetaInstitutions()
       setPlanchetaPreview([])
     }
-  }, [activeTab, importsView, isAuthed, isCentral, currentUser?.institutionId, currentUser?.establishmentId])
+  })
 
-  useEffect(() => {
+  const handleInstitutionCatalogTabLoad = useEffectEvent(() => {
     if (!isAuthed) return
     if (activeTab !== 'institutions' && activeTab !== 'assets' && activeTab !== 'planchetas') {
       return
     }
     loadInstitutionCatalog()
-  }, [isAuthed, activeTab])
+  })
 
-  useEffect(() => {
+  const handlePlanchetaEstablishmentsLoad = useEffectEvent(() => {
     if (!isAuthed || activeTab !== 'planchetas') return
     if (!planchetaFilters.institutionId) {
       setPlanchetaEstablishments([])
       return
     }
     loadPlanchetaEstablishments(planchetaFilters.institutionId)
-  }, [isAuthed, activeTab, planchetaFilters.institutionId])
+  })
 
-  useEffect(() => {
+  const handlePlanchetaDependenciesLoad = useEffectEvent(() => {
     if (!isAuthed || activeTab !== 'planchetas') return
     if (!planchetaFilters.establishmentId) {
       setPlanchetaDependencies([])
       return
     }
     loadPlanchetaDependencies(planchetaFilters.establishmentId)
+  })
+
+  const handleEstablishmentCatalogLoad = useEffectEvent(() => {
+    if (!isAuthed) return
+    if (activeTab !== 'establishments') return
+    loadEstablishmentCatalog(estForm.institutionId)
+  })
+
+  const handleDependencyCatalogLoad = useEffectEvent(() => {
+    if (!isAuthed) return
+    if (activeTab !== 'dependencies') return
+    loadDependencyCatalog(depForm.establishmentId)
+  })
+
+  const handleAssistantInstitutionScopeChange = useEffectEvent(() => {
+    if (!isAuthed || activeTab !== 'assistant' || !isCentral) return
+    loadEstablishmentCatalog(assistantScope.institutionId)
+    setAssistantScope((prev) => ({ ...prev, establishmentId: '', dependencyId: '' }))
+    setDependenciesCatalog([])
+  })
+
+  const handleAssistantEstablishmentScopeChange = useEffectEvent(() => {
+    if (!isAuthed || activeTab !== 'assistant' || !isCentral) return
+    if (!assistantScope.establishmentId) {
+      setDependenciesCatalog([])
+      setAssistantScope((prev) => ({ ...prev, dependencyId: '' }))
+      return
+    }
+    loadDependencyCatalog(assistantScope.establishmentId)
+    setAssistantScope((prev) => ({ ...prev, dependencyId: '' }))
+  })
+
+  const handleAssetEstablishmentsLoad = useEffectEvent(() => {
+    if (!isAuthed) return
+    if (activeTab !== 'assets') return
+    if (!assetInstitutionId) {
+      setAssetEstablishments([])
+      return
+    }
+    loadAssetEstablishments(assetInstitutionId)
+  })
+
+  const handleAssetDependenciesLoad = useEffectEvent(() => {
+    if (!isAuthed) return
+    if (activeTab !== 'assets') return
+    if (!assetForm.establishmentId) {
+      setAssetDependencies([])
+      return
+    }
+    loadAssetDependencies(assetForm.establishmentId)
+  })
+
+  const handleAssetListEstablishmentsLoad = useEffectEvent(() => {
+    if (!isAuthed) return
+    if (activeTab !== 'assets') return
+    loadAssetListEstablishments(assetListFilters.institutionId)
+  })
+
+  const handleAssetListDependenciesLoad = useEffectEvent(() => {
+    if (!isAuthed) return
+    if (activeTab !== 'assets') return
+    if (!assetListFilters.establishmentId) {
+      setAssetListDependencies([])
+      return
+    }
+    loadAssetListDependencies(assetListFilters.establishmentId)
+  })
+
+  const handleUsersSearch = useEffectEvent(() => {
+    loadUsersAdmin(1)
+  })
+
+  const handleAssetsSearch = useEffectEvent(() => {
+    loadAssetsList(1)
+  })
+
+  const restoreLastCreatedAsset = useEffectEvent(() => {
+    if (!isAuthed) return
+    const lastId = localStorage.getItem('last_asset_id')
+    if (!lastId) return
+    const safeLastId = toPositiveIntOrNull(lastId)
+    if (!safeLastId) {
+      localStorage.removeItem('last_asset_id')
+      return
+    }
+    api(`/assets/${safeLastId}`)
+      .then((asset) => setCreatedAsset(asset))
+      .catch(() => {
+        localStorage.removeItem('last_asset_id')
+      })
+  })
+
+  const syncCreatedAssetDetails = useEffectEvent(() => {
+    const safeAssetId = getSafeAssetId(createdAsset)
+    if (!safeAssetId) {
+      setAssetMovements([])
+      setAssetEvidence([])
+      setEvidenceForm({ movementId: '', docType: 'ACTA', note: '', file: null })
+      return
+    }
+    loadAssetMovements(safeAssetId)
+    loadAssetEvidence(safeAssetId)
+  })
+
+  useEffect(() => {
+    handleActiveTabDataLoad()
+  }, [activeTab, importsView, isAuthed, isCentral, currentUser?.institutionId, currentUser?.establishmentId])
+
+  useEffect(() => {
+    handleInstitutionCatalogTabLoad()
+  }, [isAuthed, activeTab])
+
+  useEffect(() => {
+    handlePlanchetaEstablishmentsLoad()
+  }, [isAuthed, activeTab, planchetaFilters.institutionId])
+
+  useEffect(() => {
+    handlePlanchetaDependenciesLoad()
   }, [isAuthed, activeTab, planchetaFilters.establishmentId])
 
   useEffect(() => {
     if (activeTab !== 'planchetas') return
     setPlanchetaPreview([])
     setPlanchetaSummary([])
+    setPlanchetaInsights(null)
   }, [
     activeTab,
     planchetaFilters.institutionId,
@@ -4553,69 +4984,50 @@ function App() {
   ])
 
   useEffect(() => {
-    if (!isAuthed) return
-    if (activeTab !== 'establishments') return
-    loadEstablishmentCatalog(estForm.institutionId)
+    if (!isUserMenuOpen) return
+
+    function handlePointerDown(event) {
+      if (userMenuRef.current?.contains(event.target)) return
+      if (isChangePasswordOpen) closeChangePassword()
+      setIsUserMenuOpen(false)
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+    }
+  }, [isUserMenuOpen, isChangePasswordOpen])
+
+  useEffect(() => {
+    handleEstablishmentCatalogLoad()
   }, [isAuthed, estForm.institutionId, activeTab])
 
   useEffect(() => {
-    if (!isAuthed) return
-    if (activeTab !== 'dependencies') return
-    loadDependencyCatalog(depForm.establishmentId)
+    handleDependencyCatalogLoad()
   }, [isAuthed, depForm.establishmentId, activeTab])
 
   useEffect(() => {
-    if (!isAuthed || activeTab !== 'assistant' || !isCentral) return
-    loadEstablishmentCatalog(assistantScope.institutionId)
-    setAssistantScope((prev) => ({ ...prev, establishmentId: '', dependencyId: '' }))
-    setDependenciesCatalog([])
+    handleAssistantInstitutionScopeChange()
   }, [isAuthed, activeTab, isCentral, assistantScope.institutionId])
 
   useEffect(() => {
-    if (!isAuthed || activeTab !== 'assistant' || !isCentral) return
-    if (!assistantScope.establishmentId) {
-      setDependenciesCatalog([])
-      setAssistantScope((prev) => ({ ...prev, dependencyId: '' }))
-      return
-    }
-    loadDependencyCatalog(assistantScope.establishmentId)
-    setAssistantScope((prev) => ({ ...prev, dependencyId: '' }))
+    handleAssistantEstablishmentScopeChange()
   }, [isAuthed, activeTab, isCentral, assistantScope.establishmentId])
 
   useEffect(() => {
-    if (!isAuthed) return
-    if (activeTab !== 'assets') return
-    if (!assetInstitutionId) {
-      setAssetEstablishments([])
-      return
-    }
-    loadAssetEstablishments(assetInstitutionId)
+    handleAssetEstablishmentsLoad()
   }, [isAuthed, assetInstitutionId, activeTab])
 
   useEffect(() => {
-    if (!isAuthed) return
-    if (activeTab !== 'assets') return
-    if (!assetForm.establishmentId) {
-      setAssetDependencies([])
-      return
-    }
-    loadAssetDependencies(assetForm.establishmentId)
+    handleAssetDependenciesLoad()
   }, [isAuthed, assetForm.establishmentId, activeTab])
 
   useEffect(() => {
-    if (!isAuthed) return
-    if (activeTab !== 'assets') return
-    loadAssetListEstablishments(assetListFilters.institutionId)
+    handleAssetListEstablishmentsLoad()
   }, [isAuthed, activeTab, assetListFilters.institutionId])
 
   useEffect(() => {
-    if (!isAuthed) return
-    if (activeTab !== 'assets') return
-    if (!assetListFilters.establishmentId) {
-      setAssetListDependencies([])
-      return
-    }
-    loadAssetListDependencies(assetListFilters.establishmentId)
+    handleAssetListDependenciesLoad()
   }, [isAuthed, activeTab, assetListFilters.establishmentId])
 
   useEffect(() => {
@@ -4626,7 +5038,7 @@ function App() {
       clearTimeout(usersSearchDebounceRef.current)
     }
     usersSearchDebounceRef.current = setTimeout(() => {
-      loadUsersAdmin(1)
+      handleUsersSearch()
     }, 320)
 
     return () => {
@@ -4654,7 +5066,7 @@ function App() {
       clearTimeout(assetSearchDebounceRef.current)
     }
     assetSearchDebounceRef.current = setTimeout(() => {
-      loadAssetsList(1)
+      handleAssetsSearch()
     }, 320)
 
     return () => {
@@ -4681,19 +5093,7 @@ function App() {
   ])
 
   useEffect(() => {
-    if (!isAuthed) return
-    const lastId = localStorage.getItem('last_asset_id')
-    if (!lastId) return
-    const safeLastId = toPositiveIntOrNull(lastId)
-    if (!safeLastId) {
-      localStorage.removeItem('last_asset_id')
-      return
-    }
-    api(`/assets/${safeLastId}`)
-      .then((asset) => setCreatedAsset(asset))
-      .catch(() => {
-        localStorage.removeItem('last_asset_id')
-      })
+    restoreLastCreatedAsset()
   }, [isAuthed])
 
   useEffect(() => {
@@ -4702,27 +5102,44 @@ function App() {
       return
     }
     const value = `INV-${createdAsset.internalCode}`
-    QRCode.toDataURL(value, { margin: 1, width: 180 })
-      .then((url) => setQrCodeUrl(url))
-      .catch(() => setQrCodeUrl(''))
-    const el = document.getElementById('barcode-preview')
-    if (el) {
-      try {
-        JsBarcode(el, value, {
-          format: 'CODE128',
-          displayValue: true,
-          height: 48,
-          margin: 0,
-        })
-      } catch {
-        // ignore barcode errors
-      }
+    let cancelled = false
+    Promise.all([loadQrCodeLib(), loadJsBarcodeLib()])
+      .then(([qrModule, barcodeModule]) => {
+        if (cancelled) return
+        qrModule.default
+          .toDataURL(value, { margin: 1, width: 180 })
+          .then((url) => {
+            if (!cancelled) setQrCodeUrl(url)
+          })
+          .catch(() => {
+            if (!cancelled) setQrCodeUrl('')
+          })
+        const el = document.getElementById('barcode-preview')
+        if (el) {
+          try {
+            barcodeModule.default(el, value, {
+              format: 'CODE128',
+              displayValue: true,
+              height: 48,
+              margin: 0,
+            })
+          } catch {
+            // ignore barcode errors
+          }
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setQrCodeUrl('')
+      })
+    return () => {
+      cancelled = true
     }
   }, [createdAsset])
 
   useEffect(() => {
+    const keyCheckTimers = catalogKeyCheckTimers.current
     return () => {
-      Object.values(catalogKeyCheckTimers.current).forEach((timerId) => {
+      Object.values(keyCheckTimers).forEach((timerId) => {
         clearTimeout(timerId)
       })
       if (assetSearchDebounceRef.current) {
@@ -4737,15 +5154,7 @@ function App() {
   }, [])
 
   useEffect(() => {
-    const safeAssetId = getSafeAssetId(createdAsset)
-    if (!safeAssetId) {
-      setAssetMovements([])
-      setAssetEvidence([])
-      setEvidenceForm({ movementId: '', docType: 'ACTA', note: '', file: null })
-      return
-    }
-    loadAssetMovements(safeAssetId)
-    loadAssetEvidence(safeAssetId)
+    syncCreatedAssetDetails()
   }, [createdAsset?.id])
 
   useEffect(() => {
@@ -4764,7 +5173,7 @@ function App() {
       })
       setInstForm({ name: '' })
       await Promise.all([loadInstitutions(), loadInstitutionCatalog()])
-      setOk(`Institución creada: ${created.name}`)
+      setOk(UI_SUCCESS.institutionCreated(created.name))
     } catch (err) {
       if (err?.status === 403) {
         setErr('Tu sesion no tiene permisos ADMIN_CENTRAL. Cierra sesion y vuelve a ingresar.')
@@ -4785,7 +5194,7 @@ function App() {
         body: { name: payload.name },
       })
       await loadInstitutions()
-      setOk('Institución actualizada.')
+      setOk(UI_STATUS.institutionUpdated)
     } catch (err) {
       setErr(err)
     }
@@ -4799,10 +5208,10 @@ function App() {
         try {
           await api(`/admin/institutions/${id}`, { method: 'DELETE' })
           await loadInstitutions()
-          setOk('Institución dada de baja.')
+          setOk(UI_STATUS.institutionDeactivated)
         } catch (err) {
-          const message = getInstitutionConflictMessage(err, 'No se pudo dar de baja la institución.')
-          setErr(withMappedError(err, message, 'No se pudo dar de baja la institución.'))
+          const message = getInstitutionConflictMessage(err, UI_ERROR.couldNotDeactivate('la institución'))
+          setErr(withMappedError(err, message, UI_ERROR.couldNotDeactivate('la institución')))
         } finally {
           closeConfirm()
         }
@@ -4814,23 +5223,23 @@ function App() {
     try {
       await api(`/admin/institutions/${id}/reactivate`, { method: 'PUT' })
       await Promise.all([loadInstitutions(), loadInstitutionCatalog()])
-      setOk('Institución reactivada.')
+      setOk(UI_STATUS.institutionReactivated)
     } catch (err) {
-      const message = getInstitutionConflictMessage(err, 'No se pudo reactivar la institución.')
-      setErr(withMappedError(err, message, 'No se pudo reactivar la institución.'))
+      const message = getInstitutionConflictMessage(err, UI_ERROR.couldNotReactivate('la institución'))
+      setErr(withMappedError(err, message, UI_ERROR.couldNotReactivate('la institución')))
     }
   }
 
   async function hardDeleteInstitution(id) {
     openConfirm({
-      title: 'Eliminar institucion definitivamente',
+      title: 'Eliminar institución definitivamente',
       message:
-        'Esta accion es irreversible. Se eliminara definitivamente si no tiene relaciones.',
+        'Esta acción es irreversible. Se eliminará definitivamente si no tiene relaciones.',
       onConfirm: async () => {
         try {
           await api(`/admin/institutions/${id}/permanent`, { method: 'DELETE' })
           await loadInstitutions()
-          setOk('Institucion eliminada definitivamente.')
+          setOk(UI_STATUS.institutionDeleted)
         } catch (err) {
           if (err?.code === 'INSTITUTION_HARD_DELETE_HAS_RELATIONS') {
             openForceDelete('institution', id, `#${id}`)
@@ -4839,9 +5248,9 @@ function App() {
           }
           const message = getInstitutionConflictMessage(
             err,
-            'No se pudo eliminar definitivamente la institucion.'
+            UI_ERROR.couldNotDeletePermanently('la institución')
           )
-          setErr(withMappedError(err, message, 'No se pudo eliminar definitivamente la institucion.'))
+          setErr(withMappedError(err, message, UI_ERROR.couldNotDeletePermanently('la institución')))
         } finally {
           closeConfirm()
         }
@@ -4883,7 +5292,7 @@ function App() {
         loadEstablishmentCatalog(createdInstitutionId),
         loadInstitutionCatalog(),
       ])
-      setOk(`Establecimiento creado: ${created.name}`)
+      setOk(UI_SUCCESS.establishmentCreated(created.name))
     } catch (err) {
       setErr(err)
     }
@@ -4951,9 +5360,9 @@ function App() {
           }
           const message = getEstablishmentConflictMessage(
             err,
-            'No se pudo dar de baja el establecimiento.'
+            UI_ERROR.couldNotDeactivate('el establecimiento')
           )
-          setErr(withMappedError(err, message, 'No se pudo dar de baja el establecimiento.'))
+          setErr(withMappedError(err, message, UI_ERROR.couldNotDeactivate('el establecimiento')))
         } finally {
           closeConfirm()
         }
@@ -4969,9 +5378,9 @@ function App() {
     } catch (err) {
       const message = getEstablishmentConflictMessage(
         err,
-        'No se pudo reactivar el establecimiento.'
+        UI_ERROR.couldNotReactivate('el establecimiento')
       )
-      setErr(withMappedError(err, message, 'No se pudo reactivar el establecimiento.'))
+      setErr(withMappedError(err, message, UI_ERROR.couldNotReactivate('el establecimiento')))
     }
   }
 
@@ -4979,7 +5388,7 @@ function App() {
     openConfirm({
       title: 'Eliminar establecimiento definitivamente',
       message:
-        'Esta accion es irreversible. Se eliminara definitivamente si no tiene relaciones.',
+        'Esta acción es irreversible. Se eliminará definitivamente si no tiene relaciones.',
       onConfirm: async () => {
         try {
           await api(`/admin/establishments/${id}/permanent`, { method: 'DELETE' })
@@ -4993,13 +5402,13 @@ function App() {
           }
           const message = getEstablishmentConflictMessage(
             err,
-            'No se pudo eliminar definitivamente el establecimiento.'
+            UI_ERROR.couldNotDeletePermanently('el establecimiento')
           )
           setErr(
             withMappedError(
               err,
               message,
-              'No se pudo eliminar definitivamente el establecimiento.'
+              UI_ERROR.couldNotDeletePermanently('el establecimiento')
             )
           )
         } finally {
@@ -5036,7 +5445,7 @@ function App() {
         loadDependencyCatalog(createdEstablishmentId),
         loadEstablishmentCatalog(),
       ])
-      setOk(`Dependencia creada: ${created.name}`)
+      setOk(UI_SUCCESS.dependencyCreated(created.name))
     } catch (err) {
       setErr(err)
     }
@@ -5058,7 +5467,7 @@ function App() {
         },
       })
       await loadDependencies()
-      setOk('Dependencia actualizada.')
+      setOk(UI_STATUS.dependencyUpdated)
     } catch (err) {
       setErr(err)
     }
@@ -5072,10 +5481,10 @@ function App() {
         try {
           await api(`/admin/dependencies/${id}`, { method: 'DELETE' })
           await loadDependencies()
-          setOk('Dependencia dada de baja.')
+          setOk(UI_STATUS.dependencyDeactivated)
         } catch (err) {
-          const message = getDependencyConflictMessage(err, 'No se pudo dar de baja la dependencia.')
-          setErr(withMappedError(err, message, 'No se pudo dar de baja la dependencia.'))
+          const message = getDependencyConflictMessage(err, UI_ERROR.couldNotDeactivate('la dependencia'))
+          setErr(withMappedError(err, message, UI_ERROR.couldNotDeactivate('la dependencia')))
         } finally {
           closeConfirm()
         }
@@ -5133,10 +5542,10 @@ function App() {
     try {
       await api(`/admin/dependencies/${id}/reactivate`, { method: 'PUT' })
       await loadDependencies()
-      setOk('Dependencia reactivada.')
+      setOk(UI_STATUS.dependencyReactivated)
     } catch (err) {
-      const message = getDependencyConflictMessage(err, 'No se pudo reactivar la dependencia.')
-      setErr(withMappedError(err, message, 'No se pudo reactivar la dependencia.'))
+      const message = getDependencyConflictMessage(err, UI_ERROR.couldNotReactivate('la dependencia'))
+      setErr(withMappedError(err, message, UI_ERROR.couldNotReactivate('la dependencia')))
     }
   }
 
@@ -5144,12 +5553,12 @@ function App() {
     openConfirm({
       title: 'Eliminar dependencia definitivamente',
       message:
-        'Esta accion es irreversible. Se eliminara definitivamente si no tiene relaciones.',
+        'Esta acción es irreversible. Se eliminará definitivamente si no tiene relaciones.',
       onConfirm: async () => {
         try {
           await api(`/admin/dependencies/${id}/permanent`, { method: 'DELETE' })
           await loadDependencies()
-          setOk('Dependencia eliminada definitivamente.')
+          setOk(UI_STATUS.dependencyDeleted)
         } catch (err) {
           if (err?.code === 'DEPENDENCY_HARD_DELETE_HAS_RELATIONS') {
             openForceDelete('dependency', id, `#${id}`)
@@ -5158,9 +5567,9 @@ function App() {
           }
           const message = getDependencyConflictMessage(
             err,
-            'No se pudo eliminar definitivamente la dependencia.'
+            UI_ERROR.couldNotDeletePermanently('la dependencia')
           )
-          setErr(withMappedError(err, message, 'No se pudo eliminar definitivamente la dependencia.'))
+          setErr(withMappedError(err, message, UI_ERROR.couldNotDeletePermanently('la dependencia')))
         } finally {
           closeConfirm()
         }
@@ -5169,12 +5578,12 @@ function App() {
   }
 
   const tabs = [
-    { id: 'institutions', label: 'Instituciónes' },
+    { id: 'institutions', label: 'Instituciones' },
     { id: 'establishments', label: 'Establecimientos' },
     { id: 'dependencies', label: 'Dependencias' },
     { id: 'users', label: 'Usuarios' },
     { id: 'assistant', label: 'Asistente Central' },
-    { id: 'assets', label: 'Activos Fijos' },
+    { id: 'assets', label: UI_TEXT.assetPlural },
     { id: 'trash', label: 'Basurero' },
     { id: 'imports', label: 'Importaciones' },
     { id: 'planchetas', label: 'Planchetas' },
@@ -5182,7 +5591,7 @@ function App() {
   ]
   const miniManualByTab = {
     institutions: {
-      title: 'Instituciónes',
+      title: 'Instituciones',
       steps: [
         'Crear institución con nombre oficial.',
         'Editar inline y guardar cambios.',
@@ -5214,21 +5623,21 @@ function App() {
       steps: [
         'Crear usuario con rol correcto.',
         'Asignar establecimiento si el rol lo requiere.',
-        'Usar filtros y paginación para administración diaria.',
+        'Usar filtros y paginación para la administración diaria.',
         'Desactivar/reactivar sin perder trazabilidad.',
       ],
     },
     assistant: {
       title: 'Asistente Central',
       steps: [
-        'Escribir una consulta operativa o tecnica del sistema.',
+        'Escribir una consulta operativa o técnica del sistema.',
         'Revisar respuesta concreta y sugerencias aplicables.',
         'Crear solicitud formal para seguimiento cuando corresponda.',
         'Gestionar estados y SLA de 72 horas desde la misma vista.',
       ],
     },
     assets: {
-      title: 'Activos Fijos',
+      title: UI_TEXT.assetPlural,
       steps: [
         'Seleccionar institución, establecimiento y dependencia.',
         'Elegir catálogo o cargar datos manuales del activo.',
@@ -5247,7 +5656,7 @@ function App() {
     imports: {
       title: 'Importaciones',
       steps: [
-        'Seleccionar subtipo: Activos Fijos, Catálogo Estándar o Catálogo Base SN.',
+        'Seleccionar subtipo: Activos fijos, Catálogo estándar o Catálogo base SN.',
         'Cargar Excel en el formato correspondiente.',
         'Revisar resumen created/skipped/errors.',
         'Corregir y reimportar cuando existan filas con error.',
@@ -5263,10 +5672,10 @@ function App() {
       ],
     },
     audit: {
-      title: 'Auditoría Admin',
+      title: 'Auditoría admin',
       steps: [
         'Filtrar por entidad, acción, usuario y rango de fechas.',
-        'Revisar trazabilidad de cambios críticos.',
+        'Revisar la trazabilidad de cambios críticos.',
         'Exportar reportes cuando se requiera respaldo.',
         'Aplicar limpieza de auditoría solo con criterio administrativo.',
       ],
@@ -5313,11 +5722,11 @@ function App() {
                         <span>{modalCatalogItem?.name || createdAsset?.name || '-'}</span>
                       </div>
                       <div>
-                        <strong>Categoria</strong>
+                        <strong>Categoría</strong>
                         <span>{modalCatalogItem?.category || '-'}</span>
                       </div>
                       <div>
-                        <strong>Subcategoria</strong>
+                        <strong>Subcategoría</strong>
                         <span>{modalCatalogItem?.subcategory || '-'}</span>
                       </div>
                       <div>
@@ -5331,7 +5740,7 @@ function App() {
                     </div>
                     {!modalCatalogItem && (
                       <p className="muted">
-                        Este activo fijo no tiene item de catálogo asociado; puedes operar igual.
+                        Este activo fijo no tiene ítem de catálogo asociado; puedes operar igual.
                       </p>
                     )}
                     {status.details && (
@@ -5485,7 +5894,7 @@ function App() {
                             />
                           </div>
                           <div>
-                            <strong>Código analitico</strong>
+                            <strong>Código analítico</strong>
                             <input
                               value={editAssetForm.analyticCode}
                               onChange={(e) =>
@@ -5580,10 +5989,10 @@ function App() {
                               </div>
                             </>
                           ) : (
-                            <p className="muted">El activo fijo quedara sin responsable.</p>
+                            <p className="muted">El activo fijo quedará sin responsable.</p>
                           )}
                           <div>
-                            <strong>Valor adquisicion</strong>
+                            <strong>Valor de adquisición</strong>
                             <input
                               type="number"
                               value={editAssetForm.acquisitionValue}
@@ -5596,7 +6005,7 @@ function App() {
                             />
                           </div>
                           <div>
-                            <strong>Fecha adquisicion</strong>
+                            <strong>Fecha de adquisición</strong>
                             <input
                               type="date"
                               value={editAssetForm.acquisitionDate}
@@ -5614,7 +6023,7 @@ function App() {
                             Cancelar
                           </button>
                           <button className="primary" onClick={submitEditAsset}>
-                            Guardar cambios
+                            {UI_TEXT.saveChanges}
                           </button>
                         </div>
                       </div>
@@ -5759,7 +6168,7 @@ function App() {
                                   note: e.target.value,
                                 }))
                               }
-                              placeholder="Observacion breve"
+                              placeholder={UI_TEXT.noteShort}
                             />
                           </div>
                           <div>
@@ -5855,7 +6264,7 @@ function App() {
                                   note: e.target.value,
                                 }))
                               }
-                              placeholder="Observacion breve"
+                              placeholder={UI_TEXT.noteShort}
                             />
                           </div>
                           <div>
@@ -5900,7 +6309,7 @@ function App() {
                               <option value="">Sin movimiento especifico</option>
                               {assetMovements.map((m) => (
                                 <option key={m.id} value={m.id}>
-                                  #{m.id} · {m.type} · {m.reasonCode || m.reason || 'sin motivo'} · {new Date(m.createdAt).toLocaleString()}
+                                  #{m.id} - {m.type} - {m.reasonCode || m.reason || 'sin motivo'} - {new Date(m.createdAt).toLocaleString()}
                                 </option>
                               ))}
                             </select>
@@ -5932,7 +6341,7 @@ function App() {
                                   note: e.target.value,
                                 }))
                               }
-                              placeholder="Observacion breve"
+                              placeholder={UI_TEXT.noteShort}
                             />
                           </div>
                           <div>
@@ -5967,7 +6376,7 @@ function App() {
                                   <th>Movimiento</th>
                                   <th>Archivo</th>
                                   <th>Fecha</th>
-                                  <th>Acción</th>
+                                  <th>{UI_TEXT.action}</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -5998,7 +6407,7 @@ function App() {
                     )}
                     <div className="modal-help">
                       <strong>Como usar</strong>
-                      <p>1. Crea el activo fijo para habilitar QR y acciónes.</p>
+                      <p>1. Crea el activo fijo para habilitar QR y acciones.</p>
                       <p>2. Usa Editar para cambiar datos.</p>
                       <p>3. Dar de baja lo envia al Basurero.</p>
                     </div>
@@ -6014,7 +6423,7 @@ function App() {
                 </div>
               </div>
             ) : (
-              <p className="muted">Sin datos de catálogo.</p>
+              <p className="muted">{`Sin datos de ${UI_TEXT.catalog.toLowerCase()}.`}</p>
             )}
           </div>
         </div>
@@ -6029,8 +6438,13 @@ function App() {
             </div>
           </div>
           {isAuthed && (
-            <div className="user-menu">
-              <div className="user-menu-trigger">
+            <div className="user-menu" ref={userMenuRef}>
+              <button
+                type="button"
+                className="user-menu-trigger"
+                onClick={toggleUserMenu}
+                aria-expanded={isUserMenuOpen}
+              >
                 <div className="user-thumb-wrap">
                   {currentUser?.photoDataUrl ? (
                     <img
@@ -6042,74 +6456,77 @@ function App() {
                     <div className="user-thumb user-thumb-empty">Sin foto</div>
                   )}
                 </div>
-                <span className="user-menu-section">Sesión</span>
+                <span className="user-menu-section">{UI_TEXT.session}</span>
                 <span className="user-menu-name">{currentUser?.name || 'Usuario'}</span>
                 <span className="user-menu-role">{roleType || 'ADMIN'}</span>
-              </div>
-              <div className="user-menu-panel">
-                <p className="muted">{currentUser?.email || ''}</p>
-                {!isChangePasswordOpen ? (
-                  <button type="button" className="ghost" onClick={openChangePassword}>
-                    Cambiar clave
+                <span className="user-menu-caret">{isUserMenuOpen ? 'Ocultar' : 'Abrir'}</span>
+              </button>
+              {isUserMenuOpen && (
+                <div className="user-menu-panel">
+                  <p className="muted">{currentUser?.email || ''}</p>
+                  {!isChangePasswordOpen ? (
+                    <button type="button" className="ghost" onClick={openChangePassword}>
+                      Cambiar clave
+                    </button>
+                  ) : (
+                    <form onSubmit={handleChangePassword} className="auth-form" style={{ marginBottom: 8 }}>
+                      <div className="field">
+                        <label>Clave actual</label>
+                        <input
+                          type="password"
+                          value={changePasswordForm.currentPassword}
+                          onChange={(e) =>
+                            setChangePasswordForm((prev) => ({
+                              ...prev,
+                              currentPassword: e.target.value,
+                            }))
+                          }
+                          autoComplete="current-password"
+                        />
+                      </div>
+                      <div className="field">
+                        <label>Nueva clave</label>
+                        <input
+                          type="password"
+                          value={changePasswordForm.newPassword}
+                          onChange={(e) =>
+                            setChangePasswordForm((prev) => ({
+                              ...prev,
+                              newPassword: e.target.value,
+                            }))
+                          }
+                          autoComplete="new-password"
+                        />
+                      </div>
+                      <div className="field">
+                        <label>Confirmar nueva clave</label>
+                        <input
+                          type="password"
+                          value={changePasswordForm.confirmPassword}
+                          onChange={(e) =>
+                            setChangePasswordForm((prev) => ({
+                              ...prev,
+                              confirmPassword: e.target.value,
+                            }))
+                          }
+                          autoComplete="new-password"
+                        />
+                      </div>
+                      <div className="actions">
+                        <button type="button" className="ghost" onClick={closeChangePassword}>
+                          Cancelar
+                        </button>
+                        <button type="submit" className="primary" disabled={isChangingPassword}>
+                          {isChangingPassword ? UI_TEXT.saving : UI_TEXT.saveKey}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                  <button type="button" className="ghost" onClick={handleLogout}>
+                    {UI_TEXT.closeSession}
                   </button>
-                ) : (
-                  <form onSubmit={handleChangePassword} className="auth-form" style={{ marginBottom: 8 }}>
-                    <div className="field">
-                      <label>Clave actual</label>
-                      <input
-                        type="password"
-                        value={changePasswordForm.currentPassword}
-                        onChange={(e) =>
-                          setChangePasswordForm((prev) => ({
-                            ...prev,
-                            currentPassword: e.target.value,
-                          }))
-                        }
-                        autoComplete="current-password"
-                      />
-                    </div>
-                    <div className="field">
-                      <label>Nueva clave</label>
-                      <input
-                        type="password"
-                        value={changePasswordForm.newPassword}
-                        onChange={(e) =>
-                          setChangePasswordForm((prev) => ({
-                            ...prev,
-                            newPassword: e.target.value,
-                          }))
-                        }
-                        autoComplete="new-password"
-                      />
-                    </div>
-                    <div className="field">
-                      <label>Confirmar nueva clave</label>
-                      <input
-                        type="password"
-                        value={changePasswordForm.confirmPassword}
-                        onChange={(e) =>
-                          setChangePasswordForm((prev) => ({
-                            ...prev,
-                            confirmPassword: e.target.value,
-                          }))
-                        }
-                        autoComplete="new-password"
-                      />
-                    </div>
-                    <div className="actions">
-                      <button type="button" className="ghost" onClick={closeChangePassword}>
-                        Cancelar
-                      </button>
-                      <button type="submit" className="primary" disabled={isChangingPassword}>
-                        {isChangingPassword ? 'Guardando...' : 'Guardar clave'}
-                      </button>
-                    </div>
-                  </form>
-                )}
-                <button type="button" className="ghost" onClick={handleLogout}>
-                  Cerrar sesión
-                </button>
-              </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -6136,7 +6553,7 @@ function App() {
                   type="email"
                   value={login.email}
                   onChange={(e) => setLogin({ ...login, email: e.target.value })}
-                  placeholder="admin@inventacore.local"
+                  placeholder="admin@cordillera.local"
                 />
               </div>
               <div className="field">
@@ -6252,9 +6669,10 @@ function App() {
         ) : null}
 
         {isAuthed && activeTab === 'institutions' && (
+          <InstitutionsTabPanel>
           <div className="section">
             <div className="section-head">
-              <h3>Instituciónes</h3>
+              <h3>Instituciones</h3>
               <div className="actions">
                 {isCentral ? (
                   <>
@@ -6274,7 +6692,7 @@ function App() {
                       />
                       Mostrar inactivos
                     </label>
-                    <button onClick={() => loadInstitutions(1)}>Actualizar</button>
+                    <button onClick={() => loadInstitutions(1)}>{UI_TEXT.updating}</button>
                     <button
                       className="ghost"
                       onClick={() =>
@@ -6300,7 +6718,7 @@ function App() {
             {isCentral && instQuery && (
               <div className="chip-row">
                 <span className="chip">
-                  Búsqueda: {instQuery}
+                  {UI_TEXT.search}: {instQuery}
                   <button onClick={() => setInstQuery('')}>x</button>
                 </span>
               </div>
@@ -6394,7 +6812,7 @@ function App() {
                           })
                         }
                       >
-                        Guardar
+                        {UI_TEXT.save}
                       </button>
                       {i.isActive ? (
                         <button
@@ -6444,10 +6862,10 @@ function App() {
                     loadInstitutions(next)
                   }}
                 >
-                  Anterior
+                  {UI_TEXT.previous}
                 </button>
                 <span>
-                  Página {instPage} / {Math.max(1, Math.ceil(instTotal / 10))}
+                  {UI_TEXT.page} {instPage} / {Math.max(1, Math.ceil(instTotal / 10))}
                 </span>
                 <button
                   className="ghost"
@@ -6458,14 +6876,16 @@ function App() {
                     loadInstitutions(next)
                   }}
                 >
-                  Siguiente
+                  {UI_TEXT.next}
                 </button>
               </div>
             )}
           </div>
+          </InstitutionsTabPanel>
         )}
 
         {isAuthed && activeTab === 'establishments' && isCentral && (
+          <EstablishmentsTabPanel>
           <div className="section">
             <div className="section-head">
               <h3>Establecimientos</h3>
@@ -6493,7 +6913,7 @@ function App() {
                     setEstFilters({ ...estFilters, institutionId: e.target.value })
                   }
                 />
-                <button onClick={() => loadEstablishments(1)}>Actualizar</button>
+                <button onClick={() => loadEstablishments(1)}>{UI_TEXT.updating}</button>
                 <button
                   className="ghost"
                   onClick={() =>
@@ -6516,7 +6936,7 @@ function App() {
               <div className="chip-row">
                 {estFilters.q && (
                   <span className="chip">
-                    Búsqueda: {estFilters.q}
+                    {UI_TEXT.search}: {estFilters.q}
                     <button onClick={() => setEstFilters({ ...estFilters, q: '' })}>
                       x
                     </button>
@@ -6524,7 +6944,7 @@ function App() {
                 )}
                 {estFilters.institutionId && (
                   <span className="chip">
-                    Institución: {estFilters.institutionId}
+                    {UI_TEXT.institution}: {estFilters.institutionId}
                     <button
                       onClick={() => setEstFilters({ ...estFilters, institutionId: '' })}
                     >
@@ -6589,7 +7009,7 @@ function App() {
                     disabled={loadingInstitutions || institutionsCatalog.length === 0}
                   >
                     <option value="">
-                      {loadingInstitutions ? 'Cargando...' : 'Selecciona institución'}
+                      {loadingInstitutions ? UI_TEXT.loading : 'Selecciona institución'}
                     </option>
                     {institutionsCatalog
                       .filter((i) =>
@@ -6640,7 +7060,7 @@ function App() {
                   >
                     <option value="name">Nombre</option>
                     <option value="type">Tipo</option>
-                    <option value="institutionId">Institución</option>
+                    <option value="institutionId">{UI_TEXT.institution}</option>
                   </select>
                   <button
                     className="ghost"
@@ -6735,7 +7155,7 @@ function App() {
                         })
                       }
                     >
-                      Guardar
+                      {UI_TEXT.save}
                     </button>
                     {e.isActive ? (
                       <button
@@ -6778,10 +7198,10 @@ function App() {
                   loadEstablishments(next)
                 }}
               >
-                Anterior
+                {UI_TEXT.previous}
               </button>
               <span>
-                Página {estPage} / {Math.max(1, Math.ceil(estTotal / 10))}
+                {UI_TEXT.page} {estPage} / {Math.max(1, Math.ceil(estTotal / 10))}
               </span>
               <button
                 className="ghost"
@@ -6792,13 +7212,15 @@ function App() {
                   loadEstablishments(next)
                 }}
               >
-                Siguiente
+                {UI_TEXT.next}
               </button>
             </div>
           </div>
+          </EstablishmentsTabPanel>
         )}
 
         {isAuthed && activeTab === 'dependencies' && isCentral && (
+          <DependenciesTabPanel>
           <div className="section">
             <div className="section-head">
               <h3>Dependencias</h3>
@@ -6832,7 +7254,7 @@ function App() {
                     </option>
                   ))}
                 </select>
-                <button onClick={() => loadDependencies(1)}>Actualizar</button>
+                <button onClick={() => loadDependencies(1)}>{UI_TEXT.updating}</button>
                 <button
                   className="ghost"
                   onClick={() =>
@@ -6855,7 +7277,7 @@ function App() {
               <div className="chip-row">
                 {depFilters.q && (
                   <span className="chip">
-                    Búsqueda: {depFilters.q}
+                    {UI_TEXT.search}: {depFilters.q}
                     <button onClick={() => setDepFilters({ ...depFilters, q: '' })}>
                       x
                     </button>
@@ -6908,7 +7330,7 @@ function App() {
                   >
                     <option value="">
                       {loadingEstablishments
-                        ? 'Cargando...'
+                        ? UI_TEXT.loading
                         : 'Selecciona establecimiento'}
                     </option>
                     {establishmentsCatalog
@@ -7010,8 +7432,8 @@ function App() {
                         {depReplicateResult.skipped
                           .slice(0, 10)
                           .map((s) => `${s.name || '-'} [${s.reason || 'SKIPPED'}]`)
-                          .join(' · ')}
-                        {depReplicateResult.skipped.length > 10 ? ' · ...' : ''}
+                          .join(' - ')}
+                        {depReplicateResult.skipped.length > 10 ? ' - ...' : ''}
                       </div>
                     )}
                   </div>
@@ -7089,7 +7511,7 @@ function App() {
                         })
                       }
                     >
-                      Guardar
+                      {UI_TEXT.save}
                     </button>
                     {d.isActive ? (
                       <button
@@ -7132,10 +7554,10 @@ function App() {
                   loadDependencies(next)
                 }}
               >
-                Anterior
+                {UI_TEXT.previous}
               </button>
               <span>
-                Página {depPage} / {Math.max(1, Math.ceil(depTotal / 10))}
+                {UI_TEXT.page} {depPage} / {Math.max(1, Math.ceil(depTotal / 10))}
               </span>
               <button
                 className="ghost"
@@ -7146,13 +7568,15 @@ function App() {
                   loadDependencies(next)
                 }}
               >
-                Siguiente
+                {UI_TEXT.next}
               </button>
             </div>
           </div>
+          </DependenciesTabPanel>
         )}
 
         {isAuthed && activeTab === 'users' && isCentral && (
+          <UsersTabPanel>
           <div className="section">
             <div className="section-head">
               <h3>Usuarios</h3>
@@ -7206,7 +7630,7 @@ function App() {
                   />
                   Mostrar inactivos
                 </label>
-                <button onClick={() => loadUsersAdmin(1)}>Actualizar</button>
+                <button onClick={() => loadUsersAdmin(1)}>{UI_TEXT.updating}</button>
               </div>
             </div>
 
@@ -7259,7 +7683,7 @@ function App() {
                   <option value="">Selecciona institución</option>
                   {userInstitutionOptions.map((inst) => (
                     <option key={inst.id} value={inst.id}>
-                      #{inst.id} · {inst.name}
+                      #{inst.id} - {inst.name}
                     </option>
                   ))}
                 </select>
@@ -7276,7 +7700,7 @@ function App() {
                   <option value="">Selecciona establecimiento</option>
                   {userEstablishmentOptions.map((est) => (
                     <option key={est.id} value={est.id}>
-                      #{est.id} · {est.name} · Comuna: {est.commune || 's/i'} · Inst {est.institutionId}
+                      #{est.id} - {est.name} - Comuna: {est.commune || 's/i'} - Inst {est.institutionId}
                     </option>
                   ))}
                 </select>
@@ -7305,7 +7729,6 @@ function App() {
                 </button>
               </div>
             </div>
-
             <div className="table">
               <div className="table-head">
                 <span className="muted">
@@ -7385,7 +7808,7 @@ function App() {
                         <option value="">Sin establecimiento</option>
                         {userEstablishmentOptions.map((est) => (
                           <option key={est.id} value={est.id}>
-                            #{est.id} · {est.name} · {est.commune || 's/i'}
+                            #{est.id} - {est.name} - {est.commune || 's/i'}
                           </option>
                         ))}
                       </select>
@@ -7411,7 +7834,7 @@ function App() {
                           }
                         }}
                       >
-                        Guardar foto
+                        {UI_TEXT.savePhoto}
                       </button>
                       <button
                         className="ghost"
@@ -7437,7 +7860,7 @@ function App() {
                         }
                         onClick={() => updateUserAdmin(u)}
                       >
-                        Guardar
+                        {UI_TEXT.save}
                       </button>
                       <button
                         className="ghost"
@@ -7487,10 +7910,10 @@ function App() {
                   loadUsersAdmin(next)
                 }}
               >
-                Anterior
+                {UI_TEXT.previous}
               </button>
               <span>
-                Página {usersPage} / {Math.max(1, Math.ceil(usersTotal / 10))}
+                {UI_TEXT.page} {usersPage} / {Math.max(1, Math.ceil(usersTotal / 10))}
               </span>
               <button
                 className="ghost"
@@ -7501,18 +7924,20 @@ function App() {
                   loadUsersAdmin(next)
                 }}
               >
-                Siguiente
+                {UI_TEXT.next}
               </button>
             </div>
           </div>
+          </UsersTabPanel>
         )}
 
         {isAuthed && activeTab === 'assistant' && isCentral && (
+          <AssistantTabPanel>
           <div className="section">
             <div className="section-head">
               <h3>Asistente Central y Mesa de Solicitudes</h3>
               <div className="actions">
-                <button onClick={() => loadSupportRequests(1)}>Actualizar</button>
+                <button onClick={() => loadSupportRequests(1)}>{UI_TEXT.updating}</button>
                 <button
                   className="ghost"
                   onClick={testAssistantSmtp}
@@ -7544,7 +7969,7 @@ function App() {
                       }))
                     }
                   >
-                    <option value="">Institucion (opcional)</option>
+                    <option value="">{`${UI_TEXT.institution} (opcional)`}</option>
                     {institutionsCatalog.map((item) => (
                       <option key={item.id} value={String(item.id)}>
                         {item.name}
@@ -7607,13 +8032,13 @@ function App() {
               <div className="form-card">
                 <h4>Respuesta</h4>
                 {!assistantAnswer ? (
-                  <p className="muted">Sin respuesta aun.</p>
+                  <p className="muted">Sin respuesta aún.</p>
                 ) : (
                   <>
                     <p>{assistantAnswer.answer}</p>
                     <p className="muted">
-                      Contexto: activos {assistantAnswer.context?.assetsActive || 0} · abiertas{' '}
-                      {assistantAnswer.context?.openRequests || 0} · vencidas{' '}
+                      Contexto: activos {assistantAnswer.context?.assetsActive || 0} - abiertas{' '}
+                      {assistantAnswer.context?.openRequests || 0} - vencidas{' '}
                       {assistantAnswer.context?.overdueRequests || 0}
                     </p>
                     <ul>
@@ -7663,7 +8088,6 @@ function App() {
                 <button onClick={() => loadSupportRequests(1)}>Buscar</button>
               </div>
             </div>
-
             <div className="table">
               <div className="table-head">
                 <span className="muted">
@@ -7731,10 +8155,10 @@ function App() {
                   loadSupportRequests(next)
                 }}
               >
-                Anterior
+                {UI_TEXT.previous}
               </button>
               <span>
-                Pagina {supportPage} / {Math.max(1, Math.ceil(supportTotal / 10))}
+                {UI_TEXT.page} {supportPage} / {Math.max(1, Math.ceil(supportTotal / 10))}
               </span>
               <button
                 className="ghost"
@@ -7745,984 +8169,115 @@ function App() {
                   loadSupportRequests(next)
                 }}
               >
-                Siguiente
+                {UI_TEXT.next}
               </button>
             </div>
           </div>
+          </AssistantTabPanel>
         )}
 
         {isAuthed && activeTab === 'assets' && (
-          <div className="section">
-            <div className="section-head">
-              <h3>Activos Fijos</h3>
-              <div className="actions">
-                <button className="ghost" onClick={loadCatalogItems}>
-                  Actualizar catálogo
-                </button>
-              </div>
-            </div>
-            <div className="split">
-              <div className="form-card">
-                <h4>Crear activo fijo</h4>
-                <div className="select-wrap">
-                  <label>Institución</label>
-                  <select
-                    value={assetInstitutionId}
-                    onChange={(e) => {
-                      const value = e.target.value
-                      setAssetInstitutionId(value)
-                      setAssetEstablishments([])
-                      setAssetDependencies([])
-                      setAssetForm((prev) => ({
-                        ...prev,
-                        establishmentId: '',
-                        dependencyId: '',
-                      }))
-                      if (value) {
-                        loadAssetEstablishments(value)
-                      }
-                    }}
-                  >
-                    <option value="">Selecciona institución</option>
-                    {institutionsCatalog.map((inst) => (
-                      <option key={inst.id} value={inst.id}>
-                        {inst.name}
-                      </option>
-                    ))}
-                  </select>
-                  {assetInstitutionId && (
-                    <p className="muted">
-                      Institución seleccionada: {selectedAssetInstitution?.name || 'N/D'}
-                    </p>
-                  )}
-                </div>
-                <div className="select-wrap">
-                  <label>Establecimiento</label>
-                  <select
-                    value={assetForm.establishmentId}
-                    onChange={(e) => {
-                      const value = e.target.value
-                      setAssetDependencies([])
-                      setAssetForm((prev) => ({
-                        ...prev,
-                        establishmentId: value,
-                        dependencyId: '',
-                      }))
-                      if (value) loadAssetDependencies(value)
-                    }}
-                  >
-                    <option value="">Selecciona establecimiento</option>
-                    {assetEstablishments.map((est) => (
-                      <option key={est.id} value={est.id}>
-                        {est.name}
-                      </option>
-                    ))}
-                  </select>
-                  {assetForm.establishmentId && (
-                    <p className="muted">
-                      Establecimiento seleccionado: {selectedAssetEstablishment?.name || 'N/D'}
-                    </p>
-                  )}
-                  {assetErrors.establishmentId && (
-                    <p className="error">{assetErrors.establishmentId}</p>
-                  )}
-                </div>
-                <div className="select-wrap">
-                  <label>Dependencia</label>
-                  <select
-                    value={assetForm.dependencyId}
-                    onChange={(e) =>
-                      setAssetForm((prev) => ({ ...prev, dependencyId: e.target.value }))
-                    }
-                    disabled={!assetForm.establishmentId}
-                  >
-                    <option value="">Selecciona dependencia</option>
-                    {assetDependencies.map((dep) => (
-                      <option key={dep.id} value={dep.id}>
-                        {dep.name}
-                        {selectedAssetEstablishment?.name
-                          ? ` · ${selectedAssetEstablishment.name}`
-                          : ''}
-                      </option>
-                    ))}
-                  </select>
-                  {assetErrors.dependencyId && (
-                    <p className="error">{assetErrors.dependencyId}</p>
-                  )}
-                </div>
-                <div className="select-wrap">
-                  <label>Estado</label>
-                  <select
-                    value={assetForm.assetStateId}
-                    onChange={(e) =>
-                      setAssetForm((prev) => ({ ...prev, assetStateId: e.target.value }))
-                    }
-                  >
-                    <option value="">Selecciona estado</option>
-                    {assetStates.map((st) => (
-                      <option key={st.id} value={st.id}>
-                        {st.name}
-                      </option>
-                    ))}
-                  </select>
-                  {assetErrors.assetStateId && (
-                    <p className="error">{assetErrors.assetStateId}</p>
-                  )}
-                </div>
-                <div className="select-wrap">
-                  <label>Tipo de activo fijo</label>
-                  <select
-                    value={assetForm.assetTypeId}
-                    onChange={(e) =>
-                      setAssetForm((prev) => ({ ...prev, assetTypeId: e.target.value }))
-                    }
-                  >
-                    <option value="">Selecciona tipo</option>
-                    {assetTypes.map((tp) => (
-                      <option key={tp.id} value={tp.id}>
-                        {tp.name}
-                      </option>
-                    ))}
-                  </select>
-                  {assetErrors.assetTypeId && (
-                    <p className="error">{assetErrors.assetTypeId}</p>
-                  )}
-                </div>
-                <div className="select-wrap">
-                  <label>Catálogo</label>
-                  <p className="muted">Selecciona desde la lista de catálogo disponible.</p>
-                  <select
-                    value={assetForm.catalogItemId}
-                    disabled={assetMultiProductEnabled}
-                    onChange={(e) => handleSelectCatalogItem(e.target.value)}
-                  >
-                    <option value="">Sin catálogo (manual)</option>
-                    {assetCatalogItems.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {formatCatalogItemDisplay(item)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="field">
-                  <label>Nombre</label>
-                  <input
-                    value={assetForm.name}
-                    disabled={assetMultiProductEnabled}
-                    onChange={(e) =>
-                      setAssetForm((prev) => ({ ...prev, name: e.target.value }))
-                    }
-                    placeholder="Ej: Mesa redonda reuniones"
-                  />
-                  {assetErrors.name && <p className="error">{assetErrors.name}</p>}
-                </div>
-                <div className="field">
-                  <label>Marca</label>
-                  <input
-                    value={assetForm.brand}
-                    disabled={assetMultiProductEnabled}
-                    onChange={(e) =>
-                      setAssetForm((prev) => ({ ...prev, brand: e.target.value }))
-                    }
-                  />
-                </div>
-                <div className="field">
-                  <label>Modelo</label>
-                  <input
-                    value={assetForm.modelName}
-                    disabled={assetMultiProductEnabled}
-                    onChange={(e) =>
-                      setAssetForm((prev) => ({ ...prev, modelName: e.target.value }))
-                    }
-                  />
-                </div>
-                <div className="field">
-                  <label>Serie</label>
-                  <input
-                    value={assetForm.serialNumber}
-                    disabled={assetMultiProductEnabled || Number(assetForm.quantity) > 1}
-                    onChange={(e) =>
-                      setAssetForm((prev) => ({ ...prev, serialNumber: e.target.value }))
-                    }
-                  />
-                  {(assetMultiProductEnabled || Number(assetForm.quantity) > 1) && (
-                    <p className="muted">
-                      Para creación en lote la serie debe quedar vacía (se crean activos individuales).
-                    </p>
-                  )}
-                </div>
-                <div className="field">
-                  <label>Cantidad</label>
-                  <input
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={assetForm.quantity}
-                    disabled={assetMultiProductEnabled}
-                    onChange={(e) => {
-                      const nextQuantity = e.target.value
-                      setAssetForm((prev) => ({
-                        ...prev,
-                        quantity: nextQuantity,
-                        serialNumber:
-                          Number(nextQuantity) > 1 ? '' : prev.serialNumber,
-                      }))
-                    }}
-                  />
-                  {assetErrors.quantity && <p className="error">{assetErrors.quantity}</p>}
-                </div>
-                <label className="inline-check">
-                  <input
-                    type="checkbox"
-                    checked={assetMultiProductEnabled}
-                    onChange={(e) => {
-                      const enabled = e.target.checked
-                      setAssetMultiProductEnabled(enabled)
-                      if (enabled) {
-                        resizeMultiProducts(assetMultiProductCount || '2')
-                        setSelectedCatalogItem(null)
-                        setAssetForm((prev) => ({
-                          ...prev,
-                          serialNumber: '',
-                        }))
-                      }
-                    }}
-                  />
-                  Crear varios productos distintos (lote)
-                </label>
-                {assetMultiProductEnabled && (
-                  <div className="field">
-                    <label>¿Cuántos productos distintos deseas agregar?</label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="20"
-                      value={assetMultiProductCount}
-                      onChange={(e) => resizeMultiProducts(e.target.value)}
-                    />
-                    <p className="muted">
-                      Define cada producto con su catálogo, cantidad y precio propio.
-                    </p>
-                    {assetMultiProducts.map((row, index) => (
-                      <div
-                        key={`multi-row-${index}`}
-                        style={{ borderTop: '1px solid #e2e8f0', paddingTop: 8, marginTop: 8 }}
-                      >
-                        <label>Producto {index + 1} · Catálogo</label>
-                        <select
-                          value={row.catalogItemId}
-                          onChange={(e) =>
-                            updateMultiProductRow(index, { catalogItemId: e.target.value })
-                          }
-                        >
-                          <option value="">Selecciona item de catálogo</option>
-                          {assetCatalogItems.map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {formatCatalogItemDisplay(item)}
-                            </option>
-                          ))}
-                        </select>
-                        <label>Cantidad producto {index + 1}</label>
-                        <input
-                          type="number"
-                          min="1"
-                          step="1"
-                          value={row.quantity}
-                          onChange={(e) =>
-                            updateMultiProductRow(index, { quantity: e.target.value })
-                          }
-                        />
-                        <label>Precio producto {index + 1}</label>
-                        <input
-                          type="number"
-                          min="1"
-                          step="1"
-                          value={row.acquisitionValue}
-                          onChange={(e) =>
-                            updateMultiProductRow(index, { acquisitionValue: e.target.value })
-                          }
-                        />
-                      </div>
-                    ))}
-                    <p className="muted">Total de bienes a crear: {multiProductsTotalQuantity}</p>
-                    {assetErrors.multiProducts && <p className="error">{assetErrors.multiProducts}</p>}
-                  </div>
-                )}
-                <div className="field">
-                  <label>Cuenta contable</label>
-                  <input
-                    value={assetForm.accountingAccount}
-                    onChange={(e) =>
-                      setAssetForm((prev) => ({ ...prev, accountingAccount: e.target.value }))
-                    }
-                  />
-                  {assetErrors.accountingAccount && (
-                    <p className="error">{assetErrors.accountingAccount}</p>
-                  )}
-                </div>
-                <div className="field">
-                  <label>Código analitico</label>
-                  <input
-                    value={assetForm.analyticCode || 'Se genera automaticamente al crear'}
-                    readOnly
-                    disabled
-                  />
-                  <p className="muted">Código generado por el sistema.</p>
-                </div>
-                <label className="inline-check">
-                  <input
-                    type="checkbox"
-                    checked={!assetHasResponsible}
-                    onChange={(e) => {
-                      const withoutResponsible = e.target.checked
-                      setAssetHasResponsible(!withoutResponsible)
-                      if (withoutResponsible) {
-                        setAssetForm((prev) => ({
-                          ...prev,
-                          responsibleName: '',
-                          responsibleRut: '',
-                          responsibleRole: '',
-                          costCenter: '',
-                        }))
-                      }
-                    }}
-                  />
-                  Sin responsable asignado
-                </label>
-                {assetHasResponsible ? (
-                  <>
-                    <div className="field">
-                      <label>Responsable (nombre)</label>
-                      <input
-                        value={assetForm.responsibleName}
-                        onChange={(e) =>
-                          setAssetForm((prev) => ({ ...prev, responsibleName: e.target.value }))
-                        }
-                        placeholder="Nombre completo"
-                      />
-                    </div>
-                    <div className="field">
-                      <label>RUT responsable</label>
-                      <input
-                        value={assetForm.responsibleRut}
-                        onChange={(e) =>
-                          setAssetForm((prev) => ({ ...prev, responsibleRut: e.target.value }))
-                        }
-                        onBlur={(e) =>
-                          setAssetForm((prev) => ({
-                            ...prev,
-                            responsibleRut: normalizeRutValue(e.target.value),
-                          }))
-                        }
-                        placeholder="12.345.678-9"
-                      />
-                      {assetErrors.responsibleRut && (
-                        <p className="error">{assetErrors.responsibleRut}</p>
-                      )}
-                    </div>
-                    <div className="field">
-                      <label>Cargo responsable</label>
-                      <input
-                        value={assetForm.responsibleRole}
-                        onChange={(e) =>
-                          setAssetForm((prev) => ({ ...prev, responsibleRole: e.target.value }))
-                        }
-                        placeholder="Ej: Encargado de bodega"
-                      />
-                    </div>
-                    <div className="field">
-                      <label>Centro de costo</label>
-                      <input
-                        value={assetForm.costCenter}
-                        onChange={(e) =>
-                          setAssetForm((prev) => ({ ...prev, costCenter: e.target.value }))
-                        }
-                        onBlur={(e) =>
-                          setAssetForm((prev) => ({
-                            ...prev,
-                            costCenter: normalizeCostCenterValue(e.target.value),
-                          }))
-                        }
-                        placeholder="Ej: CC-ADM-01"
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <p className="muted">Se creara el activo fijo sin responsable asignado.</p>
-                )}
-                <div className="field">
-                  <label>Valor adquisicion</label>
-                  <input
-                    type="number"
-                    value={assetForm.acquisitionValue}
-                    disabled={assetMultiProductEnabled}
-                    onChange={(e) =>
-                      setAssetForm((prev) => ({ ...prev, acquisitionValue: e.target.value }))
-                    }
-                  />
-                  {assetMultiProductEnabled && (
-                    <p className="muted">En modo lote, el precio se define por producto.</p>
-                  )}
-                  {assetErrors.acquisitionValue && (
-                    <p className="error">{assetErrors.acquisitionValue}</p>
-                  )}
-                </div>
-                <div className="field">
-                  <label>Fecha adquisicion</label>
-                  <input
-                    type="date"
-                    value={assetForm.acquisitionDate}
-                    onChange={(e) =>
-                      setAssetForm((prev) => ({ ...prev, acquisitionDate: e.target.value }))
-                    }
-                  />
-                  {assetErrors.acquisitionDate && (
-                    <p className="error">{assetErrors.acquisitionDate}</p>
-                  )}
-                </div>
-                <div className="actions">
-                  <button className="primary" onClick={handleCreateAsset} disabled={assetCreating}>
-                    {assetCreating
-                      ? 'Creando...'
-                      : assetMultiProductEnabled
-                        ? 'Crear activos fijos (lote)'
-                        : 'Crear activo fijo'}
-                  </button>
-                  <button
-                    className="ghost"
-                    onClick={() =>
-                      (() => {
-                        setAssetForm({
-                          catalogItemId: '',
-                          name: '',
-                          quantity: '1',
-                          brand: '',
-                          modelName: '',
-                          serialNumber: '',
-                          accountingAccount: '',
-                          analyticCode: '',
-                          responsibleName: '',
-                          responsibleRut: '',
-                          responsibleRole: '',
-                          costCenter: '',
-                          acquisitionValue: '',
-                          acquisitionDate: '',
-                          establishmentId: '',
-                          dependencyId: '',
-                          assetStateId: '',
-                          assetTypeId: '',
-                        })
-                        setAssetHasResponsible(true)
-                        setCreatedAsset(null)
-                        setCreatedAssetBatch([])
-                        setAssetMultiProductEnabled(false)
-                        setAssetMultiProductCount('2')
-                        setAssetMultiProducts([
-                          { catalogItemId: '', quantity: '1', acquisitionValue: '' },
-                          { catalogItemId: '', quantity: '1', acquisitionValue: '' },
-                        ])
-                        setQrCodeUrl('')
-                      })()
-                    }
-                  >
-                    Limpiar
-                  </button>
-                </div>
-              </div>
+          <AssetsTabPanel>
+          <AssetsSection>
+            <AssetsCreateView
+              {...{
+                assetInstitutionId,
+                setAssetInstitutionId,
+                setAssetEstablishments,
+                setAssetDependencies,
+                setAssetForm,
+                loadAssetEstablishments,
+                institutionsCatalog,
+                selectedAssetInstitution,
+                assetForm,
+                assetEstablishments,
+                loadAssetDependencies,
+                selectedAssetEstablishment,
+                assetErrors,
+                assetDependencies,
+                assetStates,
+                assetTypes,
+                assetMultiProductEnabled,
+                handleSelectCatalogItem,
+                assetCatalogItems,
+                formatCatalogItemDisplay,
+                resizeMultiProducts,
+                assetMultiProductCount,
+                setSelectedCatalogItem,
+                setAssetMultiProductEnabled,
+                assetMultiProducts,
+                updateMultiProductRow,
+                multiProductsTotalQuantity,
+                assetHasResponsible,
+                setAssetHasResponsible,
+                normalizeRutValue,
+                normalizeCostCenterValue,
+                handleCreateAsset,
+                assetCreating,
+                setCreatedAsset,
+                setCreatedAssetBatch,
+                setAssetMultiProductCount,
+                setAssetMultiProducts,
+                setQrCodeUrl,
+                scanInput,
+                setScanInput,
+                resolveScannedAsset,
+                setScanResult,
+                scanResult,
+                createdAsset,
+                labelData,
+                labelAssetId,
+                setLabelAssetId,
+                assetsList,
+                toPositiveIntOrNull,
+                openPrintLabel,
+                downloadLabelPdf,
+                createdAssetBatch,
+                openPrintBatchLabels,
+                downloadBatchLabelsPdf,
+                qrCodeUrl,
+              }}
+            />
 
-              <div className="form-card">
-                <h4>Etiqueta</h4>
-                <div className="field">
-                  <label>Escanear/pegar código QR</label>
-                  <div className="actions">
-                    <input
-                      placeholder="Ej: INV-123 o 123"
-                      value={scanInput}
-                      onChange={(e) => setScanInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault()
-                          resolveScannedAsset()
-                        }
-                      }}
-                    />
-                    <button className="ghost" onClick={resolveScannedAsset}>
-                      Buscar
-                    </button>
-                    <button
-                      className="ghost"
-                      onClick={() => {
-                        setScanInput('')
-                        setScanResult(null)
-                      }}
-                    >
-                      Limpiar
-                    </button>
-                  </div>
-                  {scanResult && (
-                    <p
-                      className={
-                        scanResult.status === 'ok' ? 'status ok inline-status' : 'status error inline-status'
-                      }
-                    >
-                      {scanResult.message}
-                    </p>
-                  )}
-                </div>
-                {!createdAsset && (
-                  <>
-                    <p className="muted">Crea un activo fijo o selecciona uno de la lista.</p>
-                    <div className="field">
-                      <label>Seleccionar activo fijo</label>
-                      <select
-                        value={labelAssetId}
-                        onChange={(e) => {
-                          const value = e.target.value
-                          setLabelAssetId(value)
-                          const asset = assetsList.find(
-                            (a) => String(a.id) === String(value)
-                          )
-                          if (asset) {
-                            const selectedId = toPositiveIntOrNull(asset.id)
-                            setCreatedAsset(asset)
-                            setCreatedAssetBatch([])
-                            setSelectedCatalogItem(asset?.catalogItem || null)
-                            if (selectedId) {
-                              localStorage.setItem('last_asset_id', String(selectedId))
-                            }
-                          }
-                        }}
-                      >
-                        <option value="">Selecciona activo fijo</option>
-                        {assetsList.map((a) => (
-                          <option key={a.id} value={a.id}>
-                            INV-{a.internalCode} · {a.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </>
-                )}
-                {createdAsset && labelData && (
-                  <div className="label-preview">
-                    <div className="label-code">
-                      Código: <strong>{labelData.code}</strong>
-                    </div>
-                    <div className="label-scan-info">
-                      <span>ID: #{createdAsset.id}</span>
-                        <span>Cantidad: {createdAsset.quantity ?? 1}</span>
-                      {createdAsset.serialNumber && <span>Serie: {createdAsset.serialNumber}</span>}
-                      {createdAsset.brand && <span>Marca: {createdAsset.brand}</span>}
-                      {createdAsset.modelName && <span>Modelo: {createdAsset.modelName}</span>}
-                      {createdAsset.responsibleName && (
-                        <span>Responsable: {createdAsset.responsibleName}</span>
-                      )}
-                      {createdAsset.costCenter && <span>CC: {createdAsset.costCenter}</span>}
-                    </div>
-                    <div className="label-meta">
-                      <span>Nombre: {labelData.name}</span>
-                      {labelData.establishment && <span>Est: {labelData.establishment}</span>}
-                      {labelData.dependency && <span>Dep: {labelData.dependency}</span>}
-                      {labelData.assetState && <span>Estado: {labelData.assetState}</span>}
-                    </div>
-                    {qrCodeUrl && <img className="qr" src={qrCodeUrl} alt="QR" />}
-                    <svg id="barcode-preview" className="barcode" />
-                    <div className="actions">
-                      <button className="ghost" onClick={openPrintLabel}>
-                        Imprimir
-                      </button>
-                      <button className="ghost" onClick={downloadLabelPdf}>
-                        Descargar PDF
-                      </button>
-                      {createdAssetBatch.length > 1 &&
-                        createdAssetBatch.some(
-                          (item) => String(item?.id || '') === String(createdAsset?.id || '')
-                        ) && (
-                          <>
-                            <button className="ghost" onClick={openPrintBatchLabels}>
-                              Imprimir todas
-                            </button>
-                            <button className="ghost" onClick={downloadBatchLabelsPdf}>
-                              Descargar todas (PDF)
-                            </button>
-                          </>
-                        )}
-                      <button
-                        className="ghost"
-                        onClick={() => {
-                          const value = labelData.code
-                          if (navigator.clipboard) {
-                            navigator.clipboard.writeText(value)
-                          }
-                        }}
-                      >
-                        Copiar código
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="table">
-              <div className="table-head">
-                <h4>Catálogo disponible</h4>
-                <div className="actions">
-                  <span className="muted">Mostrando {assetCatalogItems.length}</span>
-                  <button
-                    className="ghost"
-                    type="button"
-                    onClick={() => setShowAssetCatalogList((prev) => !prev)}
-                  >
-                    {showAssetCatalogList ? 'Ocultar catálogo' : 'Mostrar catálogo'}
-                  </button>
-                </div>
-              </div>
-              {showAssetCatalogList ? (
-                <>
-                  {assetCatalogItems.map((item) => (
-                    <div key={item.id} className="row clickable" onClick={() => applyCatalogItem(item)}>
-                      <div>
-                        <strong>{formatCatalogItemDisplay(item)}</strong>
-                        <span className="muted"> · {item.category}</span>
-                      </div>
-                      <div className="row-actions">
-                        <button className="ghost" onClick={() => applyCatalogItem(item)}>
-                          Usar
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                  {!assetCatalogItems.length && <p className="muted">Sin items.</p>}
-                </>
-              ) : (
-                <p className="muted">
-                  Catálogo oculto. Usa "Mostrar catálogo" para ver los items.
-                </p>
-              )}
-            </div>
-
-            <div className="table">
-              <div className="table-head">
-                <h4>Activos fijos creados</h4>
-                <span className="muted">
-                  {assetsLoading ? 'Cargando...' : `Mostrando ${assetsList.length}`}
-                </span>
-              </div>
-              <div className="row">
-                <div className="actions">
-                  <input
-                    placeholder="ID"
-                    value={assetListFilters.id}
-                    onChange={(e) => {
-                      const digitsOnly = e.target.value.replace(/\D/g, '')
-                      setAssetListFilters((p) => ({ ...p, id: digitsOnly }))
-                    }}
-                    className="inline-input small"
-                  />
-                  <input
-                    placeholder="Código interno"
-                    value={assetListFilters.internalCode}
-                    onChange={(e) =>
-                      setAssetListFilters((p) => ({
-                        ...p,
-                        internalCode: e.target.value,
-                      }))
-                    }
-                    className="inline-input small"
-                  />
-                  <input
-                    placeholder="Buscar por código o nombre..."
-                    value={assetListFilters.q}
-                    onChange={(e) =>
-                      setAssetListFilters((p) => ({ ...p, q: e.target.value }))
-                    }
-                  />
-                  <input
-                    placeholder="Responsable"
-                    value={assetListFilters.responsibleName}
-                    onChange={(e) =>
-                      setAssetListFilters((p) => ({
-                        ...p,
-                        responsibleName: e.target.value,
-                      }))
-                    }
-                  />
-                  <input
-                    placeholder="Centro costo"
-                    value={assetListFilters.costCenter}
-                    onChange={(e) =>
-                      setAssetListFilters((p) => ({ ...p, costCenter: e.target.value }))
-                    }
-                  />
-                  <input
-                    type="date"
-                    value={assetListFilters.fromDate}
-                    onChange={(e) =>
-                      setAssetListFilters((p) => ({ ...p, fromDate: e.target.value }))
-                    }
-                  />
-                  <input
-                    type="date"
-                    value={assetListFilters.toDate}
-                    onChange={(e) =>
-                      setAssetListFilters((p) => ({ ...p, toDate: e.target.value }))
-                    }
-                  />
-                  <label className="inline-check">
-                    <input
-                      type="checkbox"
-                      checked={assetListFilters.includeDeleted}
-                      onChange={(e) =>
-                        setAssetListFilters((p) => ({
-                          ...p,
-                          includeDeleted: e.target.checked,
-                        }))
-                      }
-                    />
-                    Mostrar dados de baja
-                  </label>
-                  <select
-                    value={assetListFilters.institutionId}
-                    onChange={(e) => {
-                      const value = e.target.value
-                      setAssetListFilters((p) => ({
-                        ...p,
-                        institutionId: value,
-                        establishmentId: '',
-                        dependencyId: '',
-                      }))
-                    }}
-                  >
-                    <option value="">Institución</option>
-                    {institutionsCatalog.map((inst) => (
-                      <option key={inst.id} value={inst.id}>
-                        {inst.name}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={assetListFilters.establishmentId}
-                    onChange={(e) => {
-                      const value = e.target.value
-                      setAssetListFilters((p) => ({
-                        ...p,
-                        establishmentId: value,
-                        dependencyId: '',
-                      }))
-                      if (value) loadAssetListDependencies(value)
-                    }}
-                  >
-                    <option value="">Establecimiento</option>
-                    {assetListEstablishments.map((est) => (
-                      <option key={est.id} value={est.id}>
-                        {est.name}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={assetListFilters.dependencyId}
-                    onChange={(e) =>
-                      setAssetListFilters((p) => ({ ...p, dependencyId: e.target.value }))
-                    }
-                    disabled={!assetListFilters.establishmentId}
-                  >
-                    <option value="">Dependencia</option>
-                    {assetListDependencies.map((dep) => (
-                      <option key={dep.id} value={dep.id}>
-                        {dep.name}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={assetListFilters.assetStateId}
-                    onChange={(e) =>
-                      setAssetListFilters((p) => ({ ...p, assetStateId: e.target.value }))
-                    }
-                  >
-                    <option value="">Estado</option>
-                    {assetStates.map((st) => (
-                      <option key={st.id} value={st.id}>
-                        {st.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button className="ghost" onClick={loadAssetsList}>
-                    Actualizar
-                  </button>
-                  <button
-                    className="ghost"
-                    onClick={() => {
-                      const params = new URLSearchParams()
-                      const safeId = toPositiveIntOrNull(assetListFilters.id)
-                      if (safeId) params.set('id', String(safeId))
-                      if (assetListFilters.internalCode)
-                        params.set('internalCode', assetListFilters.internalCode)
-                      if (assetListFilters.q) params.set('q', assetListFilters.q)
-                      if (assetListFilters.responsibleName)
-                        params.set('responsibleName', assetListFilters.responsibleName)
-                      if (assetListFilters.costCenter)
-                        params.set('costCenter', assetListFilters.costCenter)
-                      if (assetListFilters.institutionId)
-                        params.set('institutionId', assetListFilters.institutionId)
-                      if (assetListFilters.establishmentId)
-                        params.set('establishmentId', assetListFilters.establishmentId)
-                      if (assetListFilters.dependencyId)
-                        params.set('dependencyId', assetListFilters.dependencyId)
-                      if (assetListFilters.assetStateId)
-                        params.set('assetStateId', assetListFilters.assetStateId)
-                      if (assetListFilters.includeDeleted)
-                        params.set('includeDeleted', 'true')
-                      if (assetListFilters.fromDate)
-                        params.set('fromDate', assetListFilters.fromDate)
-                      if (assetListFilters.toDate)
-                        params.set('toDate', assetListFilters.toDate)
-                      const qs = params.toString()
-                      downloadFile(
-                        `/assets/export/excel${qs ? `?${qs}` : ''}`,
-                        'assets_filtrados.xlsx'
-                      )
-                    }}
-                  >
-                    Exportar Excel
-                  </button>
-                  <button
-                    className="ghost"
-                    onClick={() => {
-                      const params = new URLSearchParams()
-                      const safeId = toPositiveIntOrNull(assetListFilters.id)
-                      if (safeId) params.set('id', String(safeId))
-                      if (assetListFilters.internalCode)
-                        params.set('internalCode', assetListFilters.internalCode)
-                      if (assetListFilters.q) params.set('q', assetListFilters.q)
-                      if (assetListFilters.responsibleName)
-                        params.set('responsibleName', assetListFilters.responsibleName)
-                      if (assetListFilters.costCenter)
-                        params.set('costCenter', assetListFilters.costCenter)
-                      if (assetListFilters.establishmentId)
-                        params.set('establishmentId', assetListFilters.establishmentId)
-                      if (assetListFilters.dependencyId)
-                        params.set('dependencyId', assetListFilters.dependencyId)
-                      if (assetListFilters.assetStateId)
-                        params.set('assetStateId', assetListFilters.assetStateId)
-                      if (assetListFilters.includeDeleted)
-                        params.set('includeDeleted', 'true')
-                      if (assetListFilters.fromDate)
-                        params.set('fromDate', assetListFilters.fromDate)
-                      if (assetListFilters.toDate)
-                        params.set('toDate', assetListFilters.toDate)
-                      const qs = params.toString()
-                      downloadFile(
-                        `/assets/export/pdf${qs ? `?${qs}` : ''}`,
-                        'assets_filtrados.pdf'
-                      )
-                    }}
-                  >
-                    Exportar PDF
-                  </button>
-                </div>
-              </div>
-              {assetsList.map((asset, idx) => (
-                <div key={asset.id} className="row">
-                  <div className="row-main">
-                    <strong>#{(assetListPage - 1) * 20 + idx + 1}</strong>
-                    <span className="pill">ID real: {asset.id}</span>
-                    <span className="pill">INV-{asset.internalCode}</span>
-                    <span>{asset.name}</span>
-                    <span className="pill">Cant: {asset.quantity ?? 1}</span>
-                    {asset.assetState?.name && (
-                      <span
-                        className={
-                          asset.isDeleted || asset.assetState.name === 'BAJA'
-                            ? 'pill danger-pill'
-                            : 'pill'
-                        }
-                      >
-                        {asset.assetState.name}
-                      </span>
-                    )}
-                    {asset.dependency?.name && (
-                      <span className="pill">{asset.dependency.name}</span>
-                    )}
-                    {asset.responsibleName && (
-                      <span className="pill">Resp: {asset.responsibleName}</span>
-                    )}
-                    {asset.responsibleRut && <span className="pill">RUT: {asset.responsibleRut}</span>}
-                    {asset.responsibleRole && (
-                      <span className="pill">Cargo: {asset.responsibleRole}</span>
-                    )}
-                    {asset.costCenter && <span className="pill">CC: {asset.costCenter}</span>}
-                  </div>
-                  <div className="row-actions">
-                    <button
-                      className="ghost"
-                      onClick={() => selectAssetForModal(asset)}
-                    >
-                      Ver
-                    </button>
-                    <button
-                      className="ghost"
-                      onClick={() => selectAssetForModal(asset, 'edit')}
-                    >
-                      Editar
-                    </button>
-                    <button
-                      className="ghost"
-                      onClick={() => selectAssetForModal(asset, 'move')}
-                    >
-                      Mover
-                    </button>
-                    <button
-                      className="ghost"
-                      disabled={!isCentral || asset.isDeleted || asset.assetState?.name === 'BAJA'}
-                      onClick={() => selectAssetForModal(asset, 'transfer')}
-                    >
-                      Transferir
-                    </button>
-                    <button
-                      className="danger"
-                      disabled={asset.isDeleted || asset.assetState?.name === 'BAJA'}
-                      title={
-                        asset.isDeleted || asset.assetState?.name === 'BAJA'
-                          ? 'Este activo ya está en baja. Revísalo en Basurero para restaurar o eliminar forzado.'
-                          : 'Dar de baja'
-                      }
-                      onClick={() => selectAssetForModal(asset, 'status')}
-                    >
-                      {asset.isDeleted || asset.assetState?.name === 'BAJA'
-                        ? 'Ya en baja'
-                        : 'Dar de baja'}
-                    </button>
-                  </div>
-                </div>
-              ))}
-              {!assetsList.length && !assetsLoading && (
-                <p className="muted">Sin activos fijos.</p>
-              )}
-              <div className="pagination">
-                <button
-                  className="ghost"
-                  disabled={assetListPage <= 1}
-                  onClick={() => loadAssetsList(assetListPage - 1)}
-                >
-                  Anterior
-                </button>
-                <span className="muted">
-                  Pagina {assetListPage} / {Math.max(1, Math.ceil(assetListTotal / 20))}
-                </span>
-                <button
-                  className="ghost"
-                  disabled={assetListPage >= Math.ceil(assetListTotal / 20)}
-                  onClick={() => loadAssetsList(assetListPage + 1)}
-                >
-                  Siguiente
-                </button>
-              </div>
-            </div>
-          </div>
+            <AssetsListView
+              {...{
+                showAssetCatalogList,
+                setShowAssetCatalogList,
+                assetCatalogItems,
+                applyCatalogItem,
+                formatCatalogItemDisplay,
+                assetsLoading,
+                assetsList,
+                assetListFilters,
+                setAssetListFilters,
+                institutionsCatalog,
+                assetListEstablishments,
+                loadAssetListDependencies,
+                assetListDependencies,
+                assetStates,
+                loadAssetsList,
+                selectedAssetIds,
+                toggleSelectedAsset,
+                toggleSelectAllVisibleAssets,
+                clearSelectedAssets,
+                openPrintSelectedAssetLabels,
+                downloadSelectedAssetLabelsPdf,
+                openPrintAssetListLabels,
+                downloadAssetListLabelsPdf,
+                toPositiveIntOrNull,
+                downloadFile,
+                assetListPage,
+                assetListTotal,
+                selectAssetForModal,
+                isCentral,
+              }}
+            />
+          </AssetsSection>
+          </AssetsTabPanel>
         )}
 
         {isAuthed && activeTab === 'trash' && (
+          <TrashTabPanel>
           <div className="section">
             <div className="section-head">
               <h3>Basurero</h3>
@@ -8754,14 +8309,14 @@ function App() {
                   }
                 />
                 <button className="ghost" onClick={loadTrash}>
-                  Actualizar
+                  {UI_TEXT.updating}
                 </button>
               </div>
             </div>
             <div className="table">
               <div className="table-head">
                 <span className="muted">
-                  {trashLoading ? 'Cargando...' : `Mostrando ${trashAssets.length}`}
+                  {trashLoading ? UI_TEXT.loading : `Mostrando ${trashAssets.length}`}
                 </span>
               </div>
               {trashAssets.map((asset, idx) => (
@@ -8794,1741 +8349,184 @@ function App() {
                 </div>
               ))}
               {!trashAssets.length && !trashLoading && (
-                <p className="muted">Basurero vacio.</p>
+                <p className="muted">Basurero vacío.</p>
               )}
             </div>
           </div>
+          </TrashTabPanel>
         )}
 
         {isAuthed && activeTab === 'imports' && (
-          <div className="section">
-            <div className="section-head">
-              <h3>Importaciones</h3>
-              <div className="actions">
-                <button
-                  className={importsView === 'assets' ? 'primary' : 'ghost'}
-                  onClick={() => setImportsView('assets')}
-                >
-                  Activos Fijos
-                </button>
-                <button
-                  className={importsView === 'catalog' ? 'primary' : 'ghost'}
-                  onClick={() => setImportsView('catalog')}
-                >
-                  Catálogo Estándar
-                </button>
-                <button
-                  className={importsView === 'sn' ? 'primary' : 'ghost'}
-                  onClick={() => setImportsView('sn')}
-                >
-                  Catálogo Base SN
-                </button>
-              </div>
-            </div>
-          </div>
+          <ImportsTabPanel>
+            <ImportsSection importsView={importsView} setImportsView={setImportsView}>
+
+        {importsView === 'assets' && (
+          <ImportsAssetsView
+            {...{
+              downloadFile,
+              purgeAssetsAllWithReset,
+              setImportFile,
+              handlePreviewFile,
+              handleImportUpload,
+              resumeImportJob,
+              importLoading,
+              importResult,
+              importSchemaDetails,
+              previewHeaders,
+              previewMissing,
+              previewRows,
+              previewInvalidCells,
+              importErrors,
+              importHistoryFilters,
+              setImportHistoryFilters,
+              loadImportHistory,
+              importHistoryLoading,
+              importHistory,
+              setImportHistoryOpen,
+              importHistoryOpen,
+              importHistoryPage,
+              importHistoryTotal,
+            }}
+          />
         )}
 
-        {isAuthed && activeTab === 'imports' && importsView === 'assets' && (
-          <div className="section">
-            <div className="section-head">
-              <h3>Carga Masiva (Excel)</h3>
-              <div className="actions">
-                <button
-                  className="ghost"
-                  onClick={() =>
-                    downloadFile('/assets/import/template/excel', 'carga_masiva_activo_fijo.xlsx')
-                  }
-                >
-                  Descargar plantilla Activo Fijo
-                </button>
-                <button
-                  className="ghost"
-                  onClick={() =>
-                    downloadFile('/assets/import/catalog/excel', 'assets_catalog_ids.xlsx')
-                  }
-                >
-                  Descargar IDs
-                </button>
-                <button className="danger danger-outline" onClick={purgeAssetsAllWithReset}>
-                  Vaciar activos (ID=1)
-                </button>
-              </div>
-            </div>
-            <div className="split">
-              <div className="form-card upload-card">
-                <h4>Subir archivo</h4>
-                <input
-                  type="file"
-                  accept=".xlsx"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0] || null
-                    setImportFile(file)
-                    handlePreviewFile(file)
-                  }}
-                />
-                <p className="muted">
-                  La importaci\u00f3n completa datos faltantes con valores por defecto. Si faltan RUT, cuenta, anal\u00edtico, fecha o valor, igual se intenta incorporar.
-                </p>
-                <button className="primary" onClick={handleImportUpload} disabled={importLoading}>
-                  {importLoading ? 'Importando...' : 'Importar Excel'}
-                </button>
-              </div>
-              <div className="form-card">
-                <h4>Resultado</h4>
-                {importResult ? (
-                  <div className="import-summary">
-                    <p>
-                      Creados: <strong>{importResult.createdCount}</strong>
-                    </p>
-                    <p>
-                      Errores: <strong>{importResult.errorCount}</strong>
-                    </p>
-                  </div>
-                ) : (
-                  <p className="muted">Aún no hay importación.</p>
-                )}
-              </div>
-            </div>
-            {importSchemaDetails?.missingColumns && (
-              <div className="alert">
-                <strong>Faltan columnas:</strong>{' '}
-                {importSchemaDetails.missingColumns.join(', ')}
-              </div>
-            )}
-            {previewHeaders.length > 0 && (
-              <div className="preview">
-                <div className="table-head">
-                  <h4>Preview</h4>
-                  {previewMissing.length > 0 && (
-                    <span className="muted">Faltan: {previewMissing.join(', ')}</span>
-                  )}
-                </div>
-                <div className="preview-table">
-                  <div className="preview-row header">
-                    {previewHeaders.map((h, idx) => (
-                      <div key={`ph-${idx}`} className="preview-cell">
-                        {String(h)}
-                      </div>
-                    ))}
-                  </div>
-                  {previewRows.map((row, idx) => {
-                    const invalidCols = previewInvalidCells[idx + 1] || []
-                    return (
-                      <div key={`pr-${idx}`} className="preview-row">
-                        {row.map((cell, cidx) => (
-                          <div
-                            key={`pc-${idx}-${cidx}`}
-                            className={`preview-cell${invalidCols.includes(cidx) ? ' invalid' : ''}`}
-                          >
-                            {String(cell)}
-                          </div>
-                        ))}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-            {importErrors.length > 0 && (
-              <div className="table">
-                <div className="table-head">
-                  <h4>Errores por fila</h4>
-                  <span className="muted">Corrige y vuelve a importar</span>
-                </div>
-                {importErrors.map((err, idx) => (
-                  <div key={`imp-${idx}`} className="row">
-                    <div>
-                      <strong>Fila {err.row}</strong>
-                      {err.fields?.length ? (
-                        <span className="muted"> · {err.fields.join(', ')}</span>
-                      ) : null}
-                    </div>
-                    <div className="muted">{err.error}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="section-head" style={{ marginTop: '16px' }}>
-              <h4>Historial de importaciónes</h4>
-              <div className="actions">
-                <input
-                  type="date"
-                  value={importHistoryFilters.fromDate}
-                  onChange={(e) =>
-                    setImportHistoryFilters({
-                      ...importHistoryFilters,
-                      fromDate: e.target.value,
-                    })
-                  }
-                />
-                <input
-                  type="date"
-                  value={importHistoryFilters.toDate}
-                  onChange={(e) =>
-                    setImportHistoryFilters({
-                      ...importHistoryFilters,
-                      toDate: e.target.value,
-                    })
-                  }
-                />
-                <input
-                  placeholder="User ID"
-                  value={importHistoryFilters.userId}
-                  onChange={(e) =>
-                    setImportHistoryFilters({
-                      ...importHistoryFilters,
-                      userId: e.target.value,
-                    })
-                  }
-                  style={{ maxWidth: '140px' }}
-                />
-                <button className="ghost" onClick={() => loadImportHistory(1)}>
-                  Actualizar
-                </button>
-                <button
-                  className="ghost"
-                  onClick={() => {
-                    const params = new URLSearchParams()
-                    if (importHistoryFilters.fromDate)
-                      params.set('fromDate', importHistoryFilters.fromDate)
-                    if (importHistoryFilters.toDate)
-                      params.set('toDate', importHistoryFilters.toDate)
-                    if (importHistoryFilters.userId)
-                      params.set('userId', importHistoryFilters.userId)
-                    const qs = params.toString()
-                    downloadFile(
-                      `/assets/imports/export/excel${qs ? `?${qs}` : ''}`,
-                      'import_history.xlsx'
-                    )
-                  }}
-                >
-                  Exportar Excel
-                </button>
-                <button
-                  className="ghost"
-                  onClick={() => {
-                    const params = new URLSearchParams()
-                    if (importHistoryFilters.fromDate)
-                      params.set('fromDate', importHistoryFilters.fromDate)
-                    if (importHistoryFilters.toDate)
-                      params.set('toDate', importHistoryFilters.toDate)
-                    if (importHistoryFilters.userId)
-                      params.set('userId', importHistoryFilters.userId)
-                    const qs = params.toString()
-                    downloadFile(
-                      `/assets/imports/export/pdf${qs ? `?${qs}` : ''}`,
-                      'import_history.pdf'
-                    )
-                  }}
-                >
-                  Exportar PDF
-                </button>
-              </div>
-            </div>
-            {importHistoryLoading && <p className="muted">Cargando...</p>}
-            {!importHistoryLoading && (
-              <div className="table">
-                {importHistory.map((batch) => (
-                  <div key={batch.id} className="row">
-                    <div>
-                      <strong>{batch.filename}</strong>
-                      <span className="muted">
-                        {' '}· {new Date(batch.createdAt).toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="row-actions">
-                      <span className="pill">{batch.status}</span>
-                      <span className="pill">Creados: {batch.createdCount}</span>
-                      <span className="pill">Errores: {batch.errorCount}</span>
-                      {batch.errors && (
-                        <button
-                          className="ghost"
-                          onClick={() =>
-                            setImportHistoryOpen(
-                              importHistoryOpen && importHistoryOpen.id === batch.id
-                                ? null
-                                : batch
-                            )
-                          }
-                        >
-                          Ver errores
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                {!importHistory.length && <p className="muted">Sin historial.</p>}
-              </div>
-            )}
-            <div className="pager">
-              <button
-                className="ghost"
-                disabled={importHistoryPage <= 1}
-                onClick={() => loadImportHistory(importHistoryPage - 1)}
-              >
-                Anterior
-              </button>
-              <span>
-                Pagina {importHistoryPage} / {Math.max(1, Math.ceil(importHistoryTotal / 10))}
-              </span>
-              <button
-                className="ghost"
-                disabled={importHistoryPage >= Math.ceil(importHistoryTotal / 10)}
-                onClick={() => loadImportHistory(importHistoryPage + 1)}
-              >
-                Siguiente
-              </button>
-            </div>
-            {importHistoryOpen && (
-              <div className="modal-backdrop">
-                <div className="modal">
-                  <h3>Errores de importación</h3>
-                  <pre className="code-block">{JSON.stringify(importHistoryOpen.errors, null, 2)}</pre>
-                  <div className="modal-actions">
-                    <button className="ghost" onClick={() => setImportHistoryOpen(null)}>
-                      Cerrar
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+        {importsView === 'catalog' && (
+          <ImportsCatalogView
+            {...{
+              downloadFile,
+              purgeCatalogAllWithReset,
+              setCatalogImportFile,
+              handleCatalogImportUpload,
+              catalogImportLoading,
+              catalogImportResult,
+              downloadCatalogImportReport,
+              catalogImportErrors,
+              catalogManualForm,
+              setCatalogManualForm,
+              setManualOfficialKeyCheck,
+              checkManualOfficialKeyAvailability,
+              handleCatalogManualCreate,
+              manualOfficialKeyCheck,
+              catalogAdminQuery,
+              setCatalogAdminQuery,
+              loadCatalogAdminItems,
+              catalogAdminLoading,
+              catalogAdminItems,
+              setCatalogAdminItems,
+              catalogAdminOriginal,
+              catalogAdminRowStatus,
+              catalogAdminKeyStatus,
+              catalogAdminPage,
+              catalogAdminTotal,
+              CATALOG_ADMIN_TAKE,
+              scheduleCatalogAdminOfficialKeyValidation,
+              updateCatalogAdminItem,
+              discardCatalogAdminItem,
+              openForceDelete,
+            }}
+          />
         )}
 
-        {isAuthed && activeTab === 'imports' && importsView === 'catalog' && (
-          <div className="section">
-            <div className="section-head">
-              <h3>Importar Catálogo</h3>
-              <div className="actions">
-                <button
-                  className="ghost"
-                  onClick={() =>
-                    downloadFile(
-                      '/admin/catalog-items/import/template/excel',
-                      'catalog_items_template.xlsx'
-                    )
-                  }
-                >
-                  Descargar plantilla Activo Fijo
-                </button>
-                <button className="danger danger-outline" onClick={purgeCatalogAllWithReset}>
-                  Vaciar catálogo (ID=1)
-                </button>
-              </div>
-            </div>
-
-            <div className="split">
-              <div className="form-card upload-card">
-                <h4>Carga masiva desde Excel</h4>
-                <input
-                  type="file"
-                  accept=".xlsx"
-                  onChange={(e) => setCatalogImportFile(e.target.files?.[0] || null)}
-                />
-                <p className="muted">
-                  Soporta plantilla estándar de catálogo y también tu formato inventario
-                  avanzado (CODIGO_ACTIVO, CARACTERISTICAS, ...).
-                </p>
-                <button
-                  className="primary"
-                  onClick={handleCatalogImportUpload}
-                  disabled={catalogImportLoading}
-                >
-                  {catalogImportLoading ? 'Importando...' : 'Importar Catálogo'}
-                </button>
-              </div>
-
-              <div className="form-card">
-                <h4>Resultado importación</h4>
-                {catalogImportResult ? (
-                  <div className="import-summary">
-                    <p>
-                      Filas leidas: <strong>{catalogImportResult.totalRows || 0}</strong>
-                    </p>
-                    <p>
-                      Parseadas: <strong>{catalogImportResult.parsedCount || 0}</strong>
-                    </p>
-                    <p>
-                      Creadas: <strong>{catalogImportResult.createdCount || 0}</strong>
-                    </p>
-                    <p>
-                      Omitidas: <strong>{catalogImportResult.skippedCount || 0}</strong>
-                    </p>
-                    <p>
-                      Errores: <strong>{catalogImportResult.errorCount || 0}</strong>
-                    </p>
-                    <p className="muted">
-                      Dedupe: {catalogImportResult?.dedupePolicy?.primary || 'N/D'} | fallback:{' '}
-                      {catalogImportResult?.dedupePolicy?.fallback || 'N/D'}
-                    </p>
-                    <div className="actions">
-                      <button
-                        className="ghost"
-                        onClick={() => downloadCatalogImportReport('created')}
-                        disabled={!catalogImportResult?.items?.length}
-                      >
-                        Descargar creados CSV
-                      </button>
-                      <button
-                        className="ghost"
-                        onClick={() => downloadCatalogImportReport('skipped')}
-                        disabled={!catalogImportResult?.skipped?.length}
-                      >
-                        Descargar omitidos CSV
-                      </button>
-                      <button
-                        className="ghost"
-                        onClick={() => downloadCatalogImportReport('errors')}
-                        disabled={!catalogImportResult?.errors?.length}
-                      >
-                        Descargar errores CSV
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="muted">Aún no hay importación de catálogo.</p>
-                )}
-              </div>
-            </div>
-
-            {catalogImportResult?.items?.length > 0 && (
-              <div className="table">
-                <div className="table-head">
-                  <h4>Registros creados</h4>
-                  <span className="muted">Mostrando hasta 20</span>
-                </div>
-                {catalogImportResult.items.slice(0, 20).map((item, idx) => (
-                  <div key={`cat-created-${item.id || idx}`} className="row">
-                    <div>
-                      <strong>{item.name || 'Sin nombre'}</strong>
-                      <span className="muted"> · {item.category || 'Sin categoria'}</span>
-                    </div>
-                    <div className="muted">
-                      {(item.brand || '-') + ' / ' + (item.modelName || '-')}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {catalogImportErrors.length > 0 && (
-              <div className="table">
-                <div className="table-head">
-                  <h4>Errores de catálogo</h4>
-                  <span className="muted">Corrige y vuelve a importar</span>
-                </div>
-                {catalogImportErrors.map((err, idx) => (
-                  <div key={`cat-err-${idx}`} className="row">
-                    <div>
-                      <strong>Fila {err.row}</strong>
-                    </div>
-                    <div className="muted">{err.error}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {catalogImportResult?.skipped?.length > 0 && (
-              <div className="table">
-                <div className="table-head">
-                  <h4>Registros omitidos</h4>
-                  <span className="muted">Mostrando hasta 20</span>
-                </div>
-                {catalogImportResult.skipped.slice(0, 20).map((item, idx) => (
-                  <div key={`cat-skip-${idx}`} className="row">
-                    <div>
-                      <strong>{item.name || 'Sin nombre'}</strong>
-                      <span className="muted"> · {item.category || 'Sin categoria'}</span>
-                    </div>
-                    <div className="muted">{item.reason || 'OMITIDO'}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="section-head" style={{ marginTop: '16px' }}>
-              <h4>Alta manual (casos específicos)</h4>
-            </div>
-            <div className="form-card">
-              <div className="grid-form">
-                <input
-                  placeholder="Official Key (opcional)"
-                  value={catalogManualForm.officialKey}
-                  onChange={(e) => {
-                    setCatalogManualForm({ ...catalogManualForm, officialKey: e.target.value })
-                    setManualOfficialKeyCheck(null)
-                  }}
-                />
-                <input
-                  placeholder="Nombre *"
-                  value={catalogManualForm.name}
-                  onChange={(e) =>
-                    setCatalogManualForm({ ...catalogManualForm, name: e.target.value })
-                  }
-                />
-                <input
-                  placeholder="Categoria *"
-                  value={catalogManualForm.category}
-                  onChange={(e) =>
-                    setCatalogManualForm({ ...catalogManualForm, category: e.target.value })
-                  }
-                />
-                <input
-                  placeholder="Subcategoria"
-                  value={catalogManualForm.subcategory}
-                  onChange={(e) =>
-                    setCatalogManualForm({
-                      ...catalogManualForm,
-                      subcategory: e.target.value,
-                    })
-                  }
-                />
-                <input
-                  placeholder="Marca"
-                  value={catalogManualForm.brand}
-                  onChange={(e) =>
-                    setCatalogManualForm({ ...catalogManualForm, brand: e.target.value })
-                  }
-                />
-                <input
-                  placeholder="Modelo"
-                  value={catalogManualForm.modelName}
-                  onChange={(e) =>
-                    setCatalogManualForm({
-                      ...catalogManualForm,
-                      modelName: e.target.value,
-                    })
-                  }
-                />
-                <input
-                  placeholder="Unidad"
-                  value={catalogManualForm.unit}
-                  onChange={(e) =>
-                    setCatalogManualForm({ ...catalogManualForm, unit: e.target.value })
-                  }
-                />
-                <textarea
-                  placeholder="Descripcion"
-                  value={catalogManualForm.description}
-                  onChange={(e) =>
-                    setCatalogManualForm({
-                      ...catalogManualForm,
-                      description: e.target.value,
-                    })
-                  }
-                  rows={3}
-                />
-              </div>
-              <div className="actions" style={{ marginTop: '12px' }}>
-                <button
-                  className="ghost"
-                  onClick={checkManualOfficialKeyAvailability}
-                  disabled={!catalogManualForm.officialKey.trim()}
-                >
-                  Validar officialKey
-                </button>
-                <button
-                  className="primary"
-                  onClick={handleCatalogManualCreate}
-                  disabled={
-                    !catalogManualForm.name.trim() || !catalogManualForm.category.trim()
-                  }
-                >
-                  Agregar manualmente
-                </button>
-              </div>
-              {manualOfficialKeyCheck?.message && (
-                <p className={manualOfficialKeyCheck.type === 'error' ? 'error' : 'muted'}>
-                  {manualOfficialKeyCheck.message}
-                </p>
-              )}
-            </div>
-
-            <div className="section-head" style={{ marginTop: '16px' }}>
-              <h4>Editar ítems de catálogo</h4>
-              <div className="actions">
-                <input
-                  placeholder="Buscar por nombre, categoría o officialKey..."
-                  value={catalogAdminQuery}
-                  onChange={(e) => setCatalogAdminQuery(e.target.value)}
-                />
-                <button className="ghost" onClick={() => loadCatalogAdminItems(1)}>
-                  Buscar
-                </button>
-              </div>
-            </div>
-            <div className="table">
-              {catalogAdminLoading ? (
-                <p className="muted">Cargando catálogo...</p>
-              ) : catalogAdminItems.length ? (
-                catalogAdminItems.map((item, idx) => {
-                  const original = catalogAdminOriginal[item.id]
-                  const rowStatus = catalogAdminRowStatus[item.id]
-                  const keyStatus = catalogAdminKeyStatus[item.id]
-                  const dirty =
-                    original &&
-                    (
-                      (original.officialKey || '') !== (item.officialKey || '') ||
-                      (original.name || '') !== (item.name || '') ||
-                      (original.category || '') !== (item.category || '') ||
-                      (original.subcategory || '') !== (item.subcategory || '') ||
-                      (original.brand || '') !== (item.brand || '') ||
-                      (original.modelName || '') !== (item.modelName || '') ||
-                      (original.unit || '') !== (item.unit || '')
-                    )
-
-                  return (
-                    <div key={item.id} className="row">
-                      <div className="row-main">
-                        <strong>#{(catalogAdminPage - 1) * 20 + idx + 1}</strong>
-                        <span className="pill">ID real: {item.id}</span>
-                        <input
-                          className="inline-input small"
-                          placeholder="officialKey"
-                          value={item.officialKey || ''}
-                          onChange={(e) => {
-                            const value = e.target.value
-                            setCatalogAdminItems((prev) =>
-                              prev.map((x) =>
-                                x.id === item.id ? { ...x, officialKey: value } : x
-                              )
-                            )
-                            scheduleCatalogAdminOfficialKeyValidation(item.id, value)
-                          }}
-                        />
-                        <input
-                          className="inline-input"
-                          placeholder="Nombre"
-                          value={item.name || ''}
-                          onChange={(e) =>
-                            setCatalogAdminItems((prev) =>
-                              prev.map((x) => (x.id === item.id ? { ...x, name: e.target.value } : x))
-                            )
-                          }
-                        />
-                        <input
-                          className="inline-input small"
-                          placeholder="Categoría"
-                          value={item.category || ''}
-                          onChange={(e) =>
-                            setCatalogAdminItems((prev) =>
-                              prev.map((x) =>
-                                x.id === item.id ? { ...x, category: e.target.value } : x
-                              )
-                            )
-                          }
-                        />
-                        <input
-                          className="inline-input small"
-                          placeholder="Subcategoría"
-                          value={item.subcategory || ''}
-                          onChange={(e) =>
-                            setCatalogAdminItems((prev) =>
-                              prev.map((x) =>
-                                x.id === item.id ? { ...x, subcategory: e.target.value } : x
-                              )
-                            )
-                          }
-                        />
-                        <input
-                          className="inline-input small"
-                          placeholder="Marca"
-                          value={item.brand || ''}
-                          onChange={(e) =>
-                            setCatalogAdminItems((prev) =>
-                              prev.map((x) => (x.id === item.id ? { ...x, brand: e.target.value } : x))
-                            )
-                          }
-                        />
-                        <input
-                          className="inline-input small"
-                          placeholder="Modelo"
-                          value={item.modelName || ''}
-                          onChange={(e) =>
-                            setCatalogAdminItems((prev) =>
-                              prev.map((x) =>
-                                x.id === item.id ? { ...x, modelName: e.target.value } : x
-                              )
-                            )
-                          }
-                        />
-                        <input
-                          className="inline-input small"
-                          placeholder="Unidad"
-                          value={item.unit || ''}
-                          onChange={(e) =>
-                            setCatalogAdminItems((prev) =>
-                              prev.map((x) => (x.id === item.id ? { ...x, unit: e.target.value } : x))
-                            )
-                          }
-                        />
-                      </div>
-                      <div className="row-actions">
-                        <button
-                          onClick={() => updateCatalogAdminItem(item)}
-                          disabled={
-                            rowStatus?.message === 'Guardando...' ||
-                            keyStatus?.message === 'Validando officialKey...' ||
-                            keyStatus?.type === 'error' ||
-                            !dirty ||
-                            !String(item.name || '').trim() ||
-                            !String(item.category || '').trim()
-                          }
-                        >
-                          Guardar
-                        </button>
-                        <button
-                          className="ghost"
-                          onClick={() => discardCatalogAdminItem(item.id)}
-                          disabled={!dirty || rowStatus?.message === 'Guardando...'}
-                        >
-                          Descartar
-                        </button>
-                        <button
-                          className="danger danger-outline"
-                          onClick={() =>
-                            openForceDelete(
-                              'catalogItem',
-                              item.id,
-                              `${item.name || 'Item catálogo'} #${item.id}`
-                            )
-                          }
-                        >
-                          Eliminar forzado
-                        </button>
-                        {rowStatus?.message && (
-                          <span className={rowStatus.type === 'error' ? 'error' : 'muted'}>
-                            {rowStatus.message}
-                          </span>
-                        )}
-                        {keyStatus?.message && (
-                          <span className={keyStatus.type === 'error' ? 'error' : 'muted'}>
-                            {keyStatus.message}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })
-              ) : (
-                <p className="muted">Sin ítems para editar.</p>
-              )}
-            </div>
-            <div className="pager">
-              <button
-                className="ghost"
-                disabled={catalogAdminPage <= 1 || catalogAdminLoading}
-                onClick={() => loadCatalogAdminItems(catalogAdminPage - 1)}
-              >
-                Anterior
-              </button>
-              <span>
-                Página {catalogAdminPage} / {Math.max(1, Math.ceil(catalogAdminTotal / CATALOG_ADMIN_TAKE))}
-              </span>
-              <button
-                className="ghost"
-                disabled={
-                  catalogAdminLoading ||
-                  catalogAdminPage >= Math.max(1, Math.ceil(catalogAdminTotal / CATALOG_ADMIN_TAKE))
-                }
-                onClick={() => loadCatalogAdminItems(catalogAdminPage + 1)}
-              >
-                Siguiente
-              </button>
-            </div>
-          </div>
+        {importsView === 'sn' && (
+          <ImportsSnView
+            {...{
+              handleSnBaseFileChange,
+              snBaseFile,
+              snBaseParsed,
+              snBaseImporting,
+              handleSnBaseImportToCatalog,
+              snBaseLoading,
+              snBaseImportResult,
+            }}
+          />
         )}
-
-        {isAuthed && activeTab === 'imports' && importsView === 'sn' && (
-          <div className="section">
-            <div className="section-head">
-              <h3>Base SN (Insumos)</h3>
-            </div>
-            <div className="split">
-              <div className="form-card upload-card">
-                <h4>Cargar archivo SN</h4>
-                <input
-                  type="file"
-                  accept=".xlsx"
-                  onChange={(e) => handleSnBaseFileChange(e.target.files?.[0] || null)}
-                />
-                <p className="muted">
-                  Formato detectado: bloques de Insumo/Cantidad por categoria en una misma hoja.
-                </p>
-                {snBaseFile && <p className="muted">Archivo: {snBaseFile.name}</p>}
-                <button
-                  className="primary"
-                  disabled={!snBaseParsed?.catalogItems?.length || snBaseImporting}
-                  onClick={handleSnBaseImportToCatalog}
-                >
-                  {snBaseImporting ? 'Importando...' : 'Convertir e importar a Catalogo'}
-                </button>
-              </div>
-              <div className="form-card">
-                <h4>Resumen Base SN</h4>
-                {snBaseLoading ? (
-                  <p className="muted">Analizando archivo...</p>
-                ) : snBaseParsed ? (
-                  <div className="import-summary">
-                    <p>
-                      Filas analizadas: <strong>{snBaseParsed.rowsRead}</strong>
-                    </p>
-                    <p>
-                      Bloques detectados: <strong>{snBaseParsed.blockCount}</strong>
-                    </p>
-                    <p>
-                      Insumos unicos: <strong>{snBaseParsed.items.length}</strong>
-                    </p>
-                  </div>
-                ) : (
-                  <p className="muted">Aun no se ha cargado una base SN.</p>
-                )}
-                {snBaseImportResult && (
-                  <div className="import-summary" style={{ marginTop: '12px' }}>
-                    <p>
-                      Creados en catalogo: <strong>{snBaseImportResult.createdCount || 0}</strong>
-                    </p>
-                    <p>
-                      Omitidos: <strong>{snBaseImportResult.skippedCount || 0}</strong>
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-            {snBaseParsed?.items?.length > 0 && (
-              <div className="table">
-                <div className="table-head">
-                  <h4>Previsualizacion consolidada</h4>
-                  <span className="muted">Mostrando hasta 100 filas</span>
-                </div>
-                {snBaseParsed.items.slice(0, 100).map((item, idx) => (
-                  <div key={`sn-row-${idx}`} className="row">
-                    <div>
-                      <strong>{item.category}</strong>
-                      <span className="muted"> · {item.name}</span>
-                    </div>
-                    <div className="muted">Cantidad total: {item.quantity}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+            </ImportsSection>
+          </ImportsTabPanel>
         )}
 
         {isAuthed && activeTab === 'planchetas' && (
-          <div className="section">
-            <div className="section-head">
-              <h3>Planchetas</h3>
-              <div className="actions">
-                <button
-                  className="ghost"
-                  disabled={!canPreviewPlancheta}
-                  onClick={loadPlanchetaPreview}
-                >
-                  Previsualizar
-                </button>
-                <button
-                  className="ghost"
-                  disabled={!canExportPlancheta}
-                  title={!canExportPlancheta ? 'Previsualiza con datos antes de exportar.' : ''}
-                  onClick={() => downloadPlancheta('excel', 'formal')}
-                >
-                  Excel Formal
-                </button>
-                <button
-                  className="ghost"
-                  disabled={!canExportPlancheta}
-                  title={!canExportPlancheta ? 'Previsualiza con datos antes de exportar.' : ''}
-                  onClick={() => downloadPlancheta('pdf', 'formal')}
-                >
-                  PDF Formal
-                </button>
-                <button
-                  className="ghost"
-                  disabled={!canExportPlancheta}
-                  title={!canExportPlancheta ? 'Previsualiza con datos antes de exportar.' : ''}
-                  onClick={() => downloadPlancheta('excel', 'gerencial')}
-                >
-                  Excel Gerencial
-                </button>
-                <button
-                  className="ghost"
-                  disabled={!canExportPlancheta}
-                  title={!canExportPlancheta ? 'Previsualiza con datos antes de exportar.' : ''}
-                  onClick={() => downloadPlancheta('pdf', 'gerencial')}
-                >
-                  PDF Gerencial
-                </button>
-              </div>
-            </div>
-            {!planchetaPreviewLoading && planchetaQuery && !planchetaPreview.length && (
-              <p className="muted">Previsualiza primero. Si no hay filas, la exportación queda bloqueada.</p>
-            )}
-            <div className="split">
-              <div className="form-card">
-                <h4>Filtros</h4>
-                <div className="select-wrap">
-                  <label>Institución</label>
-                  <select
-                    value={planchetaFilters.institutionId}
-                    onChange={(e) => {
-                      const value = e.target.value
-                      setPlanchetaFilters((prev) => ({
-                        ...prev,
-                        institutionId: value,
-                        establishmentId: '',
-                        dependencyId: '',
-                      }))
-                      if (value) loadPlanchetaEstablishments(value)
-                      else setPlanchetaEstablishments([])
-                      setPlanchetaDependencies([])
-                    }}
-                    disabled={loadingPlancheta}
-                  >
-                    <option value="">Selecciona institución</option>
-                    {planchetaInstitutions.map((inst) => (
-                      <option key={inst.id} value={inst.id}>
-                        {inst.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="select-wrap">
-                  <label>Establecimiento</label>
-                  <select
-                    value={planchetaFilters.establishmentId}
-                    onChange={(e) => {
-                      const value = e.target.value
-                      setPlanchetaFilters((prev) => ({
-                        ...prev,
-                        establishmentId: value,
-                        dependencyId: '',
-                      }))
-                      if (value) loadPlanchetaDependencies(value)
-                      else setPlanchetaDependencies([])
-                    }}
-                    disabled={loadingPlancheta || !planchetaFilters.institutionId}
-                  >
-                    <option value="">Selecciona establecimiento</option>
-                    {planchetaEstablishments.map((est) => (
-                      <option key={est.id} value={est.id}>
-                        {est.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="select-wrap">
-                  <label>Dependencia (opcional)</label>
-                  <select
-                    value={planchetaFilters.dependencyId}
-                    onChange={(e) =>
-                      setPlanchetaFilters((prev) => ({
-                        ...prev,
-                        dependencyId: e.target.value,
-                      }))
-                    }
-                    disabled={loadingPlancheta || !planchetaFilters.establishmentId}
-                  >
-                    <option value="">Todas</option>
-                    {planchetaDependencies.map((dep) => (
-                      <option key={dep.id} value={dep.id}>
-                        {dep.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <p className="muted">
-                  Si no eliges dependencia, se exporta la plancheta por establecimiento.
-                </p>
-                <div className="split">
-                  <div className="select-wrap">
-                    <label>Fecha adquisicion desde (opcional)</label>
-                    <input
-                      type="date"
-                      value={planchetaFilters.fromDate}
-                      onChange={(e) =>
-                        setPlanchetaFilters((prev) => ({
-                          ...prev,
-                          fromDate: e.target.value,
-                        }))
-                      }
-                    />
-                  </div>
-                  <div className="select-wrap">
-                    <label>Fecha adquisicion hasta (opcional)</label>
-                    <input
-                      type="date"
-                      value={planchetaFilters.toDate}
-                      onChange={(e) =>
-                        setPlanchetaFilters((prev) => ({
-                          ...prev,
-                          toDate: e.target.value,
-                        }))
-                      }
-                    />
-                  </div>
-                </div>
-                <div className="select-wrap">
-                  <label>Encargado de dependencia (firma)</label>
-                  <input
-                    value={planchetaFilters.responsibleName}
-                    onChange={(e) =>
-                      setPlanchetaFilters((prev) => ({
-                        ...prev,
-                        responsibleName: e.target.value,
-                      }))
-                    }
-                    placeholder="Nombre encargado"
-                  />
-                </div>
-                <div className="select-wrap">
-                  <label>Jefe de dependencia (firma)</label>
-                  <input
-                    value={planchetaFilters.chiefName}
-                    onChange={(e) =>
-                      setPlanchetaFilters((prev) => ({
-                        ...prev,
-                        chiefName: e.target.value,
-                      }))
-                    }
-                    placeholder="Nombre jefe"
-                  />
-                </div>
-                <div className="select-wrap">
-                  <label>Texto ministerial</label>
-                  <textarea
-                    rows={4}
-                    value={planchetaFilters.ministryText}
-                    onChange={(e) =>
-                      setPlanchetaFilters((prev) => ({
-                        ...prev,
-                        ministryText: e.target.value,
-                      }))
-                    }
-                  />
-                </div>
-                <label className="muted">
-                  <input
-                    type="checkbox"
-                    checked={planchetaFilters.includeHistory}
-                    onChange={(e) =>
-                      setPlanchetaFilters((prev) => ({
-                        ...prev,
-                        includeHistory: e.target.checked,
-                      }))
-                    }
-                  />{' '}
-                  Incluir historial reciente por activo fijo
-                </label>
-              </div>
-            </div>
-            {planchetaPreviewLoading && <p className="muted">Cargando plancheta...</p>}
-            {!planchetaPreviewLoading && planchetaMessage && (
-              <p className="muted">{planchetaMessage}</p>
-            )}
-            {!planchetaPreviewLoading && planchetaSummary.length > 0 && (
-              <div className="table">
-                <div className="table-head">
-                  <h4>Resumen por dependencia y producto</h4>
-                  <span className="muted">Vista resumida (hasta 100 filas)</span>
-                </div>
-                {planchetaSummary.slice(0, 100).map((row, idx) => (
-                  <div key={`plancheta-summary-${row.dependencyId}-${row.productName}-${idx}`} className="row">
-                    <div>
-                      <strong>{row.dependencyName || 'Sin dependencia'}</strong>
-                      <div className="muted">Producto: {row.productName || 'Sin nombre'}</div>
-                      <div className="muted">Categoría: {row.category || 'Sin categoría'}</div>
-                    </div>
-                    <div className="muted">
-                      Marca: {row.brand || '-'} · Modelo: {row.modelName || '-'} · Cantidad total:{' '}
-                      {row.quantity}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            {!planchetaPreviewLoading && planchetaPreview.length > 0 && (
-              <div className="table">
-                <div className="table-head">
-                  <h4>Detalle de activos (muestra)</h4>
-                  <span className="muted">Vista de control (hasta 20 filas)</span>
-                </div>
-                {planchetaPreview.slice(0, 20).map((item) => (
-                  <div key={item.id} className="row">
-                    <div>
-                      <strong>INV-{item.internalCode}</strong> · {item.name}
-                      <div className="muted">
-                        Marca: {item.brand || '-'} · Modelo: {item.modelName || '-'}
-                      </div>
-                    </div>
-                    <div className="muted">
-                      Dependencia: {item.dependency?.name || '-'} · Estado: {item.assetState?.name || '-'}
-                    </div>
-                    <div className="muted">
-                      Cantidad: {item.quantity ?? 1} · Responsable: {item.responsibleName || 'Sin asignar'}
-                      {' · '}RUT: {item.responsibleRut || '-'} · Cargo: {item.responsibleRole || '-'}
-                      {' · '}CC: {item.costCenter || '-'}
-                    </div>
-                    {planchetaFilters.includeHistory && (
-                      <div className="muted">
-                        Historial reciente:{' '}
-                        {(item.movements || []).map(formatPlanchetaMovement).join(' | ') ||
-                          'Sin movimientos'}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <PlanchetasTabPanel>
+            <PlanchetasSection
+              {...{
+                canPreviewPlancheta,
+                canExportPlancheta,
+                loadPlanchetaPreview,
+                downloadPlancheta,
+                planchetaPreviewLoading,
+                planchetaQuery,
+                planchetaPreview,
+                planchetaFilters,
+                planchetaInsights,
+                setPlanchetaFilters,
+                loadPlanchetaEstablishments,
+                setPlanchetaEstablishments,
+                setPlanchetaDependencies,
+                loadingPlancheta,
+                planchetaInstitutions,
+                planchetaEstablishments,
+                loadPlanchetaDependencies,
+                planchetaDependencies,
+                planchetaMessage,
+                planchetaSummary,
+                formatPlanchetaMovement,
+                openPrintPlanchetaLabels,
+                downloadPlanchetaLabelsPdf,
+              }}
+            />
+          </PlanchetasTabPanel>
         )}
-
         {isAuthed && activeTab === 'audit' && (
-          <div className="section">
-            <div className="section-head">
-              <h3>Auditoría Admin</h3>
-              <div className="actions">
-                <select
-                  value={auditFilters.entityType}
-                  onChange={(e) =>
-                    setAuditFilters({ ...auditFilters, entityType: e.target.value })
-                  }
-                >
-                  <option value="">Entidad</option>
-                  <option value="INSTITUTION">INSTITUTION</option>
-                  <option value="ESTABLISHMENT">ESTABLISHMENT</option>
-                  <option value="DEPENDENCY">DEPENDENCY</option>
-                  <option value="CATALOG_ITEM">CATALOG_ITEM</option>
-                  <option value="USER">USER</option>
-                </select>
-                <select
-                  value={auditFilters.action}
-                  onChange={(e) =>
-                    setAuditFilters({ ...auditFilters, action: e.target.value })
-                  }
-                >
-                  <option value="">Acción</option>
-                  <option value="CREATE">CREATE</option>
-                  <option value="UPDATE">UPDATE</option>
-                  <option value="DELETE">DELETE</option>
-                </select>
-                <input
-                  type="date"
-                  value={auditFilters.fromDate}
-                  onChange={(e) =>
-                    setAuditFilters({ ...auditFilters, fromDate: e.target.value })
-                  }
-                />
-                <input
-                  type="date"
-                  value={auditFilters.toDate}
-                  onChange={(e) =>
-                    setAuditFilters({ ...auditFilters, toDate: e.target.value })
-                  }
-                />
-                <button className="ghost" onClick={() => applyAuditRangePreset('admin', 'WEEK')}>
-                  Semanal
-                </button>
-                <button className="ghost" onClick={() => applyAuditRangePreset('admin', 'MONTH')}>
-                  Mensual
-                </button>
-                <button className="ghost" onClick={() => applyAuditRangePreset('admin', 'YEAR')}>
-                  Anual
-                </button>
-                <button onClick={() => loadAdminAudits(1)}>Actualizar</button>
-                <button className="ghost" onClick={resetAdminAuditFilters}>
-                  Reset
-                </button>
-                <button
-                  className="ghost"
-                  onClick={() => {
-                    const params = buildAdminAuditParams()
-                    const qs = params.toString()
-                    downloadFile(`/admin/audit/export/excel${qs ? `?${qs}` : ''}`, 'admin_audit.xlsx')
-                  }}
-                >
-                  Exportar Excel
-                </button>
-                <button
-                  className="ghost"
-                  onClick={() => {
-                    const params = buildAdminAuditParams()
-                    const qs = params.toString()
-                    downloadFile(`/admin/audit/export/csv${qs ? `?${qs}` : ''}`, 'admin_audit.csv')
-                  }}
-                >
-                  Exportar CSV
-                </button>
-                <button
-                  className="ghost"
-                  onClick={() => {
-                    const params = buildAdminAuditParams()
-                    const qs = params.toString()
-                    downloadFile(`/admin/audit/export/pdf${qs ? `?${qs}` : ''}`, 'admin_audit.pdf')
-                  }}
-                >
-                  Exportar PDF
-                </button>
-              </div>
-            </div>
-            <div className="table">
-              <div className="table-head">
-                <span className="muted">
-                  {adminAuditLoading
-                    ? 'Cargando...'
-                    : `Mostrando ${adminAudits.length} de ${adminAuditTotal}`}
-                </span>
-              </div>
-              {adminAudits.map((a) => (
-                <div key={a.id} className="row">
-                  <div>
-                    <strong>{a.action}</strong> {a.entityType} #{a.entityId}
-                  </div>
-                  <div className="muted">
-                    {a.user?.name} · {new Date(a.createdAt).toLocaleString()}
-                  </div>
-                </div>
-              ))}
-              {!adminAuditLoading && !adminAudits.length && <p className="muted">Sin resultados.</p>}
-              <div className="pagination">
-                <button
-                  className="ghost"
-                  disabled={adminAuditPage <= 1}
-                  onClick={() => loadAdminAudits(adminAuditPage - 1)}
-                >
-                  Anterior
-                </button>
-                <span className="muted">
-                  Pagina {adminAuditPage} / {Math.max(1, Math.ceil(adminAuditTotal / 20))}
-                </span>
-                <button
-                  className="ghost"
-                  disabled={adminAuditPage >= Math.ceil(adminAuditTotal / 20)}
-                  onClick={() => loadAdminAudits(adminAuditPage + 1)}
-                >
-                  Siguiente
-                </button>
-              </div>
-            </div>
-            <div className="form-card" style={{ marginTop: '12px' }}>
-              <h4>Limpieza / Minimización de Auditoría</h4>
-              <div className="grid-form">
-                <div className="field">
-                  <label>Scope</label>
-                  <select
-                    value={auditCleanupForm.scope}
-                    onChange={(e) =>
-                      setAuditCleanupForm((prev) => ({ ...prev, scope: e.target.value }))
-                    }
-                  >
-                    <option value="ALL">ALL (Admin + Login)</option>
-                    <option value="ADMIN">ADMIN</option>
-                    <option value="LOGIN">LOGIN</option>
-                  </select>
-                </div>
-                <div className="field">
-                  <label>Modo</label>
-                  <select
-                    value={auditCleanupForm.mode}
-                    onChange={(e) =>
-                      setAuditCleanupForm((prev) => ({ ...prev, mode: e.target.value }))
-                    }
-                  >
-                    <option value="KEEP_DAYS">Mantener ultimos X dias</option>
-                    <option value="BEFORE_DATE">Borrar antes de fecha</option>
-                    <option value="DELETE_ALL">Borrar todo</option>
-                  </select>
-                </div>
-                {auditCleanupForm.mode === 'KEEP_DAYS' && (
-                  <div className="field">
-                    <label>Dias a conservar</label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="3650"
-                      value={auditCleanupForm.keepDays}
-                      onChange={(e) =>
-                        setAuditCleanupForm((prev) => ({
-                          ...prev,
-                          keepDays: e.target.value,
-                        }))
-                      }
-                    />
-                  </div>
-                )}
-                {auditCleanupForm.mode === 'BEFORE_DATE' && (
-                  <div className="field">
-                    <label>Fecha corte</label>
-                    <input
-                      type="date"
-                      value={auditCleanupForm.beforeDate}
-                      onChange={(e) =>
-                        setAuditCleanupForm((prev) => ({
-                          ...prev,
-                          beforeDate: e.target.value,
-                        }))
-                      }
-                    />
-                  </div>
-                )}
-              </div>
-              <div className="actions">
-                <button className="danger" onClick={runAuditCleanup}>
-                  Ejecutar limpieza
-                </button>
-              </div>
-            </div>
-            <div className="section-head" style={{ marginTop: '16px' }}>
-              <h3>Login Audit</h3>
-              <div className="actions">
-                <input
-                  placeholder="Email"
-                  value={loginAuditFilters.email}
-                  onChange={(e) =>
-                    setLoginAuditFilters({ ...loginAuditFilters, email: e.target.value })
-                  }
-                />
-                <select
-                  value={loginAuditFilters.success}
-                  onChange={(e) =>
-                    setLoginAuditFilters({ ...loginAuditFilters, success: e.target.value })
-                  }
-                >
-                  <option value="">Success?</option>
-                  <option value="true">YES</option>
-                  <option value="false">NO</option>
-                </select>
-                <input
-                  type="date"
-                  value={loginAuditFilters.fromDate}
-                  onChange={(e) =>
-                    setLoginAuditFilters({ ...loginAuditFilters, fromDate: e.target.value })
-                  }
-                />
-                <input
-                  type="date"
-                  value={loginAuditFilters.toDate}
-                  onChange={(e) =>
-                    setLoginAuditFilters({ ...loginAuditFilters, toDate: e.target.value })
-                  }
-                />
-                <button className="ghost" onClick={() => applyAuditRangePreset('login', 'WEEK')}>
-                  Semanal
-                </button>
-                <button className="ghost" onClick={() => applyAuditRangePreset('login', 'MONTH')}>
-                  Mensual
-                </button>
-                <button className="ghost" onClick={() => applyAuditRangePreset('login', 'YEAR')}>
-                  Anual
-                </button>
-                <button onClick={() => loadLoginAudits(1)}>Actualizar</button>
-                <button className="ghost" onClick={resetLoginAuditFilters}>
-                  Reset
-                </button>
-                <button
-                  className="ghost"
-                  onClick={() => {
-                    const params = buildLoginAuditParams()
-                    const qs = params.toString()
-                    downloadFile(
-                      `/admin/login-audit/export/excel${qs ? `?${qs}` : ''}`,
-                      'login_audit.xlsx'
-                    )
-                  }}
-                >
-                  Exportar Excel
-                </button>
-                <button
-                  className="ghost"
-                  onClick={() => {
-                    const params = buildLoginAuditParams()
-                    const qs = params.toString()
-                    downloadFile(
-                      `/admin/login-audit/export/csv${qs ? `?${qs}` : ''}`,
-                      'login_audit.csv'
-                    )
-                  }}
-                >
-                  Exportar CSV
-                </button>
-                <button
-                  className="ghost"
-                  onClick={() => {
-                    const params = buildLoginAuditParams()
-                    const qs = params.toString()
-                    downloadFile(
-                      `/admin/login-audit/export/pdf${qs ? `?${qs}` : ''}`,
-                      'login_audit.pdf'
-                    )
-                  }}
-                >
-                  Exportar PDF
-                </button>
-              </div>
-            </div>
-            <div className="table">
-              <div className="table-head">
-                <span className="muted">
-                  {loginAuditLoading
-                    ? 'Cargando...'
-                    : `Mostrando ${loginAudits.length} de ${loginAuditTotal}`}
-                </span>
-              </div>
-              {loginAudits.map((a) => (
-                <div key={a.id} className="row">
-                  <div>
-                    <strong>{a.success ? 'SUCCESS' : 'FAIL'}</strong> {a.email}
-                  </div>
-                  <div className="muted">
-                    {a.ip} · {new Date(a.createdAt).toLocaleString()}
-                  </div>
-                </div>
-              ))}
-              {!loginAuditLoading && !loginAudits.length && <p className="muted">Sin resultados.</p>}
-              <div className="pagination">
-                <button
-                  className="ghost"
-                  disabled={loginAuditPage <= 1}
-                  onClick={() => loadLoginAudits(loginAuditPage - 1)}
-                >
-                  Anterior
-                </button>
-                <span className="muted">
-                  Pagina {loginAuditPage} / {Math.max(1, Math.ceil(loginAuditTotal / 20))}
-                </span>
-                <button
-                  className="ghost"
-                  disabled={loginAuditPage >= Math.ceil(loginAuditTotal / 20)}
-                  onClick={() => loadLoginAudits(loginAuditPage + 1)}
-                >
-                  Siguiente
-                </button>
-              </div>
-            </div>
-            <div className="section-head" style={{ marginTop: '16px' }}>
-              <h3>Métricas de Seguridad</h3>
-              <div className="actions">
-                <input
-                  type="date"
-                  value={metricsFilters.fromDate}
-                  onChange={(e) =>
-                    setMetricsFilters({ ...metricsFilters, fromDate: e.target.value })
-                  }
-                />
-                <input
-                  type="date"
-                  value={metricsFilters.toDate}
-                  onChange={(e) =>
-                    setMetricsFilters({ ...metricsFilters, toDate: e.target.value })
-                  }
-                />
-                <input
-                  type="number"
-                  min="0"
-                  max="23"
-                  placeholder="Hora desde"
-                  value={metricsFilters.hourFrom}
-                  onChange={(e) =>
-                    setMetricsFilters({ ...metricsFilters, hourFrom: e.target.value })
-                  }
-                />
-                <input
-                  type="number"
-                  min="0"
-                  max="23"
-                  placeholder="Hora hasta"
-                  value={metricsFilters.hourTo}
-                  onChange={(e) =>
-                    setMetricsFilters({ ...metricsFilters, hourTo: e.target.value })
-                  }
-                />
-                <button className="ghost" onClick={loadLoginMetrics}>
-                  Actualizar
-                </button>
-                <button
-                  className="ghost"
-                  onClick={() =>
-                    downloadFile(
-                      `/admin/login-audit/metrics/export/csv?fromDate=${metricsFilters.fromDate}&toDate=${metricsFilters.toDate}&hourFrom=${metricsFilters.hourFrom}&hourTo=${metricsFilters.hourTo}`,
-                      'login_metrics.csv'
-                    )
-                  }
-                >
-                  Exportar CSV
-                </button>
-                  <select value={metricsTop} onChange={(e) => setMetricsTop(Number(e.target.value))}>
-                    <option value={10}>Top 10</option>
-                    <option value={20}>Top 20</option>
-                  </select>
-              </div>
-            </div>
-            <div className="table">
-              {loginMetrics.map((m) => (
-                <div key={m.day} className="row">
-                  <div>
-                    <strong>{m.day}</strong>
-                  </div>
-                  <div className="muted">
-                    Exitos: {m.success} · Fallos: {m.failed}
-                  </div>
-                </div>
-              ))}
-              {!loginMetrics.length && <p className="muted">Sin datos.</p>}
-            </div>
-            {loginMetrics.length > 0 && (
-              <div className="chart">
-                {loginMetrics.map((m) => {
-                  const total = m.success + m.failed || 1
-                  const successPct = Math.round((m.success / total) * 100)
-                  const failedPct = 100 - successPct
-                  return (
-                    <div key={`chart-${m.day}`} className="chart-row">
-                      <span>{m.day}</span>
-                    <div className="bar">
-                        <div
-                          className="bar-success"
-                          style={{ width: `${successPct}%` }}
-                          title={`Exitos: ${m.success}`}
-                        />
-                        <div
-                          className="bar-fail"
-                          style={{ width: `${failedPct}%` }}
-                          title={`Fallos: ${m.failed}`}
-                        />
-                      </div>
-                      <span className="muted">
-                        {m.success}/{m.failed}
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-            {loginMetricsHourly.length > 0 && (
-              <div className="table">
-                <div className="table-head">
-                  <h4>Por hora</h4>
-                  <span className="muted">Exitos / Fallos</span>
-                  <div className="sort-controls">
-                    <label>Orden</label>
-                    <select
-                      value={hourlySort.key}
-                      onChange={(e) =>
-                        setHourlySort((s) => ({ ...s, key: e.target.value }))
-                      }
-                    >
-                      <option value="hour">Hora</option>
-                      <option value="success">Exitos</option>
-                      <option value="failed">Fallos</option>
-                    </select>
-                    <button
-                      className="ghost"
-                      onClick={() =>
-                        setHourlySort((s) => ({
-                          ...s,
-                          order: s.order === 'asc' ? 'desc' : 'asc',
-                        }))
-                      }
-                    >
-                      {hourlySort.order === 'asc' ? 'Asc' : 'Desc'}
-                    </button>
-                  </div>
-                  <button
-                    className="ghost"
-                    onClick={() =>
-                      downloadFile(
-                        `/admin/login-audit/metrics/hourly/export/csv?fromDate=${metricsFilters.fromDate}&toDate=${metricsFilters.toDate}&hourFrom=${metricsFilters.hourFrom}&hourTo=${metricsFilters.hourTo}`,
-                        'login_metrics_hourly.csv'
-                      )
-                    }
-                  >
-                    CSV
-                  </button>
-                  <button
-                    className="ghost"
-                    onClick={() =>
-                      downloadFile(
-                        `/admin/login-audit/metrics/hourly/export/pdf?fromDate=${metricsFilters.fromDate}&toDate=${metricsFilters.toDate}&hourFrom=${metricsFilters.hourFrom}&hourTo=${metricsFilters.hourTo}`,
-                        'login_metrics_hourly.pdf'
-                      )
-                    }
-                  >
-                    PDF
-                  </button>
-                </div>
-                {[...loginMetricsHourly]
-                  .sort((a, b) => {
-                    const dir = hourlySort.order === 'asc' ? 1 : -1
-                    if (hourlySort.key === 'success') return (a.success - b.success) * dir
-                    if (hourlySort.key === 'failed') return (a.failed - b.failed) * dir
-                    return (new Date(a.hour) - new Date(b.hour)) * dir
-                  })
-                  .map((m) => (
-                  <div key={m.hour} className="row">
-                    <div>
-                      <strong>{new Date(m.hour).toLocaleString()}</strong>
-                    </div>
-                    <div className="muted">
-                      {m.success} / {m.failed}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            {loginMetricsByIp.length > 0 && (
-              <div className="table">
-                <div className="table-head">
-                  <h4>Por IP</h4>
-                  <span className="muted">Exitos / Fallos</span>
-                  <div className="sort-controls">
-                    <label>Orden</label>
-                    <select
-                      value={ipSort.key}
-                      onChange={(e) => setIpSort((s) => ({ ...s, key: e.target.value }))}
-                    >
-                      <option value="failed">Fallos</option>
-                      <option value="success">Exitos</option>
-                      <option value="ip">IP</option>
-                    </select>
-                    <button
-                      className="ghost"
-                      onClick={() =>
-                        setIpSort((s) => ({
-                          ...s,
-                          order: s.order === 'asc' ? 'desc' : 'asc',
-                        }))
-                      }
-                    >
-                      {ipSort.order === 'asc' ? 'Asc' : 'Desc'}
-                    </button>
-                  </div>
-                  <button
-                    className="ghost"
-                    onClick={() =>
-                      downloadFile(
-                        `/admin/login-audit/metrics/ip/export/csv?fromDate=${metricsFilters.fromDate}&toDate=${metricsFilters.toDate}&hourFrom=${metricsFilters.hourFrom}&hourTo=${metricsFilters.hourTo}`,
-                        'login_metrics_ip.csv'
-                      )
-                    }
-                  >
-                    CSV
-                  </button>
-                  <button
-                    className="ghost"
-                    onClick={() =>
-                      downloadFile(
-                        `/admin/login-audit/metrics/ip/export/pdf?fromDate=${metricsFilters.fromDate}&toDate=${metricsFilters.toDate}&hourFrom=${metricsFilters.hourFrom}&hourTo=${metricsFilters.hourTo}`,
-                        'login_metrics_ip.pdf'
-                      )
-                    }
-                  >
-                    PDF
-                  </button>
-                </div>
-                {[...loginMetricsByIp]
-                  .sort((a, b) => {
-                    const dir = ipSort.order === 'asc' ? 1 : -1
-                    if (ipSort.key === 'success') return (a.success - b.success) * dir
-                    if (ipSort.key === 'ip') return a.ip.localeCompare(b.ip) * dir
-                    return (a.failed - b.failed) * dir
-                  })
-                  .slice(0, metricsTop)
-                  .map((m) => (
-                  <div key={m.ip} className="row">
-                    <div>
-                      <strong>{m.ip}</strong>
-                    </div>
-                    <div className="muted">
-                      {m.success} / {m.failed}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            {loginMetricsByUser.length > 0 && (
-              <div className="table">
-                <div className="table-head">
-                  <h4>Por Usuario</h4>
-                  <span className="muted">Exitos / Fallos</span>
-                  <div className="sort-controls">
-                    <label>Orden</label>
-                    <select
-                      value={userSort.key}
-                      onChange={(e) => setUserSort((s) => ({ ...s, key: e.target.value }))}
-                    >
-                      <option value="failed">Fallos</option>
-                      <option value="success">Exitos</option>
-                      <option value="name">Usuario</option>
-                    </select>
-                    <button
-                      className="ghost"
-                      onClick={() =>
-                        setUserSort((s) => ({
-                          ...s,
-                          order: s.order === 'asc' ? 'desc' : 'asc',
-                        }))
-                      }
-                    >
-                      {userSort.order === 'asc' ? 'Asc' : 'Desc'}
-                    </button>
-                  </div>
-                  <button
-                    className="ghost"
-                    onClick={() =>
-                      downloadFile(
-                        `/admin/login-audit/metrics/user/export/csv?fromDate=${metricsFilters.fromDate}&toDate=${metricsFilters.toDate}&hourFrom=${metricsFilters.hourFrom}&hourTo=${metricsFilters.hourTo}`,
-                        'login_metrics_user.csv'
-                      )
-                    }
-                  >
-                    CSV
-                  </button>
-                  <button
-                    className="ghost"
-                    onClick={() =>
-                      downloadFile(
-                        `/admin/login-audit/metrics/user/export/pdf?fromDate=${metricsFilters.fromDate}&toDate=${metricsFilters.toDate}&hourFrom=${metricsFilters.hourFrom}&hourTo=${metricsFilters.hourTo}`,
-                        'login_metrics_user.pdf'
-                      )
-                    }
-                  >
-                    PDF
-                  </button>
-                </div>
-                {[...loginMetricsByUser]
-                  .sort((a, b) => {
-                    const dir = userSort.order === 'asc' ? 1 : -1
-                    if (userSort.key === 'success') return (a.success - b.success) * dir
-                    if (userSort.key === 'name') {
-                      const an = a.user?.name || ''
-                      const bn = b.user?.name || ''
-                      return an.localeCompare(bn) * dir
-                    }
-                    return (a.failed - b.failed) * dir
-                  })
-                  .slice(0, metricsTop)
-                  .map((m) => (
-                  <div key={m.userId || `null-${m.failed}`} className="row">
-                    <div>
-                      <strong>{m.user?.name || 'Desconocido'}</strong>
-                      <span className="muted"> · {m.user?.email || 'N/A'}</span>
-                    </div>
-                    <div className="muted">
-                      {m.success} / {m.failed}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <AuditTabPanel>
+            <AuditSection
+              {...{
+                auditFilters,
+                setAuditFilters,
+                applyAuditRangePreset,
+                loadAdminAudits,
+                resetAdminAuditFilters,
+                buildAdminAuditParams,
+                downloadFile,
+                adminAuditLoading,
+                adminAudits,
+                adminAuditTotal,
+                adminAuditPage,
+                auditCleanupForm,
+                setAuditCleanupForm,
+                runAuditCleanup,
+                loginAuditFilters,
+                setLoginAuditFilters,
+                loadLoginAudits,
+                resetLoginAuditFilters,
+                buildLoginAuditParams,
+                loginAuditLoading,
+                loginAudits,
+                loginAuditTotal,
+                loginAuditPage,
+                metricsFilters,
+                setMetricsFilters,
+                loadLoginMetrics,
+                metricsTop,
+                setMetricsTop,
+                loginMetrics,
+                loginMetricsHourly,
+                hourlySort,
+                setHourlySort,
+                loginMetricsByIp,
+                ipSort,
+                setIpSort,
+                loginMetricsByUser,
+                userSort,
+                setUserSort,
+              }}
+            />
+          </AuditTabPanel>
         )}
       </section>
 
       {restoreModal.open && (
         <div className="modal-backdrop">
           <div className="modal">
-            <h3>Restaurar Activo Fijo</h3>
+            <h3>Restaurar activo fijo</h3>
             <p>
               Selecciona motivo para restaurar
               {restoreModal.asset ? `: ${restoreModal.asset.name}` : ''}.
@@ -10744,6 +8742,10 @@ function App() {
 }
 
 export default App
+
+
+
+
 
 
 

@@ -61,6 +61,94 @@ function buildAssetDescription(asset, maxLength = 90) {
   return truncateVisualText(detail ? `${main} - ${detail}` : main, maxLength);
 }
 
+function drawInsightsSection(doc, meta, tableLeft, tableWidth) {
+  const insights = meta?.insights;
+  if (!insights) return;
+  const pageBottom = () => doc.page.height - doc.page.margins.bottom;
+  const weeklyUnits = Number(insights?.weekly?.units || 0);
+  const monthlyUnits = Number(insights?.monthly?.units || 0);
+  const maxUnits = Math.max(weeklyUnits, monthlyUnits, 1);
+  const stateOverview = Array.isArray(insights?.stateOverview) ? insights.stateOverview : [];
+  const monthlyItems = Array.isArray(insights?.monthly?.items) ? insights.monthly.items : [];
+
+  doc.addPage();
+  doc.font("Helvetica-Bold").fontSize(13).fillColor("#14213D").text(
+    "RESUMEN DE BAJAS Y ESTADOS",
+    tableLeft,
+    doc.y,
+    { width: tableWidth, align: "center" }
+  );
+  doc.moveDown(1);
+
+  const boxY = doc.y;
+  const boxH = 92;
+  doc.roundedRect(tableLeft, boxY, tableWidth, boxH, 8).fill("#F8FAFC").stroke("#CBD5E1");
+  doc.fillColor("#334155").font("Helvetica-Bold").fontSize(10).text("Resumen de bajas", tableLeft + 14, boxY + 12);
+  doc.font("Helvetica").fontSize(9);
+  doc.text(`Ultimos 7 dias: ${insights?.weekly?.count || 0} registros / ${weeklyUnits} bienes`, tableLeft + 14, boxY + 30);
+  doc.text(`Ultimos 30 dias: ${insights?.monthly?.count || 0} registros / ${monthlyUnits} bienes`, tableLeft + 14, boxY + 46);
+  const chartX = tableLeft + tableWidth / 2;
+  const chartY = boxY + 24;
+  const chartH = 14;
+  const chartW = tableWidth / 2 - 34;
+  const weeklyBar = Math.max(8, Math.round((weeklyUnits / maxUnits) * chartW));
+  const monthlyBar = Math.max(8, Math.round((monthlyUnits / maxUnits) * chartW));
+  doc.fillColor("#64748B").text("Semanal", chartX, chartY - 2, { width: 54 });
+  doc.rect(chartX + 58, chartY, chartW, chartH).stroke("#CBD5E1");
+  doc.rect(chartX + 58, chartY, weeklyBar, chartH).fill("#64748B");
+  doc.fillColor("#0F172A").text(String(weeklyUnits), chartX + 58 + chartW + 8, chartY - 1, { width: 24 });
+  doc.fillColor("#1D4ED8").text("Mensual", chartX, chartY + 26 - 2, { width: 54 });
+  doc.rect(chartX + 58, chartY + 26, chartW, chartH).stroke("#CBD5E1");
+  doc.rect(chartX + 58, chartY + 26, monthlyBar, chartH).fill("#1D4ED8");
+  doc.fillColor("#0F172A").text(String(monthlyUnits), chartX + 58 + chartW + 8, chartY + 25, { width: 24 });
+  doc.fillColor("black");
+  doc.y = boxY + boxH + 14;
+
+  if (stateOverview.length) {
+    const stateBoxY = doc.y;
+    const stateBoxH = 108;
+    const maxStateUnits = Math.max(...stateOverview.map((row) => Number(row.count || 0)), 1);
+    doc.roundedRect(tableLeft, stateBoxY, tableWidth, stateBoxH, 8).fill("#F8FAFC").stroke("#CBD5E1");
+    doc.fillColor("#334155").font("Helvetica-Bold").fontSize(10).text(
+      "Distribucion actual por estado (incluye dados de baja)",
+      tableLeft + 14,
+      stateBoxY + 10
+    );
+    stateOverview.slice(0, 5).forEach((row, idx) => {
+      const y = stateBoxY + 34 + idx * 14;
+      const label = String(row.label || "Sin estado");
+      const count = Number(row.count || 0);
+      const barWidth = Math.max(8, Math.round((count / maxStateUnits) * 220));
+      doc.fillColor("#334155").font("Helvetica").fontSize(8.5).text(label, tableLeft + 14, y, {
+        width: 120,
+        ellipsis: true,
+      });
+      doc.rect(tableLeft + 140, y + 1, 220, 8).stroke("#CBD5E1");
+      doc.rect(tableLeft + 140, y + 1, barWidth, 8).fill(getStateColor(label).fill);
+      doc.fillColor("#0F172A").text(String(count), tableLeft + 370, y - 1, { width: 28, align: "right" });
+    });
+    doc.fillColor("black");
+    doc.y = stateBoxY + stateBoxH + 12;
+  }
+
+  if (monthlyItems.length) {
+    doc.font("Helvetica-Bold").fontSize(10).fillColor("#14213D").text("Activos dados de baja recientes", tableLeft, doc.y);
+    doc.moveDown(0.5);
+    monthlyItems.slice(0, 6).forEach((item) => {
+      if (doc.y + 18 > pageBottom() - 40) return;
+      const label = `INV-${item.internalCode} | ${item.name || "Sin nombre"} | ${item.dependencyName || "Sin dependencia"} | ${new Date(item.deletedAt).toLocaleDateString()}`;
+      doc.font("Helvetica").fontSize(8.5).fillColor("#334155").text(`- ${label}`, tableLeft + 8, doc.y, {
+        width: tableWidth - 16,
+        ellipsis: true,
+      });
+      doc.moveDown(0.35);
+    });
+    doc.moveDown(0.5);
+  }
+
+  doc.fillColor("black");
+}
+
 function buildPlanchetaPdf(assets, meta) {
   const doc = new PDFDocument({ margin: 28, size: "A4", layout: "landscape" });
   const pageBottom = () => doc.page.height - doc.page.margins.bottom;
@@ -401,6 +489,8 @@ function buildPlanchetaPdf(assets, meta) {
     doc.fillColor("#334155").font("Helvetica").text(item.label, x + 18, legendTop - 1, { width: 90 });
   });
   doc.fillColor("black");
+
+  drawInsightsSection(doc, meta, tableLeft, tableWidth);
 
   doc.addPage();
   doc.font("Helvetica-Bold").fontSize(13).text("FIRMAS Y SELLO", { align: "center" });

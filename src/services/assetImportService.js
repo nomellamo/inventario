@@ -1,3 +1,5 @@
+const fs = require("node:fs/promises");
+const path = require("node:path");
 const ExcelJS = require("exceljs");
 const { prisma } = require("../prisma");
 const { canCreateAsset, enforceEstablishmentScope } = require("../permissions/assetPermissions");
@@ -11,7 +13,7 @@ const {
   normalizeCostCenter,
   normalizeRut,
 } = require("../utils/assetRules");
-const { ensureUniqueAssetIdentity } = require("../utils/assetIdentity");
+const { ensureUniqueAssetIdentity, normalizeText } = require("../utils/assetIdentity");
 
 const HEADER_ALIASES = {
   codigointerno: "internalcode",
@@ -48,6 +50,10 @@ const IMPORT_PLACEHOLDER_TEXTS = new Set([
   "no informa",
   "no informado",
 ]);
+
+const IMPORT_CHUNK_SIZE = 25;
+const IMPORT_PROGRESS_FLUSH_EVERY = 10;
+const IMPORT_TMP_DIR = path.join(process.cwd(), "tmp", "asset-imports");
 
 function normalizeHeader(value) {
   return String(value || "")
@@ -147,18 +153,210 @@ function isPrismaUniqueConstraintError(err) {
   return false;
 }
 
-async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
+function isInternalCodeUniqueConstraintError(err) {
+  if (!isPrismaUniqueConstraintError(err)) return false;
+  const targets = Array.isArray(err?.meta?.target)
+    ? err.meta.target
+    : err?.meta?.target
+      ? [err.meta.target]
+      : [];
+  if (targets.some((target) => String(target).toLowerCase().includes("internalcode"))) {
+    return true;
+  }
+  return String(err?.message || "").toLowerCase().includes("internalcode");
+}
+
+async function reserveInternalCodes(tx, institutionId, quantity) {
+  const safeQuantity = Number(quantity) || 1;
+  const seq = await tx.assetSequence.upsert({
+    where: { institutionId },
+    update: { lastNumber: { increment: safeQuantity } },
+    create: { institutionId, lastNumber: safeQuantity },
+    select: { lastNumber: true },
+  });
+
+  const reservedEnd = seq.lastNumber;
+  const reservedStart = reservedEnd - safeQuantity + 1;
+  const reservedCodes = Array.from({ length: safeQuantity }, (_, index) => reservedStart + index);
+  const occupiedCodes = await tx.asset.findMany({
+    where: { internalCode: { gte: reservedStart, lte: reservedEnd } },
+    select: { internalCode: true },
+  });
+  if (!occupiedCodes.length) {
+    return reservedCodes;
+  }
+
+  const occupiedSet = new Set(
+    occupiedCodes
+      .map((item) => Number(item.internalCode))
+      .filter((value) => Number.isInteger(value) && value > 0)
+  );
+  const maxCode = await tx.asset.aggregate({ _max: { internalCode: true } });
+  let nextCode = Math.max(Number(maxCode?._max?.internalCode || 0), reservedEnd) + 1;
+  const finalCodes = reservedCodes.map((code) => {
+    if (!occupiedSet.has(code)) return code;
+    const replacement = nextCode;
+    nextCode += 1;
+    return replacement;
+  });
+
+  const extraReserved = nextCode - 1 - reservedEnd;
+  if (extraReserved > 0) {
+    await tx.assetSequence.update({
+      where: { institutionId },
+      data: { lastNumber: { increment: extraReserved } },
+    });
+  }
+
+  return finalCodes;
+}
+
+function buildAssetIdentityKey({ serialNumber, brand, modelName }) {
+  const serial = normalizeText(serialNumber);
+  const brandNorm = normalizeText(brand);
+  const modelNorm = normalizeText(modelName);
+  if (!serial || !brandNorm || !modelNorm) return null;
+  return [serial, brandNorm, modelNorm].map((value) => value.toLowerCase()).join("::");
+}
+
+function isSummaryImportName(value) {
+  return ["total", "totales"].includes(
+    String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase()
+  );
+}
+
+function countProcessableImportRows(sheet, keyMap) {
+  const lastRow = sheet?.lastRow ? sheet.lastRow.number : 1;
+  let total = 0;
+  for (let rowIndex = 2; rowIndex <= lastRow; rowIndex++) {
+    const row = sheet.getRow(rowIndex);
+    const rowHasData =
+      Array.isArray(row.values) &&
+      row.values.slice(1).some((value) => normalizeImportText(value) !== "");
+    if (!rowHasData) continue;
+    const name = normalizeOptionalImportValue(getRowValue(row, keyMap, "name"));
+    if (isSummaryImportName(name)) continue;
+    total += 1;
+  }
+  return total;
+}
+
+function sanitizeImportFilename(filename) {
+  const base = String(filename || "import.xlsx")
+    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_")
+    .trim();
+  return base || "import.xlsx";
+}
+
+async function ensureImportTempDir() {
+  await fs.mkdir(IMPORT_TMP_DIR, { recursive: true });
+}
+
+function getImportTempFilePath(batchId, filename) {
+  const safeName = sanitizeImportFilename(filename);
+  return path.join(IMPORT_TMP_DIR, `asset-import-${batchId}-${safeName}`);
+}
+
+async function saveImportTempFile(batchId, filename, buffer) {
+  await ensureImportTempDir();
+  const tempFilePath = getImportTempFilePath(batchId, filename);
+  await fs.writeFile(tempFilePath, buffer);
+  return tempFilePath;
+}
+
+async function readImportTempFile(tempFilePath) {
+  return fs.readFile(tempFilePath);
+}
+
+function extractBatchState(batch) {
+  const raw = batch?.errors;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return {
+      items: Array.isArray(raw) ? raw : [],
+      metrics: {},
+      meta: {},
+    };
+  }
+  return {
+    items: Array.isArray(raw.items) ? raw.items : [],
+    metrics: raw.metrics && typeof raw.metrics === "object" ? raw.metrics : {},
+    meta: raw.meta && typeof raw.meta === "object" ? raw.meta : {},
+  };
+}
+
+function buildBatchErrorsPayload({ items, metrics, meta }) {
+  return {
+    items: Array.isArray(items) ? items.slice(0, 200) : [],
+    metrics: metrics && typeof metrics === "object" ? metrics : {},
+    meta: meta && typeof meta === "object" ? meta : {},
+  };
+}
+
+function serializeBatch(batch) {
+  const state = extractBatchState(batch);
+  return {
+    ...batch,
+    errorItems: state.items,
+    metrics: state.metrics,
+    canResume:
+      Boolean(state.meta?.tempFilePath) &&
+      batch.status !== "COMPLETED" &&
+      batch.status !== "PROCESSING",
+  };
+}
+
+async function importAssetsFromExcel(buffer, user, filename = "import.xlsx", options = {}) {
   if (!canCreateAsset(user, user.establishmentId || 0) && user.role.type !== "ADMIN_CENTRAL") {
     throw forbidden("No autorizado para importacion masiva");
   }
 
-  const batch = await prisma.assetImportBatch.create({
-    data: {
-      filename,
-      status: "PROCESSING",
-      userId: user.id,
-    },
-  });
+  const resumeState = options.resumeState || {};
+  const existingBatchId = Number(options.batchId);
+  const batchId = Number.isInteger(existingBatchId) && existingBatchId > 0 ? existingBatchId : null;
+  const tempFilePath = options.tempFilePath || resumeState?.meta?.tempFilePath || null;
+
+  const batch =
+    batchId ||
+    (
+      await prisma.assetImportBatch.create({
+        data: {
+          filename,
+          status: "PROCESSING",
+          userId: user.id,
+          errors: buildBatchErrorsPayload({
+            items: [],
+            metrics: {
+              processedRows: 0,
+              totalRows: 0,
+              fastPathRows: 0,
+              standardRows: 0,
+              fastPathAssets: 0,
+              standardAssets: 0,
+              totalMs: 0,
+              chunkSize: IMPORT_CHUNK_SIZE,
+              resumeRow: 1,
+            },
+            meta: tempFilePath ? { tempFilePath } : {},
+          }),
+        },
+      })
+    ).id;
+  const importStartedAt = Number(resumeState?.metrics?.startedAtMs || Date.now());
+  let errors = Array.isArray(resumeState.errorItems) ? [...resumeState.errorItems] : [];
+  let createdCount = Number(resumeState.createdCount || 0);
+  let metrics = {};
+  let batchMeta =
+    tempFilePath && !resumeState?.meta
+      ? { tempFilePath }
+      : resumeState?.meta && typeof resumeState.meta === "object"
+        ? { ...resumeState.meta, ...(tempFilePath ? { tempFilePath } : {}) }
+        : tempFilePath
+          ? { tempFilePath }
+          : {};
 
   try {
     const workbook = new ExcelJS.Workbook();
@@ -182,7 +380,7 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
     const hasInstitutionIdColumn = Boolean(keyMap["institutionid"]);
     if (hasInstitutionIdColumn) {
       await prisma.assetImportBatch.update({
-        where: { id: batch.id },
+        where: { id: batch },
         data: {
           status: "FAILED",
           errorCount: 1,
@@ -200,7 +398,7 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
 
     if (!headersFound.length) {
       await prisma.assetImportBatch.update({
-        where: { id: batch.id },
+        where: { id: batch },
         data: {
           status: "FAILED",
           errorCount: 1,
@@ -213,17 +411,58 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
       throw badRequest("No se detectaron encabezados en el Excel", "IMPORT_SCHEMA");
     }
 
-    const errors = [];
-    const created = [];
+    errors = Array.isArray(resumeState.errorItems) ? [...resumeState.errorItems] : errors;
+    createdCount = Number(resumeState.createdCount || createdCount || 0);
     const lastRow = sheet.lastRow ? sheet.lastRow.number : 1;
+    const processableRows = countProcessableImportRows(sheet, keyMap);
+    metrics = {
+      processedRows: Number(resumeState?.metrics?.processedRows || 0),
+      totalRows: Math.max(Number(resumeState?.metrics?.totalRows || 0), processableRows),
+      fastPathRows: Number(resumeState?.metrics?.fastPathRows || 0),
+      standardRows: Number(resumeState?.metrics?.standardRows || 0),
+      fastPathAssets: Number(resumeState?.metrics?.fastPathAssets || 0),
+      standardAssets: Number(resumeState?.metrics?.standardAssets || 0),
+      totalMs: Number(resumeState?.metrics?.totalMs || 0),
+      chunkSize: IMPORT_CHUNK_SIZE,
+      resumeRow: Number(resumeState?.metrics?.resumeRow || 1),
+      startedAtMs: importStartedAt,
+      lastRow,
+    };
+    batchMeta = {
+      ...batchMeta,
+      ...(tempFilePath ? { tempFilePath } : {}),
+    };
+    async function persistBatchState(status = "PROCESSING") {
+      const now = Date.now();
+      metrics.totalMs = now - importStartedAt;
+      const data = {
+        status,
+        createdCount,
+        errorCount: errors.length,
+        errors: buildBatchErrorsPayload({
+          items: errors,
+          metrics,
+          meta: batchMeta,
+        }),
+      };
+      if (status === "PROCESSING") {
+        data.completedAt = null;
+      } else {
+        data.completedAt = new Date();
+      }
+      await prisma.assetImportBatch.update({
+        where: { id: batch },
+        data,
+      });
+    }
     const [allEstablishments, allDependencies, allStates, allTypes] = await Promise.all([
       prisma.establishment.findMany({
         where: { isActive: true },
-        select: { id: true, name: true, institutionId: true },
+        select: { id: true, name: true, institutionId: true, isActive: true },
       }),
       prisma.dependency.findMany({
         where: { isActive: true },
-        select: { id: true, name: true, establishmentId: true },
+        select: { id: true, name: true, establishmentId: true, isActive: true },
       }),
       prisma.assetState.findMany({
         select: { id: true, name: true },
@@ -233,6 +472,15 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
       }),
     ]);
     const establishmentById = new Map(allEstablishments.map((item) => [item.id, item]));
+    const firstEstablishmentByInstitutionId = new Map();
+    for (const item of allEstablishments) {
+      if (!firstEstablishmentByInstitutionId.has(item.institutionId)) {
+        firstEstablishmentByInstitutionId.set(item.institutionId, item);
+      }
+    }
+    const dependencyById = new Map(allDependencies.map((item) => [item.id, item]));
+    const stateById = new Map(allStates.map((item) => [item.id, item]));
+    const typeById = new Map(allTypes.map((item) => [item.id, item]));
     const establishmentByName = new Map();
     const establishmentRows = [];
     for (const item of allEstablishments) {
@@ -283,10 +531,8 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
         firstDependencyByEstablishmentId.set(item.establishmentId, item);
       }
     }
-    const defaultState =
-      allStates.find((item) => normalizeLookupValue(item.name) === "bueno") || allStates[0] || null;
-    const defaultType =
-      allTypes.find((item) => normalizeLookupValue(item.name) === "control") || allTypes[0] || null;
+    const defaultState = stateById.get(stateByName.get("bueno")) || allStates[0] || null;
+    const defaultType = typeById.get(typeByName.get("control")) || allTypes[0] || null;
 
     let defaultEstablishment = null;
     if (user.establishmentId) {
@@ -294,9 +540,7 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
     }
     if (!defaultEstablishment && user.institutionId) {
       defaultEstablishment =
-        allEstablishments.find(
-          (item) => item.institutionId === Number(user.institutionId)
-        ) || null;
+        firstEstablishmentByInstitutionId.get(Number(user.institutionId)) || null;
     }
     if (!defaultEstablishment) {
       defaultEstablishment = allEstablishments[0] || null;
@@ -313,7 +557,11 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
       }
     }
 
-    for (let rowIndex = 2; rowIndex <= lastRow; rowIndex++) {
+    const createdIdentityRows = new Map();
+    let rowsSinceFlush = 0;
+    const startRow = Math.max(2, Number(options.resumeFromRow || 2));
+
+    for (let rowIndex = startRow; rowIndex <= lastRow; rowIndex++) {
       const row = sheet.getRow(rowIndex);
       const establishmentIdRaw = getRowValue(row, keyMap, "establishmentid");
       const dependencyIdRaw = getRowValue(row, keyMap, "dependencyid");
@@ -362,19 +610,16 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
         row.values.slice(1).some((value) => normalizeImportText(value) !== "");
 
       // Allow exported templates with summary rows like "TOTAL".
-      const isSummaryRow = ["total", "totales"].includes(
-        String(input.name || "")
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .trim()
-          .toLowerCase()
-      );
+      const isSummaryRow = isSummaryImportName(input.name);
       if (isSummaryRow) {
+        metrics.resumeRow = rowIndex;
         continue;
       }
       if (!rowHasData) {
+        metrics.resumeRow = rowIndex;
         continue;
       }
+      metrics.processedRows += 1;
 
       if (!input.name) {
         input.name = `Activo importado fila ${rowIndex}`;
@@ -406,7 +651,7 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
               institutionId: Number(user.institutionId),
               name: estNameRaw,
             },
-            select: { id: true, isActive: true, name: true },
+            select: { id: true, isActive: true, name: true, institutionId: true },
           });
           if (!found) {
             found = await prisma.establishment.create({
@@ -416,20 +661,21 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
                 institutionId: Number(user.institutionId),
                 isActive: true,
               },
-              select: { id: true, isActive: true, name: true },
+              select: { id: true, isActive: true, name: true, institutionId: true },
             });
           } else if (!found.isActive) {
             found = await prisma.establishment.update({
               where: { id: found.id },
               data: { isActive: true },
-              select: { id: true, isActive: true, name: true },
+              select: { id: true, isActive: true, name: true, institutionId: true },
             });
           }
           input.establishmentId = found.id;
+          establishmentById.set(found.id, found);
           const key = normalizeLookupValue(found.name);
           if (key) {
             if (!establishmentByName.has(key)) establishmentByName.set(key, []);
-            establishmentByName.get(key).push({ id: found.id, name: found.name });
+            establishmentByName.get(key).push(found);
             establishmentRows.push({ id: found.id, key, raw: found.name });
             establishmentNameById.set(found.id, key);
           }
@@ -497,6 +743,7 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
                 });
               }
               input.dependencyId = depFound.id;
+              dependencyById.set(depFound.id, depFound);
               const depKey = normalizeLookupValue(depFound.name);
               if (depKey) {
                 if (!dependencyByName.has(depKey)) dependencyByName.set(depKey, []);
@@ -562,7 +809,7 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
         input.dependencyId = defaultDependency.id;
       }
       if (!input.establishmentId && input.dependencyId) {
-        const dependency = allDependencies.find((item) => item.id === input.dependencyId);
+        const dependency = dependencyById.get(input.dependencyId);
         if (dependency) {
           input.establishmentId = dependency.establishmentId;
         }
@@ -633,112 +880,144 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
         if (!canCreateAsset(user, input.establishmentId)) {
           throw forbidden("No autorizado para este establecimiento");
         }
+        const establishment = establishmentById.get(input.establishmentId);
+        if (!establishment) throw notFound("Establishment no existe");
+        if (!establishment.isActive) throw badRequest("Establishment inactivo");
+        if (
+          user.role.type === "ADMIN_ESTABLISHMENT" &&
+          user.institutionId &&
+          establishment.institutionId !== user.institutionId
+        ) {
+          throw forbidden("No autorizado para esta institution");
+        }
+
+        const dependency = dependencyById.get(input.dependencyId);
+        if (!dependency) throw notFound("Dependency no existe");
+        if (!dependency.isActive) throw badRequest("Dependency inactiva");
+        if (dependency.establishmentId !== input.establishmentId) {
+          throw badRequest("Dependency no pertenece al establishment");
+        }
+
+        const state = stateById.get(input.assetStateId);
+        if (!state) throw notFound("AssetState no existe");
+
+        const assetType = typeById.get(input.assetTypeId);
+        if (!assetType) throw notFound("AssetType no existe");
+
+        const identityKey = buildAssetIdentityKey(input);
+        const previousCreatedRow = identityKey ? createdIdentityRows.get(identityKey) : null;
+        if (previousCreatedRow) {
+          throw badRequest(
+            `Duplicado en el mismo archivo: serie, marca y modelo ya importados en fila ${previousCreatedRow}`
+          );
+        }
+        const usedFastPath = !input.serialNumber && input.quantity > 1;
 
         const createdAssets = await prisma.$transaction(async (tx) => {
+          await ensureUniqueAssetIdentity(tx, {
+            serialNumber: input.serialNumber,
+            brand: input.brand,
+            modelName: input.modelName,
+          });
+
+          const reservedCodes = await reserveInternalCodes(
+            tx,
+            establishment.institutionId,
+            input.quantity
+          );
+          const canUseBatchCreate = !input.serialNumber && input.quantity > 1;
+          if (canUseBatchCreate) {
+            await tx.asset.createMany({
+              data: reservedCodes.map((internalCode) => ({
+                internalCode,
+                name: String(input.name),
+                brand: input.brand ? String(input.brand) : null,
+                modelName: input.modelName ? String(input.modelName) : null,
+                serialNumber: null,
+                quantity: 1,
+                accountingAccount: input.accountingAccount
+                  ? String(input.accountingAccount)
+                  : null,
+                analyticCode: input.analyticCode ? String(input.analyticCode) : null,
+                responsibleName: input.responsibleName ? String(input.responsibleName) : null,
+                responsibleRut: normalizedResponsibleRut || null,
+                responsibleRole: input.responsibleRole ? String(input.responsibleRole) : null,
+                costCenter: normalizedCostCenter,
+                acquisitionValue: Number(input.acquisitionValue),
+                acquisitionDate: new Date(input.acquisitionDate),
+                assetTypeId: assetType.id,
+                assetStateId: state.id,
+                establishmentId: establishment.id,
+                dependencyId: dependency.id,
+              })),
+            });
+
+            const assetsInRow = await tx.asset.findMany({
+              where: { internalCode: { in: reservedCodes } },
+              orderBy: { internalCode: "asc" },
+            });
+
+            if (assetsInRow.length !== reservedCodes.length) {
+              throw badRequest("No se pudo consolidar el lote de assets importados");
+            }
+
+            await tx.movement.createMany({
+              data: assetsInRow.map((createdAsset) => ({
+                type: "INVENTORY_CHECK",
+                assetId: createdAsset.id,
+                fromDependencyId: null,
+                toDependencyId: dependency.id,
+                userId: user.id,
+              })),
+            });
+
+            return assetsInRow;
+          }
+
           const assetsInRow = [];
           for (let unit = 0; unit < input.quantity; unit++) {
             let asset = null;
             let lastUniqueErr = null;
+            let internalCode = reservedCodes[unit];
             for (let attempt = 0; attempt < 3; attempt++) {
               try {
-              const establishment = await tx.establishment.findUnique({
-                where: { id: input.establishmentId },
-                select: { id: true, institutionId: true, isActive: true },
-              });
-              if (!establishment) throw notFound("Establishment no existe");
-              if (!establishment.isActive) throw badRequest("Establishment inactivo");
-              if (
-                user.role.type === "ADMIN_ESTABLISHMENT" &&
-                user.institutionId &&
-                establishment.institutionId !== user.institutionId
-              ) {
-                throw forbidden("No autorizado para esta institution");
-              }
-
-              const dependency = await tx.dependency.findUnique({
-                where: { id: input.dependencyId },
-                select: { id: true, establishmentId: true, isActive: true },
-              });
-              if (!dependency) throw notFound("Dependency no existe");
-              if (!dependency.isActive) throw badRequest("Dependency inactiva");
-              if (dependency.establishmentId !== input.establishmentId) {
-                throw badRequest("Dependency no pertenece al establishment");
-              }
-
-              const state = await tx.assetState.findUnique({
-                where: { id: input.assetStateId },
-              });
-              if (!state) throw notFound("AssetState no existe");
-
-              const assetType = await tx.assetType.findUnique({
-                where: { id: input.assetTypeId },
-              });
-              if (!assetType) throw notFound("AssetType no existe");
-
-              const seq = await tx.assetSequence.upsert({
-                where: { institutionId: establishment.institutionId },
-                update: { lastNumber: { increment: 1 } },
-                create: { institutionId: establishment.institutionId, lastNumber: 1 },
-              });
-
-              let internalCode = seq.lastNumber;
-              const existingBySeq = await tx.asset.findUnique({
-                where: { internalCode },
-                select: { id: true },
-              });
-              if (existingBySeq) {
-                const maxCode = await tx.asset.aggregate({ _max: { internalCode: true } });
-                internalCode = Number(maxCode?._max?.internalCode || 0) + 1;
-              }
-
-              await ensureUniqueAssetIdentity(tx, {
-                serialNumber: input.serialNumber,
-                brand: input.brand,
-                modelName: input.modelName,
-              });
-
-              const createdAsset = await tx.asset.create({
-                data: {
-                  internalCode,
-                  name: String(input.name),
-                  brand: input.brand ? String(input.brand) : null,
-                  modelName: input.modelName ? String(input.modelName) : null,
-                  serialNumber: input.serialNumber ? String(input.serialNumber) : null,
-                  quantity: 1,
-                  accountingAccount: input.accountingAccount
-                    ? String(input.accountingAccount)
-                    : null,
-                  analyticCode: input.analyticCode ? String(input.analyticCode) : null,
-                  responsibleName: input.responsibleName
-                    ? String(input.responsibleName)
-                    : null,
-                  responsibleRut: normalizedResponsibleRut || null,
-                  responsibleRole: input.responsibleRole
-                    ? String(input.responsibleRole)
-                    : null,
-                  costCenter: normalizedCostCenter,
-                  acquisitionValue: Number(input.acquisitionValue),
-                  acquisitionDate: new Date(input.acquisitionDate),
-                  assetTypeId: input.assetTypeId,
-                  assetStateId: input.assetStateId,
-                  establishmentId: input.establishmentId,
-                  dependencyId: input.dependencyId,
-                },
-              });
-
-              await tx.movement.create({
-                data: {
-                  type: "INVENTORY_CHECK",
-                  assetId: createdAsset.id,
-                  fromDependencyId: null,
-                  toDependencyId: input.dependencyId,
-                  userId: user.id,
-                },
-              });
+                const createdAsset = await tx.asset.create({
+                  data: {
+                    internalCode,
+                    name: String(input.name),
+                    brand: input.brand ? String(input.brand) : null,
+                    modelName: input.modelName ? String(input.modelName) : null,
+                    serialNumber: input.serialNumber ? String(input.serialNumber) : null,
+                    quantity: 1,
+                    accountingAccount: input.accountingAccount
+                      ? String(input.accountingAccount)
+                      : null,
+                    analyticCode: input.analyticCode ? String(input.analyticCode) : null,
+                    responsibleName: input.responsibleName
+                      ? String(input.responsibleName)
+                      : null,
+                    responsibleRut: normalizedResponsibleRut || null,
+                    responsibleRole: input.responsibleRole
+                      ? String(input.responsibleRole)
+                      : null,
+                    costCenter: normalizedCostCenter,
+                    acquisitionValue: Number(input.acquisitionValue),
+                    acquisitionDate: new Date(input.acquisitionDate),
+                    assetTypeId: assetType.id,
+                    assetStateId: state.id,
+                    establishmentId: establishment.id,
+                    dependencyId: dependency.id,
+                  },
+                });
 
                 asset = createdAsset;
                 break;
               } catch (e) {
+                if (isInternalCodeUniqueConstraintError(e)) {
+                  lastUniqueErr = e;
+                  internalCode = (await reserveInternalCodes(tx, establishment.institutionId, 1))[0];
+                  continue;
+                }
                 if (isPrismaUniqueConstraintError(e)) {
                   lastUniqueErr = e;
                   continue;
@@ -755,10 +1034,33 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
             }
             assetsInRow.push(asset);
           }
+
+          if (assetsInRow.length) {
+            await tx.movement.createMany({
+              data: assetsInRow.map((createdAsset) => ({
+                type: "INVENTORY_CHECK",
+                assetId: createdAsset.id,
+                fromDependencyId: null,
+                toDependencyId: dependency.id,
+                userId: user.id,
+              })),
+            });
+          }
+
           return assetsInRow;
         });
 
-        created.push(...createdAssets.map((item) => item.id));
+        createdCount += createdAssets.length;
+        if (usedFastPath) {
+          metrics.fastPathRows += 1;
+          metrics.fastPathAssets += createdAssets.length;
+        } else {
+          metrics.standardRows += 1;
+          metrics.standardAssets += createdAssets.length;
+        }
+        if (identityKey) {
+          createdIdentityRows.set(identityKey, rowIndex);
+        }
       } catch (e) {
         errors.push({
           row: rowIndex,
@@ -772,35 +1074,241 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx") {
           },
         });
       }
+      metrics.resumeRow = rowIndex;
+      rowsSinceFlush += 1;
+      if (rowsSinceFlush >= IMPORT_PROGRESS_FLUSH_EVERY) {
+        await persistBatchState("PROCESSING");
+        rowsSinceFlush = 0;
+      }
     }
 
-    await prisma.assetImportBatch.update({
-      where: { id: batch.id },
-      data: {
-        status: "COMPLETED",
-        createdCount: created.length,
-        errorCount: errors.length,
-        errors: errors.slice(0, 200),
-        completedAt: new Date(),
-      },
-    });
-
+    await persistBatchState("COMPLETED");
     return {
-      createdCount: created.length,
+      batchId: batch,
+      status: "COMPLETED",
+      createdCount,
       errorCount: errors.length,
       errors,
+      metrics,
     };
   } catch (err) {
     await prisma.assetImportBatch.update({
-      where: { id: batch.id },
+      where: { id: batch },
       data: {
         status: "FAILED",
         completedAt: new Date(),
-        errors: err?.details || { message: err.message || "Error" },
+        createdCount,
+        errorCount: errors.length + (err?.details ? 1 : 0),
+        errors: buildBatchErrorsPayload({
+          items: [
+            ...errors,
+            ...(err?.details
+              ? [
+                  {
+                    row: Number(metrics.resumeRow || 0) || null,
+                    error: err.message || "Error",
+                    details: err.details,
+                  },
+                ]
+              : []),
+          ],
+          metrics: {
+            ...metrics,
+            totalMs: Date.now() - importStartedAt,
+          },
+          meta: batchMeta,
+        }),
       },
     });
     throw err;
   }
+}
+
+async function queueAssetImportJob(buffer, user, filename = "import.xlsx") {
+  if (!canCreateAsset(user, user.establishmentId || 0) && user.role.type !== "ADMIN_CENTRAL") {
+    throw forbidden("No autorizado para importacion masiva");
+  }
+
+  const batch = await prisma.assetImportBatch.create({
+    data: {
+      filename,
+      status: "PROCESSING",
+      userId: user.id,
+    },
+  });
+  const tempFilePath = await saveImportTempFile(batch.id, filename, buffer);
+  const seeded = await prisma.assetImportBatch.update({
+    where: { id: batch.id },
+    data: {
+      errors: buildBatchErrorsPayload({
+        items: [],
+        metrics: {
+          processedRows: 0,
+          totalRows: 0,
+          fastPathRows: 0,
+          standardRows: 0,
+          fastPathAssets: 0,
+          standardAssets: 0,
+          totalMs: 0,
+          chunkSize: IMPORT_CHUNK_SIZE,
+          resumeRow: 1,
+          startedAtMs: Date.now(),
+        },
+        meta: {
+          tempFilePath,
+        },
+      }),
+    },
+  });
+
+  setImmediate(async () => {
+    try {
+      const fileBuffer = await readImportTempFile(tempFilePath);
+      await importAssetsFromExcel(fileBuffer, user, filename, {
+        batchId: batch.id,
+        tempFilePath,
+      });
+    } catch (err) {
+      try {
+        const latest = await prisma.assetImportBatch.findUnique({ where: { id: batch.id } });
+        if (latest?.status !== "FAILED") {
+          const state = extractBatchState(latest);
+          await prisma.assetImportBatch.update({
+            where: { id: batch.id },
+            data: {
+              status: "FAILED",
+              completedAt: new Date(),
+              errorCount: Math.max(latest?.errorCount || 0, state.items.length + 1),
+              errors: buildBatchErrorsPayload({
+                items: [
+                  ...state.items,
+                  {
+                    row: Number(state.metrics?.resumeRow || 0) || null,
+                    error: err?.message || "Error en job de importacion",
+                  },
+                ],
+                metrics: {
+                  ...state.metrics,
+                  totalMs:
+                    Number(state.metrics?.startedAtMs || Date.now()) > 0
+                      ? Date.now() - Number(state.metrics?.startedAtMs || Date.now())
+                      : Number(state.metrics?.totalMs || 0),
+                },
+                meta: state.meta,
+              }),
+            },
+          });
+        }
+      } catch {
+        // ignore background failure persistence errors
+      }
+    }
+  });
+
+  return serializeBatch(seeded);
+}
+
+async function getAssetImportJobStatus(batchId, user) {
+  const batch = await prisma.assetImportBatch.findUnique({
+    where: { id: Number(batchId) },
+    include: {
+      user: { select: { id: true, name: true, email: true } },
+    },
+  });
+  if (!batch) throw notFound("ImportJob no existe");
+  if (user.role.type !== "ADMIN_CENTRAL" && batch.userId !== user.id) {
+    throw forbidden("No autorizado para ver este job");
+  }
+  return serializeBatch(batch);
+}
+
+async function resumeAssetImportJob(batchId, user) {
+  const batch = await prisma.assetImportBatch.findUnique({
+    where: { id: Number(batchId) },
+  });
+  if (!batch) throw notFound("ImportJob no existe");
+  if (user.role.type !== "ADMIN_CENTRAL" && batch.userId !== user.id) {
+    throw forbidden("No autorizado para reanudar este job");
+  }
+  if (batch.status === "PROCESSING") {
+    throw badRequest("El job ya esta en proceso");
+  }
+
+  const state = extractBatchState(batch);
+  const tempFilePath = state.meta?.tempFilePath;
+  if (!tempFilePath) {
+    throw badRequest("No existe archivo temporal para reanudar");
+  }
+
+  const resumeFromRow = Math.max(2, Number(state.metrics?.resumeRow || 1) + 1);
+  const restarted = await prisma.assetImportBatch.update({
+    where: { id: batch.id },
+    data: {
+      status: "PROCESSING",
+      completedAt: null,
+      errors: buildBatchErrorsPayload({
+        items: state.items,
+        metrics: {
+          ...state.metrics,
+          startedAtMs: Number(state.metrics?.startedAtMs || Date.now()),
+        },
+        meta: state.meta,
+      }),
+    },
+  });
+
+  setImmediate(async () => {
+    try {
+      const fileBuffer = await readImportTempFile(tempFilePath);
+      await importAssetsFromExcel(fileBuffer, user, batch.filename, {
+        batchId: batch.id,
+        tempFilePath,
+        resumeFromRow,
+        resumeState: {
+          createdCount: batch.createdCount,
+          errorItems: state.items,
+          metrics: state.metrics,
+          meta: state.meta,
+        },
+      });
+    } catch (err) {
+      try {
+        const latest = await prisma.assetImportBatch.findUnique({ where: { id: batch.id } });
+        if (latest?.status !== "FAILED") {
+          const latestState = extractBatchState(latest);
+          await prisma.assetImportBatch.update({
+            where: { id: batch.id },
+            data: {
+              status: "FAILED",
+              completedAt: new Date(),
+              errorCount: Math.max(latest?.errorCount || 0, latestState.items.length + 1),
+              errors: buildBatchErrorsPayload({
+                items: [
+                  ...latestState.items,
+                  {
+                    row: Number(latestState.metrics?.resumeRow || 0) || null,
+                    error: err?.message || "Error reanudando importacion",
+                  },
+                ],
+                metrics: {
+                  ...latestState.metrics,
+                  totalMs:
+                    Number(latestState.metrics?.startedAtMs || Date.now()) > 0
+                      ? Date.now() - Number(latestState.metrics?.startedAtMs || Date.now())
+                      : Number(latestState.metrics?.totalMs || 0),
+                },
+                meta: latestState.meta,
+              }),
+            },
+          });
+        }
+      } catch {
+        // ignore background failure persistence errors
+      }
+    }
+  });
+
+  return serializeBatch(restarted);
 }
 
 async function buildAssetImportTemplate() {
@@ -879,4 +1387,10 @@ async function buildAssetImportTemplate() {
   return workbook;
 }
 
-module.exports = { importAssetsFromExcel, buildAssetImportTemplate };
+module.exports = {
+  importAssetsFromExcel,
+  queueAssetImportJob,
+  getAssetImportJobStatus,
+  resumeAssetImportJob,
+  buildAssetImportTemplate,
+};
