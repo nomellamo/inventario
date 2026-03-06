@@ -369,6 +369,7 @@ function App() {
   const [importResult, setImportResult] = useState(null)
   const [importErrors, setImportErrors] = useState([])
   const importJobPollRef = useRef(null)
+  const refreshTokenPromiseRef = useRef(null)
   const [importSchemaDetails, setImportSchemaDetails] = useState(null)
   const [previewHeaders, setPreviewHeaders] = useState([])
   const [previewRows, setPreviewRows] = useState([])
@@ -436,9 +437,14 @@ function App() {
 
   function scheduleImportJobPoll(batchId) {
     stopImportJobPolling()
+    const pollDelayMs = document.visibilityState === 'visible' ? 5000 : 15000
     importJobPollRef.current = setTimeout(() => {
-      loadImportJobStatus(batchId, { silent: true }).catch(() => {})
-    }, 2000)
+      loadImportJobStatus(batchId, { silent: true }).catch((err) => {
+        if (err?.status === 429) {
+          scheduleImportJobPoll(batchId)
+        }
+      })
+    }, pollDelayMs)
   }
 
   const [planchetaFilters, setPlanchetaFilters] = useState({
@@ -555,24 +561,10 @@ function App() {
   useEffect(() => {
     if (!isAuthed) return
     const id = setInterval(async () => {
-      try {
-        const refreshed = await fetch(`${API_BASE}/auth/refresh`, {
-          method: 'POST',
-          credentials: 'include',
-        })
-        if (refreshed.ok) {
-          const data = await refreshed.json()
-          if (data?.token) {
-            localStorage.setItem('admin_token', data.token)
-            setToken(data.token)
-          }
-        }
-      } catch {
-        // ignore silent refresh errors
-      }
+      await refreshSessionToken()
     }, 10 * 60 * 1000)
     return () => clearInterval(id)
-  }, [API_BASE, isAuthed])
+  }, [isAuthed])
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -750,6 +742,30 @@ function App() {
     return token || ''
   }
 
+  async function refreshSessionToken() {
+    if (refreshTokenPromiseRef.current) return refreshTokenPromiseRef.current
+    refreshTokenPromiseRef.current = (async () => {
+      try {
+        const refreshed = await fetch(`${API_BASE}/auth/refresh`, {
+          method: 'POST',
+          credentials: 'include',
+        })
+        if (!refreshed.ok) return ''
+        const data = await refreshed.json()
+        const nextToken = data?.token || ''
+        if (!nextToken) return ''
+        localStorage.setItem('admin_token', nextToken)
+        setToken(nextToken)
+        return nextToken
+      } catch {
+        return ''
+      } finally {
+        refreshTokenPromiseRef.current = null
+      }
+    })()
+    return refreshTokenPromiseRef.current
+  }
+
   async function api(path, { method = 'GET', body, retry = true, overrideToken = '' } = {}) {
     const normalizedPath = sanitizeTakeInPath(path)
     const authToken = resolveAuthToken(overrideToken)
@@ -764,22 +780,14 @@ function App() {
     })
 
     if (res.status === 401 && retry) {
-      const refreshed = await fetch(`${API_BASE}/auth/refresh`, {
-        method: 'POST',
-        credentials: 'include',
-      })
-      if (refreshed.ok) {
-        const data = await refreshed.json()
-        if (data?.token) {
-          localStorage.setItem('admin_token', data.token)
-          setToken(data.token)
-          return api(normalizedPath, {
-            method,
-            body,
-            retry: false,
-            overrideToken: data.token,
-          })
-        }
+      const nextToken = await refreshSessionToken()
+      if (nextToken) {
+        return api(normalizedPath, {
+          method,
+          body,
+          retry: false,
+          overrideToken: nextToken,
+        })
       }
     }
 
@@ -826,22 +834,14 @@ function App() {
     })
 
     if (res.status === 401 && retry) {
-      const refreshed = await fetch(`${API_BASE}/auth/refresh`, {
-        method: 'POST',
-        credentials: 'include',
-      })
-      if (refreshed.ok) {
-        const data = await refreshed.json()
-        if (data?.token) {
-          localStorage.setItem('admin_token', data.token)
-          setToken(data.token)
-          return apiMultipart(normalizedPath, {
-            method,
-            formData,
-            retry: false,
-            overrideToken: data.token,
-          })
-        }
+      const nextToken = await refreshSessionToken()
+      if (nextToken) {
+        return apiMultipart(normalizedPath, {
+          method,
+          formData,
+          retry: false,
+          overrideToken: nextToken,
+        })
       }
     }
 
@@ -881,17 +881,9 @@ function App() {
       },
     })
     if (res.status === 401) {
-      const refreshed = await fetch(`${API_BASE}/auth/refresh`, {
-        method: 'POST',
-        credentials: 'include',
-      })
-      if (refreshed.ok) {
-        const data = await refreshed.json()
-        if (data?.token) {
-          localStorage.setItem('admin_token', data.token)
-          setToken(data.token)
-          return downloadFile(normalizedPath, filename, data.token)
-        }
+      const nextToken = await refreshSessionToken()
+      if (nextToken) {
+        return downloadFile(normalizedPath, filename, nextToken)
       }
     }
     if (!res.ok) {
@@ -6554,6 +6546,7 @@ function App() {
                   value={login.email}
                   onChange={(e) => setLogin({ ...login, email: e.target.value })}
                   placeholder="admin@cordillera.local"
+                  autoComplete="username"
                 />
               </div>
               <div className="field">
@@ -6563,6 +6556,7 @@ function App() {
                   value={login.password}
                   onChange={(e) => setLogin({ ...login, password: e.target.value })}
                   placeholder="admin123"
+                  autoComplete="current-password"
                 />
               </div>
               <div className="auth-actions">
