@@ -10,7 +10,16 @@ const {
   normalizeCostCenter,
   normalizeRut,
   validateRutFormat,
+  normalizeDepreciationRate,
+  resolveDepreciationValues,
+  validateUsefulLifeYears,
+  validateDepreciationAnnualValue,
+  validateDepreciationAnnualRate,
 } = require("../utils/assetRules");
+const {
+  estimateUsefulLifeYearsChile,
+  resolveUsefulLifeYearsFromPolicies,
+} = require("../utils/chileDepreciationTable");
 const {
   badRequest,
   forbidden,
@@ -94,6 +103,22 @@ async function createAsset(input, user) {
   const normalizedCostCenter = normalizeCostCenter(input.costCenter);
   const costCenterError = validateStringMax("costCenter", normalizedCostCenter, MAX_SHORT_TEXT);
   assert(!costCenterError, badRequest(costCenterError));
+  const parsedUsefulLifeYears =
+    input.usefulLifeYears === undefined || input.usefulLifeYears === null
+      ? null
+      : Number(input.usefulLifeYears);
+  const parsedDepreciationAnnualValue =
+    input.depreciationAnnualValue === undefined || input.depreciationAnnualValue === null
+      ? null
+      : Number(input.depreciationAnnualValue);
+  const parsedDepreciationAnnualRate =
+    input.depreciationAnnualRate === undefined || input.depreciationAnnualRate === null
+      ? null
+      : normalizeDepreciationRate(input.depreciationAnnualRate);
+  const usefulLifeError = validateUsefulLifeYears(parsedUsefulLifeYears);
+  assert(!usefulLifeError, badRequest(usefulLifeError));
+  const depreciationRateError = validateDepreciationAnnualRate(parsedDepreciationAnnualRate);
+  assert(!depreciationRateError, badRequest(depreciationRateError));
 
   enforceEstablishmentScope(user, input.establishmentId);
   if (!canCreateAsset(user, input.establishmentId)) {
@@ -150,9 +175,49 @@ async function createAsset(input, user) {
       assert(catalogItem, notFound("CatalogItem no existe"));
     }
 
+    const activeDepreciationPolicies = await tx.depreciationPolicy.findMany({
+      where: { status: "VIGENTE" },
+      orderBy: [{ accountingAccount: "asc" }, { appliesFrom: "desc" }],
+      select: {
+        accountingAccount: true,
+        category: true,
+        subcategory: true,
+        usefulLifeYears: true,
+        appliesFrom: true,
+        status: true,
+      },
+    });
+
     const finalBrand = input.brand ?? catalogItem?.brand ?? null;
     const finalModel = input.modelName ?? catalogItem?.modelName ?? null;
     const finalSerial = input.serialNumber ?? null;
+    const finalName = input.name ?? catalogItem?.name;
+    const estimatedUsefulLifeYears =
+      parsedUsefulLifeYears ||
+      resolveUsefulLifeYearsFromPolicies(activeDepreciationPolicies, {
+        accountingAccount: input.accountingAccount,
+        category: catalogItem?.category,
+        subcategory: catalogItem?.subcategory,
+        acquisitionDate: input.acquisitionDate,
+      }) ||
+      estimateUsefulLifeYearsChile({
+        name: finalName,
+        accountingAccount: input.accountingAccount,
+        assetTypeName: assetType?.name,
+        category: catalogItem?.category,
+        subcategory: catalogItem?.subcategory,
+      });
+    const depreciationResolution = resolveDepreciationValues({
+      acquisitionValue: input.acquisitionValue,
+      usefulLifeYears: estimatedUsefulLifeYears,
+      depreciationAnnualValue: parsedDepreciationAnnualValue,
+      depreciationAnnualRate: parsedDepreciationAnnualRate,
+    });
+    const depreciationValueError = validateDepreciationAnnualValue(
+      depreciationResolution.depreciationAnnualValue,
+      input.acquisitionValue
+    );
+    assert(!depreciationValueError, badRequest(depreciationValueError));
     await ensureUniqueAssetIdentity(tx, {
       serialNumber: finalSerial,
       brand: finalBrand,
@@ -194,7 +259,7 @@ async function createAsset(input, user) {
           asset = await tx.asset.create({
             data: {
               internalCode,
-              name: input.name ?? catalogItem?.name,
+              name: finalName,
               quantity: 1,
               brand: finalBrand,
               modelName: finalModel,
@@ -207,6 +272,8 @@ async function createAsset(input, user) {
               costCenter: normalizedCostCenter,
               acquisitionValue: input.acquisitionValue,
               acquisitionDate: new Date(input.acquisitionDate),
+              usefulLifeYears: depreciationResolution.usefulLifeYears,
+              depreciationAnnualValue: depreciationResolution.depreciationAnnualValue,
               assetTypeId: input.assetTypeId,
               assetStateId: input.assetStateId,
               establishmentId: input.establishmentId,

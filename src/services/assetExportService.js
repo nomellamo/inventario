@@ -27,6 +27,9 @@ async function exportAssetsToExcel(query, user) {
     { header: "Dependencia", key: "dependency", width: 25 },
     { header: "Valor Adquisicion", key: "acquisitionValue", width: 20 },
     { header: "Fecha Adquisicion", key: "acquisitionDate", width: 20 },
+    { header: "Depreciacion Anual CLP", key: "depreciationAnnualValue", width: 22 },
+    { header: "Tasa Depreciacion Anual (%)", key: "depreciationAnnualRate", width: 24 },
+    { header: "Vida Util (anios)", key: "usefulLifeYears", width: 18 },
   ];
 
   const dataStartRow = 2;
@@ -50,6 +53,12 @@ async function exportAssetsToExcel(query, user) {
       dependency: a.dependency?.name || "",
       acquisitionValue: a.acquisitionValue,
       acquisitionDate: new Date(a.acquisitionDate).toISOString().split("T")[0],
+      depreciationAnnualValue: a.depreciationAnnualValue ?? "",
+      depreciationAnnualRate:
+        a.depreciationAnnualValue && a.acquisitionValue
+          ? Number(((a.depreciationAnnualValue / a.acquisitionValue) * 100).toFixed(4))
+          : "",
+      usefulLifeYears: a.usefulLifeYears ?? "",
     });
   });
 
@@ -78,6 +87,8 @@ async function exportAssetsToExcel(query, user) {
 
   sheet.getColumn("acquisitionValue").numFmt = "#,##0";
   sheet.getColumn("acquisitionDate").numFmt = "yyyy-mm-dd";
+  sheet.getColumn("depreciationAnnualValue").numFmt = "#,##0.00";
+  sheet.getColumn("depreciationAnnualRate").numFmt = "0.0000";
 
   const zebraFill = {
     type: "pattern",

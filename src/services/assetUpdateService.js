@@ -10,7 +10,16 @@ const {
   normalizeCostCenter,
   normalizeRut,
   validateRutFormat,
+  normalizeDepreciationRate,
+  resolveDepreciationValues,
+  validateUsefulLifeYears,
+  validateDepreciationAnnualValue,
+  validateDepreciationAnnualRate,
 } = require("../utils/assetRules");
+const {
+  estimateUsefulLifeYearsChile,
+  resolveUsefulLifeYearsFromPolicies,
+} = require("../utils/chileDepreciationTable");
 const { badRequest, forbidden, notFound } = require("../utils/httpError");
 const { ensureUniqueAssetIdentity } = require("../utils/assetIdentity");
 
@@ -75,6 +84,24 @@ async function updateAsset(assetId, input, user) {
   const normalizedCostCenter = normalizeCostCenter(input.costCenter);
   const costCenterError = validateStringMax("costCenter", normalizedCostCenter, MAX_SHORT_TEXT);
   assert(!costCenterError, badRequest(costCenterError));
+  const usefulLifeInputPresent =
+    input.usefulLifeYears !== undefined || input.depreciationAnnualValue !== undefined;
+  const parsedUsefulLifeYears =
+    input.usefulLifeYears === undefined || input.usefulLifeYears === null
+      ? null
+      : Number(input.usefulLifeYears);
+  const parsedDepreciationAnnualValue =
+    input.depreciationAnnualValue === undefined || input.depreciationAnnualValue === null
+      ? null
+      : Number(input.depreciationAnnualValue);
+  const parsedDepreciationAnnualRate =
+    input.depreciationAnnualRate === undefined || input.depreciationAnnualRate === null
+      ? null
+      : normalizeDepreciationRate(input.depreciationAnnualRate);
+  const usefulLifeError = validateUsefulLifeYears(parsedUsefulLifeYears);
+  assert(!usefulLifeError, badRequest(usefulLifeError));
+  const depreciationRateError = validateDepreciationAnnualRate(parsedDepreciationAnnualRate);
+  assert(!depreciationRateError, badRequest(depreciationRateError));
 
   if (input.catalogItemId !== undefined) {
     const catalog = await prisma.catalogItem.findUnique({
@@ -98,6 +125,64 @@ async function updateAsset(assetId, input, user) {
   if (input.acquisitionValue !== undefined) data.acquisitionValue = input.acquisitionValue;
   if (input.acquisitionDate !== undefined) data.acquisitionDate = new Date(input.acquisitionDate);
   if (input.catalogItemId !== undefined) data.catalogItemId = input.catalogItemId;
+  if (input.usefulLifeYears !== undefined) data.usefulLifeYears = parsedUsefulLifeYears;
+  if (input.depreciationAnnualValue !== undefined) {
+    data.depreciationAnnualValue = parsedDepreciationAnnualValue;
+  }
+
+  const shouldResolveDepreciation =
+    usefulLifeInputPresent ||
+    input.depreciationAnnualRate !== undefined ||
+    input.acquisitionValue !== undefined;
+  if (shouldResolveDepreciation) {
+    const activeDepreciationPolicies = await prisma.depreciationPolicy.findMany({
+      where: { status: "VIGENTE" },
+      orderBy: [{ accountingAccount: "asc" }, { appliesFrom: "desc" }],
+      select: {
+        accountingAccount: true,
+        category: true,
+        subcategory: true,
+        usefulLifeYears: true,
+        appliesFrom: true,
+        status: true,
+      },
+    });
+    const policyYears = resolveUsefulLifeYearsFromPolicies(activeDepreciationPolicies, {
+      accountingAccount:
+        input.accountingAccount !== undefined ? input.accountingAccount : asset.accountingAccount,
+      category: null,
+      subcategory: null,
+      acquisitionDate:
+        input.acquisitionDate !== undefined ? input.acquisitionDate : asset.acquisitionDate,
+    });
+    const estimatedYears =
+      policyYears ||
+      estimateUsefulLifeYearsChile({
+        name: input.name !== undefined ? input.name : asset.name,
+        accountingAccount:
+          input.accountingAccount !== undefined ? input.accountingAccount : asset.accountingAccount,
+      });
+    const resolution = resolveDepreciationValues({
+      acquisitionValue:
+        input.acquisitionValue !== undefined ? input.acquisitionValue : asset.acquisitionValue,
+      usefulLifeYears:
+        input.usefulLifeYears !== undefined
+          ? parsedUsefulLifeYears
+          : asset.usefulLifeYears || estimatedYears,
+      depreciationAnnualValue:
+        input.depreciationAnnualValue !== undefined
+          ? parsedDepreciationAnnualValue
+          : asset.depreciationAnnualValue,
+      depreciationAnnualRate: parsedDepreciationAnnualRate,
+    });
+    const depreciationValueError = validateDepreciationAnnualValue(
+      resolution.depreciationAnnualValue,
+      input.acquisitionValue !== undefined ? input.acquisitionValue : asset.acquisitionValue
+    );
+    assert(!depreciationValueError, badRequest(depreciationValueError));
+    data.usefulLifeYears = resolution.usefulLifeYears;
+    data.depreciationAnnualValue = resolution.depreciationAnnualValue;
+  }
 
   if (!Object.keys(data).length) {
     throw badRequest("Sin campos para actualizar");

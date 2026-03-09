@@ -38,6 +38,11 @@ const {
 const {
   exportAssetImportHistoryToPdf,
 } = require("../services/assetImportHistoryExportPdfService");
+const {
+  listDepreciationPolicies,
+  importDepreciationPoliciesFromFile,
+  buildDepreciationPolicyTemplateWorkbook,
+} = require("../services/depreciationPolicyService");
 const { MOVEMENT_REASON_CODES, MOVEMENT_REASON_LABELS } = require("../constants/movementReasonCodes");
 
 const { authJwt } = require("../middleware/authJwt");
@@ -60,10 +65,15 @@ const {
   listAssetsQuery,
   importHistoryQuery,
   evidenceListQuery,
+  depreciationPoliciesQuery,
 } = require("../validators/assetSchemas");
 
 const multer = require("multer");
 const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
+const uploadPolicy = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
 });
@@ -185,6 +195,55 @@ router.get(
 
     await workbook.xlsx.write(res);
     res.end();
+  })
+);
+
+router.get(
+  "/depreciation-policies/template/excel",
+  asyncHandler(async (req, res) => {
+    const workbook = await buildDepreciationPolicyTemplateWorkbook();
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename=plantilla_politica_depreciacion_contable.xlsx"
+    );
+    await workbook.xlsx.write(res);
+    res.end();
+  })
+);
+
+router.get(
+  "/depreciation-policies",
+  validateQuery(depreciationPoliciesQuery),
+  asyncHandler(async (req, res) => {
+    const result = await listDepreciationPolicies(req.query, req.user);
+    res.json(result);
+  })
+);
+
+router.post(
+  "/depreciation-policies/import",
+  blockWriteForViewer,
+  limitContentLength(10 * 1024 * 1024),
+  uploadPolicy.single("file"),
+  asyncHandler(async (req, res) => {
+    if (!req.file || !req.file.buffer) {
+      return sendError(res, {
+        status: 400,
+        error: "Archivo de politica requerido",
+        code: "DEPRECIATION_POLICY_FILE_REQUIRED",
+        requestId: req.id,
+      });
+    }
+    const result = await importDepreciationPoliciesFromFile(
+      req.file.buffer,
+      req.file.originalname,
+      req.user
+    );
+    res.status(201).json(result);
   })
 );
 
