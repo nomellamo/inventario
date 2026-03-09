@@ -4317,20 +4317,43 @@ function App() {
     })
   }
 
-  async function purgeAssetsAllWithReset() {
+  async function purgeAssetsAllWithReset(options = {}) {
+    const forceStructureDelete = Boolean(options?.forceStructureDelete)
+    const endpoint = forceStructureDelete
+      ? '/assets/purge/reset?purgeDependencies=true&purgeEstablishments=true&forceDeleteStructure=true'
+      : '/assets/purge/reset'
+    const expectedConfirmationText = 'ELIMINAR DEFINITIVO'
     openConfirm({
-      title: 'Vaciar activos fijos',
-      message:
-        'Se eliminar\u00e1n todos los activos fijos, evidencias, movimientos e historial de importaciones. El ID y el c\u00f3digo interno volver\u00e1n a 1. \u00bfContinuar?',
+      title: forceStructureDelete
+        ? 'Vaciar activos + eliminar estructura (forzado)'
+        : 'Vaciar activos fijos',
+      message: forceStructureDelete
+        ? 'Se eliminar\u00e1n todos los activos fijos, evidencias, movimientos e historial de importaciones. Adem\u00e1s, se eliminar\u00e1n forzadamente dependencias y establecimientos (incluyendo relaciones asociadas) cuando aplique. \u00bfContinuar?'
+        : 'Se eliminar\u00e1n todos los activos fijos, evidencias, movimientos e historial de importaciones. El ID y el c\u00f3digo interno volver\u00e1n a 1. \u00bfContinuar?',
       onConfirm: async () => {
         try {
-          const result = await api('/assets/purge/reset', { method: 'DELETE' })
+          if (forceStructureDelete) {
+            const typed = window.prompt(
+              `Escribe exactamente "${expectedConfirmationText}" para confirmar el borrado forzado de estructura:`,
+              ''
+            )
+            if (String(typed || '').trim() !== expectedConfirmationText) {
+              setErr(`Debes escribir exactamente: ${expectedConfirmationText}`)
+              return
+            }
+          }
+          const result = await api(endpoint, { method: 'DELETE' })
           await loadAssetsList(1)
           await loadImportHistory(1)
           setImportResult(null)
           setImportHistoryOpen(null)
+          const deletedAssets = Number(result?.deletedCount || 0)
+          const deletedDeps = Number(result?.deletedDependencyCount || 0)
+          const deletedEsts = Number(result?.deletedEstablishmentCount || 0)
           setOk(
-            `Activos vaciados. Eliminados: ${Number(result?.deletedCount || 0)}. Pr\u00f3ximo ID: 1. Pr\u00f3ximo c\u00f3digo interno: 1.`
+            forceStructureDelete
+              ? `Activos vaciados. Eliminados: ${deletedAssets}. Dependencias eliminadas: ${deletedDeps}. Establecimientos eliminados: ${deletedEsts}.`
+              : `Activos vaciados. Eliminados: ${deletedAssets}. Pr\u00f3ximo ID: 1. Pr\u00f3ximo c\u00f3digo interno: 1.`
           )
         } catch (err) {
           setErr(err, 'No se pudieron vaciar los activos fijos.')

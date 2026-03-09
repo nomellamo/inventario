@@ -160,6 +160,12 @@ const depreciationPoliciesQuery = z.object({
   skip: z.coerce.number().int().min(0).optional(),
 });
 
+const purgeAssetsQuery = z.object({
+  purgeDependencies: booleanLike,
+  purgeEstablishments: booleanLike,
+  forceDeleteStructure: booleanLike,
+});
+
 module.exports = {
   idParam,
   evidenceIdParam,
@@ -174,5 +180,6 @@ module.exports = {
   importHistoryQuery,
   evidenceListQuery,
   depreciationPoliciesQuery,
+  purgeAssetsQuery,
 };
 

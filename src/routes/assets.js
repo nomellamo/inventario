@@ -66,6 +66,7 @@ const {
   importHistoryQuery,
   evidenceListQuery,
   depreciationPoliciesQuery,
+  purgeAssetsQuery,
 } = require("../validators/assetSchemas");
 
 const multer = require("multer");
@@ -274,8 +275,9 @@ router.post(
 router.delete(
   "/purge/reset",
   blockWriteForViewer,
+  validateQuery(purgeAssetsQuery),
   asyncHandler(async (req, res) => {
-    const result = await purgeAssetsAndResetSequence(req.user);
+    const result = await purgeAssetsAndResetSequence(req.user, req.query);
     res.json(result);
   })
 );
