@@ -61,6 +61,12 @@ function ImportsAssetsView(props) {
           <button className="danger danger-outline" onClick={purgeAssetsAllWithReset}>
             Vaciar activos (ID=1)
           </button>
+          <button
+            className="danger danger-outline"
+            onClick={() => purgeAssetsAllWithReset({ forceStructureDelete: true })}
+          >
+            Vaciar + borrar deps/est
+          </button>
         </div>
       </div>
       <div className="split">

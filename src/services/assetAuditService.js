@@ -19,6 +19,8 @@ function snapshotAsset(asset) {
     costCenter: asset.costCenter,
     acquisitionValue: asset.acquisitionValue,
     acquisitionDate: asset.acquisitionDate,
+    usefulLifeYears: asset.usefulLifeYears,
+    depreciationAnnualValue: asset.depreciationAnnualValue,
     assetTypeId: asset.assetTypeId,
     assetStateId: asset.assetStateId,
     establishmentId: asset.establishmentId,

@@ -12,8 +12,17 @@ const {
   MAX_SHORT_TEXT,
   normalizeCostCenter,
   normalizeRut,
+  normalizeDepreciationRate,
+  resolveDepreciationValues,
+  validateUsefulLifeYears,
+  validateDepreciationAnnualValue,
+  validateDepreciationAnnualRate,
 } = require("../utils/assetRules");
 const { ensureUniqueAssetIdentity, normalizeText } = require("../utils/assetIdentity");
+const {
+  estimateUsefulLifeYearsChile,
+  resolveUsefulLifeYearsFromPolicies,
+} = require("../utils/chileDepreciationTable");
 
 const HEADER_ALIASES = {
   codigointerno: "internalcode",
@@ -35,6 +44,19 @@ const HEADER_ALIASES = {
   cargoresponsable: "responsiblerole",
   centrocosto: "costcenter",
   centrodecosto: "costcenter",
+  depreciacion: "depreciationannualvalue",
+  depreciacionanual: "depreciationannualvalue",
+  depreciacionanualclp: "depreciationannualvalue",
+  depreciacionanualvalor: "depreciationannualvalue",
+  depreciacionanualmonto: "depreciationannualvalue",
+  depreciaciontasaanual: "depreciationannualrate",
+  tasadepreciacionanual: "depreciationannualrate",
+  tasadepreciacion: "depreciationannualrate",
+  vidautil: "usefullifeyears",
+  vidautilanos: "usefullifeyears",
+  anosvidautil: "usefullifeyears",
+  aniosvidautil: "usefullifeyears",
+  usefullifeyears: "usefullifeyears",
 };
 
 const IMPORT_PLACEHOLDER_TEXTS = new Set([
@@ -133,6 +155,80 @@ function parseImportAcquisitionDate(value) {
   }
   if (isImportPlaceholder(value)) return new Date();
   return parseExcelDate(value);
+}
+
+function readNumericCellValue(value) {
+  if (value === undefined || value === null || value === "") return null;
+  if (isImportPlaceholder(value)) return null;
+  if (typeof value === "object") {
+    if (value?.result !== undefined) return readNumericCellValue(value.result);
+    if (value?.text !== undefined) return readNumericCellValue(value.text);
+  }
+  if (typeof value === "number") return Number.isFinite(value) ? value : Number.NaN;
+
+  const text = String(value).trim();
+  if (!text) return null;
+
+  const cleaned = text.replace(/[^\d.,%-]/g, "");
+  if (!cleaned) return Number.NaN;
+  if (cleaned.includes("%")) {
+    const numericPart = cleaned.replace(/%/g, "");
+    const percentValue = readNumericCellValue(numericPart);
+    if (percentValue === null) return null;
+    if (!Number.isFinite(percentValue)) return Number.NaN;
+    return percentValue / 100;
+  }
+
+  const lastComma = cleaned.lastIndexOf(",");
+  const lastDot = cleaned.lastIndexOf(".");
+  let normalized = cleaned;
+  if (lastComma >= 0 && lastDot >= 0) {
+    if (lastComma > lastDot) {
+      normalized = cleaned.replace(/\./g, "").replace(",", ".");
+    } else {
+      normalized = cleaned.replace(/,/g, "");
+    }
+  } else if (lastComma >= 0) {
+    const commaParts = cleaned.split(",");
+    normalized =
+      commaParts.length === 2 && commaParts[1].length <= 2
+        ? cleaned.replace(",", ".")
+        : cleaned.replace(/,/g, "");
+  }
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
+function parseImportUsefulLifeYears(value) {
+  const raw = readNumericCellValue(value);
+  if (raw === null) return null;
+  if (!Number.isFinite(raw)) return Number.NaN;
+  if (!Number.isInteger(raw)) return Number.NaN;
+  return raw;
+}
+
+function parseImportDepreciationAnnualValue(value) {
+  const raw = readNumericCellValue(value);
+  if (raw === null) return null;
+  if (!Number.isFinite(raw)) return Number.NaN;
+  return raw;
+}
+
+function parseImportDepreciationAnnualRate(value) {
+  const raw = readNumericCellValue(value);
+  if (raw === null) return null;
+  if (!Number.isFinite(raw)) return Number.NaN;
+  return normalizeDepreciationRate(raw);
+}
+
+function hasPercentMarker(value) {
+  if (value === undefined || value === null) return false;
+  if (typeof value === "object") {
+    if (value?.result !== undefined) return hasPercentMarker(value.result);
+    if (value?.text !== undefined) return hasPercentMarker(value.text);
+  }
+  return String(value).includes("%");
 }
 
 function normalizeLookupValue(value) {
@@ -560,6 +656,18 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx", opt
     const createdIdentityRows = new Map();
     let rowsSinceFlush = 0;
     const startRow = Math.max(2, Number(options.resumeFromRow || 2));
+    const activeDepreciationPolicies = await prisma.depreciationPolicy.findMany({
+      where: { status: "VIGENTE" },
+      orderBy: [{ accountingAccount: "asc" }, { appliesFrom: "desc" }],
+      select: {
+        accountingAccount: true,
+        category: true,
+        subcategory: true,
+        usefulLifeYears: true,
+        appliesFrom: true,
+        status: true,
+      },
+    });
 
     for (let rowIndex = startRow; rowIndex <= lastRow; rowIndex++) {
       const row = sheet.getRow(rowIndex);
@@ -567,6 +675,9 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx", opt
       const dependencyIdRaw = getRowValue(row, keyMap, "dependencyid");
       const assetStateIdRaw = getRowValue(row, keyMap, "assetstateid");
       const assetTypeIdRaw = getRowValue(row, keyMap, "assettypeid");
+      const depreciationAnnualRaw = getRowValue(row, keyMap, "depreciationannualvalue");
+      const depreciationRateRaw = getRowValue(row, keyMap, "depreciationannualrate");
+      const hasPercentInAnnualCell = hasPercentMarker(depreciationAnnualRaw);
 
       const input = {
         establishmentId: parsePositiveInt(establishmentIdRaw),
@@ -592,6 +703,13 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx", opt
         costCenter: normalizeOptionalImportValue(getRowValue(row, keyMap, "costcenter")),
         acquisitionValue: parseImportAcquisitionValue(getRowValue(row, keyMap, "acquisitionvalue")),
         acquisitionDate: parseImportAcquisitionDate(getRowValue(row, keyMap, "acquisitiondate")),
+        usefulLifeYears: parseImportUsefulLifeYears(getRowValue(row, keyMap, "usefullifeyears")),
+        depreciationAnnualValue: hasPercentInAnnualCell
+          ? null
+          : parseImportDepreciationAnnualValue(depreciationAnnualRaw),
+        depreciationAnnualRate:
+          parseImportDepreciationAnnualRate(depreciationRateRaw) ??
+          (hasPercentInAnnualCell ? parseImportDepreciationAnnualRate(depreciationAnnualRaw) : null),
       };
       const quantityText = String(input.quantityRaw ?? "").trim();
       const quantity =
@@ -601,6 +719,25 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx", opt
       input.quantity = quantity;
       const normalizedResponsibleRut = input.responsibleRut || null;
       const normalizedCostCenter = normalizeCostCenter(input.costCenter);
+      const estimatedUsefulLifeYears =
+        input.usefulLifeYears ||
+        resolveUsefulLifeYearsFromPolicies(activeDepreciationPolicies, {
+          accountingAccount: input.accountingAccount,
+          category: null,
+          subcategory: null,
+          acquisitionDate: input.acquisitionDate,
+        }) ||
+        estimateUsefulLifeYearsChile({
+          name: input.name,
+          accountingAccount: input.accountingAccount,
+          assetTypeName: input.assetTypeName,
+        });
+      const depreciation = resolveDepreciationValues({
+        acquisitionValue: input.acquisitionValue,
+        usefulLifeYears: estimatedUsefulLifeYears,
+        depreciationAnnualValue: input.depreciationAnnualValue,
+        depreciationAnnualRate: input.depreciationAnnualRate,
+      });
       const establishmentNameKey = normalizeLookupValue(input.establishmentName);
       const dependencyNameKey = normalizeLookupValue(input.dependencyName);
       const stateNameKey = normalizeLookupValue(input.assetStateName);
@@ -826,6 +963,20 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx", opt
       if (validateAcquisitionDate(input.acquisitionDate)) {
         invalidFields.push("acquisitionDate");
       }
+      if (validateUsefulLifeYears(input.usefulLifeYears)) {
+        invalidFields.push("usefulLifeYears");
+      }
+      if (validateDepreciationAnnualRate(input.depreciationAnnualRate)) {
+        invalidFields.push("depreciationAnnualRate");
+      }
+      if (
+        validateDepreciationAnnualValue(
+          depreciation.depreciationAnnualValue,
+          input.acquisitionValue
+        )
+      ) {
+        invalidFields.push("depreciationAnnualValue");
+      }
       if (validateStringMax("name", input.name, MAX_NAME_LENGTH)) {
         invalidFields.push("name");
       }
@@ -945,6 +1096,8 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx", opt
                 costCenter: normalizedCostCenter,
                 acquisitionValue: Number(input.acquisitionValue),
                 acquisitionDate: new Date(input.acquisitionDate),
+                usefulLifeYears: depreciation.usefulLifeYears,
+                depreciationAnnualValue: depreciation.depreciationAnnualValue,
                 assetTypeId: assetType.id,
                 assetStateId: state.id,
                 establishmentId: establishment.id,
@@ -1003,6 +1156,8 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx", opt
                     costCenter: normalizedCostCenter,
                     acquisitionValue: Number(input.acquisitionValue),
                     acquisitionDate: new Date(input.acquisitionDate),
+                    usefulLifeYears: depreciation.usefulLifeYears,
+                    depreciationAnnualValue: depreciation.depreciationAnnualValue,
                     assetTypeId: assetType.id,
                     assetStateId: state.id,
                     establishmentId: establishment.id,
@@ -1334,7 +1489,9 @@ async function buildAssetImportTemplate() {
     "Valor Adquisicion",
     "Fecha Adquisicion",
     "DESCRIPCI\u00d3N DEL BIEN",
-    "DEPRECIACI\u00d3N",
+    "Depreciacion Anual CLP",
+    "Tasa Depreciacion Anual (%)",
+    "Vida Util (anios)",
   ]);
   sheet.getRow(1).font = { bold: true };
 
@@ -1377,7 +1534,9 @@ async function buildAssetImportTemplate() {
         "POR INFORMAR",
         "POR INFORMAR",
         "Detalle referencial del bien",
-        "",
+        25000,
+        10,
+        10,
       ]);
     }
   } catch {

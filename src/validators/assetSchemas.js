@@ -59,6 +59,9 @@ const createAssetBody = z.object({
   responsibleRole: z.string().trim().min(1).max(120).optional(),
   costCenter: z.string().trim().min(1).max(120).optional(),
   acquisitionValue: z.coerce.number().positive().max(1_000_000_000),
+  usefulLifeYears: z.coerce.number().int().positive().max(120).optional(),
+  depreciationAnnualValue: z.coerce.number().positive().max(1_000_000_000).optional(),
+  depreciationAnnualRate: z.coerce.number().positive().max(100).optional(),
   acquisitionDate: z.coerce.date().refine((d) => d.getTime() <= Date.now(), {
     message: "acquisitionDate no puede ser futura",
   }),
@@ -94,6 +97,9 @@ const updateAssetBody = z
     responsibleRole: z.union([z.string().trim().min(1).max(120), z.literal("")]).optional(),
     costCenter: z.union([z.string().trim().min(1).max(120), z.literal("")]).optional(),
     acquisitionValue: z.coerce.number().positive().max(1_000_000_000).optional(),
+    usefulLifeYears: z.coerce.number().int().positive().max(120).optional(),
+    depreciationAnnualValue: z.coerce.number().positive().max(1_000_000_000).optional(),
+    depreciationAnnualRate: z.coerce.number().positive().max(100).optional(),
     acquisitionDate: z.coerce.date().refine((d) => d.getTime() <= Date.now(), {
       message: "acquisitionDate no puede ser futura",
     }).optional(),
@@ -147,6 +153,19 @@ const evidenceListQuery = z.object({
   skip: z.coerce.number().int().min(0).optional(),
 });
 
+const depreciationPoliciesQuery = z.object({
+  q: z.string().optional(),
+  includeInactive: booleanLike,
+  take: z.coerce.number().int().min(1).max(200).optional(),
+  skip: z.coerce.number().int().min(0).optional(),
+});
+
+const purgeAssetsQuery = z.object({
+  purgeDependencies: booleanLike,
+  purgeEstablishments: booleanLike,
+  forceDeleteStructure: booleanLike,
+});
+
 module.exports = {
   idParam,
   evidenceIdParam,
@@ -160,5 +179,7 @@ module.exports = {
   listAssetsQuery,
   importHistoryQuery,
   evidenceListQuery,
+  depreciationPoliciesQuery,
+  purgeAssetsQuery,
 };
 

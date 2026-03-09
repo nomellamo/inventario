@@ -91,6 +91,8 @@ model Asset {
   responsibleRut    String?
   responsibleRole   String?
   costCenter        String?
+  usefulLifeYears   Int?
+  depreciationAnnualValue Float?
   assetState        AssetState      @relation(fields: [assetStateId], references: [id])
   assetType         AssetType       @relation(fields: [assetTypeId], references: [id])
   catalogItem       CatalogItem?    @relation(fields: [catalogItemId], references: [id])
@@ -109,6 +111,28 @@ model Asset {
   @@index([internalCode])
   @@index([catalogItemId])
   @@index([isDeleted])
+}
+
+model DepreciationPolicy {
+  id               Int      @id @default(autoincrement())
+  policyKey        String   @unique
+  accountingAccount String
+  accountName      String
+  category         String?
+  subcategory      String?
+  usefulLifeYears  Int
+  annualRatePct    Float
+  method           String   @default("LINEAL")
+  residualRatePct  Float    @default(0)
+  appliesFrom      DateTime
+  observations     String?
+  status           String   @default("VIGENTE")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([status])
+  @@index([accountingAccount])
+  @@index([appliesFrom])
 }
 
 model Movement {
