@@ -241,10 +241,6 @@ function App() {
     costCenter: '',
     acquisitionValue: '',
     acquisitionDate: '',
-    depreciationMethod: 'LINEAL',
-    usefulLifeYears: '',
-    residualValue: '1',
-    depreciationStartDate: '',
     establishmentId: '',
     dependencyId: '',
     assetStateId: '',
@@ -3127,28 +3123,6 @@ function App() {
     }
     if (!useMultiProduct && !assetForm.acquisitionValue) errors.acquisitionValue = 'Requerido'
     if (!assetForm.acquisitionDate) errors.acquisitionDate = 'Requerido'
-    const usefulLifeYears = Number(assetForm.usefulLifeYears)
-    if (!assetForm.usefulLifeYears || !Number.isInteger(usefulLifeYears) || usefulLifeYears <= 0) {
-      errors.usefulLifeYears = 'Vida útil obligatoria (entero > 0)'
-    }
-    const residualValue = Number(assetForm.residualValue)
-    if (!assetForm.residualValue || !Number.isFinite(residualValue) || residualValue < 1) {
-      errors.residualValue = 'Valor residual debe ser >= 1'
-    }
-    const depreciationStartDate = String(
-      assetForm.depreciationStartDate || assetForm.acquisitionDate || ''
-    ).trim()
-    if (!depreciationStartDate) {
-      errors.depreciationStartDate = 'Fecha inicio depreciación requerida'
-    }
-    if (!useMultiProduct && !errors.acquisitionValue && !errors.residualValue) {
-      const acquisitionValue = Number(assetForm.acquisitionValue)
-      if (Number.isFinite(acquisitionValue) && Number.isFinite(residualValue)) {
-        if (acquisitionValue <= residualValue) {
-          errors.residualValue = 'Valor residual debe ser menor al valor de adquisición'
-        }
-      }
-    }
     if (assetHasResponsible && assetForm.responsibleRut) {
       const rut = String(assetForm.responsibleRut).trim()
       const compact = rut.replace(/\./g, '').replace(/\s+/g, '').toUpperCase()
@@ -3190,11 +3164,24 @@ function App() {
     marginMm: 1,
     offsetX: 0,
     offsetY: 0,
-    qrSizeMm: 17,
-    barcodeWidthMm: 14,
-    barcodeHeightMm: 3.8,
+    qrSizeMm: 15.8,
+    barcodeWidthMm: 12,
+    barcodeHeightMm: 2.2,
   }
-  const QR_PRINT_WIDTH_PX = 512
+  const QR_PRINT_WIDTH_PX = 1400
+
+  async function buildQrLabelDataUrl(qrValue, qrCodeLib) {
+    if (!qrValue) return ''
+    return qrCodeLib.toDataURL(qrValue, {
+      margin: 4,
+      width: QR_PRINT_WIDTH_PX,
+      errorCorrectionLevel: 'H',
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF',
+      },
+    })
+  }
 
   function getLabelData(asset) {
     const code = asset?.internalCode ? `INV-${asset.internalCode}` : ''
@@ -3304,36 +3291,30 @@ function App() {
     doc.setFontSize(8)
     doc.text(name.substring(0, 22), centerX, baseY + 6.3, { align: 'center' })
     doc.setFontSize(6.2)
-    const metaLines = [
-      label.responsibleName ? `Resp: ${label.responsibleName.substring(0, 20)}` : null,
-      label.assetState ? `Estado: ${label.assetState.substring(0, 16)}` : null,
-    ].filter(Boolean)
+    const metaLines = []
     let y = baseY + 8.6
     for (const line of metaLines.slice(0, 3)) {
       doc.text(line, centerX, y, { align: 'center' })
       y += 2.3
     }
 
-    const qrValue = label.technicalSheetUrl || label.code
+    const qrValue = label.code || label.technicalSheetUrl
     let qr = qrCodeUrl
     if (!qr) {
-      qr = await QRCode.toDataURL(qrValue, {
-        margin: 1,
-        width: QR_PRINT_WIDTH_PX,
-        errorCorrectionLevel: 'H',
-      })
+      qr = await buildQrLabelDataUrl(qrValue, QRCode)
     }
     const barcode = await buildBarcodeDataUrl(label.code)
     const qrSize = LABEL.qrSizeMm
     const barcodeWidth = LABEL.barcodeWidthMm
     const barcodeHeight = LABEL.barcodeHeightMm
-    const mediaY = LABEL.heightMm - LABEL.marginMm - qrSize - 1 + LABEL.offsetY
-    const qrX = baseX + (contentWidth - (qrSize + 1 + barcodeWidth)) / 2
+    const mediaGap = 0.3
+    const mediaY = baseY + 10.8
+    const qrX = baseX + (contentWidth - qrSize) / 2
     const qrY = mediaY
-    const barcodeX = qrX + qrSize + 1
-    const barcodeY = qrY + (qrSize - barcodeHeight) / 2
-    doc.addImage(qr, 'PNG', qrX, qrY, qrSize, qrSize)
-    doc.addImage(barcode, 'PNG', barcodeX, barcodeY, barcodeWidth, barcodeHeight)
+    const barcodeX = baseX + (contentWidth - barcodeWidth) / 2
+    const barcodeY = qrY + qrSize + mediaGap
+    doc.addImage(qr, 'PNG', qrX, qrY, qrSize, qrSize, undefined, 'NONE')
+    doc.addImage(barcode, 'PNG', barcodeX, barcodeY, barcodeWidth, barcodeHeight, undefined, 'NONE')
     doc.save(`label_${label.code}.pdf`)
   }
 
@@ -3365,31 +3346,25 @@ function App() {
       doc.setFontSize(8)
       doc.text(name.substring(0, 22), centerX, baseY + 6.3, { align: 'center' })
       doc.setFontSize(6.2)
-      const metaLines = [
-        label.responsibleName ? `Resp: ${label.responsibleName.substring(0, 20)}` : null,
-        label.assetState ? `Estado: ${label.assetState.substring(0, 16)}` : null,
-      ].filter(Boolean)
+      const metaLines = []
       let y = baseY + 8.6
       for (const line of metaLines.slice(0, 3)) {
         doc.text(line, centerX, y, { align: 'center' })
         y += 2.3
       }
-      const qr = await QRCode.toDataURL(label.technicalSheetUrl || label.code, {
-        margin: 1,
-        width: QR_PRINT_WIDTH_PX,
-        errorCorrectionLevel: 'H',
-      })
+      const qr = await buildQrLabelDataUrl(label.code || label.technicalSheetUrl, QRCode)
       const barcode = await buildBarcodeDataUrl(label.code)
       const qrSize = LABEL.qrSizeMm
       const barcodeWidth = LABEL.barcodeWidthMm
       const barcodeHeight = LABEL.barcodeHeightMm
-      const mediaY = LABEL.heightMm - LABEL.marginMm - qrSize - 1 + LABEL.offsetY
-      const qrX = baseX + (contentWidth - (qrSize + 1 + barcodeWidth)) / 2
+      const mediaGap = 0.3
+      const mediaY = baseY + 10.8
+      const qrX = baseX + (contentWidth - qrSize) / 2
       const qrY = mediaY
-      const barcodeX = qrX + qrSize + 1
-      const barcodeY = qrY + (qrSize - barcodeHeight) / 2
-      doc.addImage(qr, 'PNG', qrX, qrY, qrSize, qrSize)
-      doc.addImage(barcode, 'PNG', barcodeX, barcodeY, barcodeWidth, barcodeHeight)
+      const barcodeX = baseX + (contentWidth - barcodeWidth) / 2
+      const barcodeY = qrY + qrSize + mediaGap
+      doc.addImage(qr, 'PNG', qrX, qrY, qrSize, qrSize, undefined, 'NONE')
+      doc.addImage(barcode, 'PNG', barcodeX, barcodeY, barcodeWidth, barcodeHeight, undefined, 'NONE')
     }
     doc.save(`${filePrefix}_${Date.now()}.pdf`)
   }
@@ -3399,14 +3374,10 @@ function App() {
     const { default: QRCode } = await loadQrCodeLib()
     const label = getLabelData(createdAsset)
 
-    const qrValue = label.technicalSheetUrl || label.code
+    const qrValue = label.code || label.technicalSheetUrl
     let qr = qrCodeUrl
     if (!qr) {
-      qr = await QRCode.toDataURL(qrValue, {
-        margin: 1,
-        width: QR_PRINT_WIDTH_PX,
-        errorCorrectionLevel: 'H',
-      })
+      qr = await buildQrLabelDataUrl(qrValue, QRCode)
     }
     const barcode = await buildBarcodeDataUrl(label.code)
 
@@ -3416,13 +3387,7 @@ function App() {
       return
     }
 
-    const metaLines = [
-      label.responsibleName && `Resp: ${escapeHtml(label.responsibleName)}`,
-      label.assetState && `Estado: ${escapeHtml(label.assetState)}`,
-    ]
-      .filter(Boolean)
-      .map((line) => `<div>${line}</div>`)
-      .join('')
+    const metaLines = ''
 
     const html = `<!doctype html>
 <html>
@@ -3444,16 +3409,17 @@ function App() {
       width: ${LABEL.widthMm - 2 * LABEL.marginMm}mm;
       height: ${LABEL.heightMm - 2 * LABEL.marginMm}mm;
       transform: translate(${LABEL.offsetX}mm, ${LABEL.offsetY}mm);
+      position: relative;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
+      justify-content: flex-start;
       align-items: center;
       text-align: center;
       overflow: hidden;
     }
     .top {
       width: 100%;
-      min-height: 16mm;
+      min-height: 8mm;
       overflow: hidden;
       display: flex;
       flex-direction: column;
@@ -3493,19 +3459,23 @@ function App() {
     }
     .media {
       width: 100%;
+      position: absolute;
+      left: 50%;
+      top: 10.8mm;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 1.5mm;
-      margin-bottom: 0.4mm;
+      gap: 0.4mm;
+      transform: translateX(-50%);
     }
     .qr {
       width: ${LABEL.qrSizeMm}mm;
       height: ${LABEL.qrSizeMm}mm;
-      border: 0.2mm solid #e2e8f0;
-      padding: 0.25mm;
-      object-fit: contain;
       background: #fff;
+      display: block;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
     }
     .barcode {
       width: ${LABEL.barcodeWidthMm}mm;
@@ -3565,19 +3535,9 @@ function App() {
     const sheets = []
     for (const item of batch) {
       const label = getLabelData(item)
-      const qr = await QRCode.toDataURL(label.technicalSheetUrl || label.code, {
-        margin: 1,
-        width: QR_PRINT_WIDTH_PX,
-        errorCorrectionLevel: 'H',
-      })
+      const qr = await buildQrLabelDataUrl(label.code || label.technicalSheetUrl, QRCode)
       const barcode = await buildBarcodeDataUrl(label.code)
-      const metaLines = [
-        label.responsibleName && `Resp: ${escapeHtml(label.responsibleName)}`,
-        label.assetState && `Estado: ${escapeHtml(label.assetState)}`,
-      ]
-        .filter(Boolean)
-        .map((line) => `<div>${line}</div>`)
-        .join('')
+      const metaLines = ''
       sheets.push(`
   <div class="sheet">
     <div class="top">
@@ -3610,9 +3570,10 @@ function App() {
       height: ${LABEL.heightMm}mm;
       padding: ${LABEL.marginMm}mm;
       transform: translate(${LABEL.offsetX}mm, ${LABEL.offsetY}mm);
+      position: relative;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
+      justify-content: flex-start;
       align-items: center;
       text-align: center;
       overflow: hidden;
@@ -3621,7 +3582,7 @@ function App() {
     .sheet:last-child { page-break-after: auto; }
     .top {
       width: 100%;
-      min-height: 16mm;
+      min-height: 8mm;
       overflow: hidden;
       display: flex;
       flex-direction: column;
@@ -3661,19 +3622,23 @@ function App() {
     }
     .media {
       width: 100%;
+      position: absolute;
+      left: 50%;
+      top: 10.8mm;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 1.5mm;
-      margin-bottom: 0.4mm;
+      gap: 0.4mm;
+      transform: translateX(-50%);
     }
     .qr {
       width: ${LABEL.qrSizeMm}mm;
       height: ${LABEL.qrSizeMm}mm;
-      border: 0.2mm solid #e2e8f0;
-      padding: 0.25mm;
-      object-fit: contain;
       background: #fff;
+      display: block;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
     }
     .barcode {
       width: ${LABEL.barcodeWidthMm}mm;
@@ -3895,21 +3860,6 @@ function App() {
       const useMultiProduct = assetMultiProductEnabled
       const requestedQuantity = Number(assetForm.quantity)
       const serialValue = String(assetForm.serialNumber || '').trim()
-      const usefulLifeYears = Number(assetForm.usefulLifeYears)
-      const residualValue = Number(assetForm.residualValue)
-      const depreciationStartDate = String(
-        assetForm.depreciationStartDate || assetForm.acquisitionDate || ''
-      ).trim()
-      const normalizeDepreciationAnnual = (acquisitionValue) => {
-        const value = Number(acquisitionValue)
-        if (!Number.isFinite(value) || value <= 0) return undefined
-        if (!Number.isFinite(usefulLifeYears) || usefulLifeYears <= 0) return undefined
-        if (!Number.isFinite(residualValue) || residualValue < 1) return undefined
-        const base = Math.max(value - residualValue, 0)
-        const annual = base / usefulLifeYears
-        if (!Number.isFinite(annual) || annual <= 0) return undefined
-        return Number(annual.toFixed(2))
-      }
       const basePayload = {
         establishmentId: Number(assetForm.establishmentId),
         dependencyId: Number(assetForm.dependencyId),
@@ -3917,7 +3867,6 @@ function App() {
         assetTypeId: Number(assetForm.assetTypeId),
         accountingAccount: assetForm.accountingAccount,
         acquisitionDate: assetForm.acquisitionDate,
-        usefulLifeYears,
       }
       if (assetHasResponsible) {
         if (assetForm.responsibleName) basePayload.responsibleName = assetForm.responsibleName
@@ -3932,28 +3881,22 @@ function App() {
       let createdItems = []
       if (useMultiProduct) {
         for (const row of assetMultiProducts) {
-          const annualDep = normalizeDepreciationAnnual(row.acquisitionValue)
           const rowPayload = {
             ...basePayload,
             catalogItemId: Number(row.catalogItemId),
             quantity: Number(row.quantity),
             acquisitionValue: Number(row.acquisitionValue),
           }
-          if (annualDep) rowPayload.depreciationAnnualValue = annualDep
-          if (depreciationStartDate) rowPayload.acquisitionDate = depreciationStartDate
           const created = await api('/assets', { method: 'POST', body: rowPayload })
           const rowItems = Array.isArray(created?.items) ? created.items : created ? [created] : []
           createdItems.push(...rowItems)
         }
       } else {
-        const annualDep = normalizeDepreciationAnnual(assetForm.acquisitionValue)
         const payload = {
           ...basePayload,
           quantity: requestedQuantity,
           acquisitionValue: Number(assetForm.acquisitionValue),
         }
-        if (annualDep) payload.depreciationAnnualValue = annualDep
-        if (depreciationStartDate) payload.acquisitionDate = depreciationStartDate
         if (assetForm.catalogItemId) payload.catalogItemId = Number(assetForm.catalogItemId)
         if (assetForm.name) payload.name = assetForm.name
         if (assetForm.brand) payload.brand = assetForm.brand
@@ -5924,7 +5867,6 @@ function App() {
                           Código: <strong>{createdLabel.code}</strong>
                         </div>
                         {qrCodeUrl && <img className="qr" src={qrCodeUrl} alt="QR" />}
-                        {qrCodeUrl && <div className="qr-caption">Escanea para abrir ficha técnica</div>}
                         <div className="actions">
                           <a
                             className="ghost"
