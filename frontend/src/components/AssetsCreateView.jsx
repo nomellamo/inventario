@@ -1,4 +1,5 @@
-﻿import { UI_TEXT } from '../constants/uiText'
+import { useMemo } from 'react'
+import { UI_TEXT } from '../constants/uiText'
 
 function AssetCreateFormCard(props) {
   const {
@@ -33,6 +34,7 @@ function AssetCreateFormCard(props) {
     setAssetHasResponsible,
     normalizeRutValue,
     normalizeCostCenterValue,
+    calculateStraightLineDepreciation,
     handleCreateAsset,
     assetCreating,
     setCreatedAsset,
@@ -41,6 +43,21 @@ function AssetCreateFormCard(props) {
     setAssetMultiProducts,
     setQrCodeUrl,
   } = props
+
+  const depreciationPreview = useMemo(
+    () =>
+      calculateStraightLineDepreciation({
+        acquisitionValue: assetForm.acquisitionValue,
+        usefulLifeYears: assetForm.usefulLifeYears,
+        residualValue: assetForm.residualValue,
+      }),
+    [
+      calculateStraightLineDepreciation,
+      assetForm.acquisitionValue,
+      assetForm.usefulLifeYears,
+      assetForm.residualValue,
+    ]
+  )
 
   return (
     <div className="form-card">
@@ -421,6 +438,70 @@ function AssetCreateFormCard(props) {
         {assetErrors.acquisitionDate && <p className="error">{assetErrors.acquisitionDate}</p>}
       </div>
 
+      <div className="field">
+        <label>Depreciacion contable</label>
+        <div className="field">
+          <label>Metodo</label>
+          <input value={assetForm.depreciationMethod || 'LINEAL'} readOnly disabled />
+          <p className="muted">LINEAL: se reparte la depreciacion en cuotas iguales por anio.</p>
+        </div>
+        <div className="field">
+          <label>Vida util (anios)</label>
+          <input
+            type="number"
+            min="1"
+            step="1"
+            value={assetForm.usefulLifeYears}
+            onChange={(e) => setAssetForm((prev) => ({ ...prev, usefulLifeYears: e.target.value }))}
+            placeholder="Ej: 4"
+          />
+          {assetErrors.usefulLifeYears && <p className="error">{assetErrors.usefulLifeYears}</p>}
+        </div>
+        <div className="field">
+          <label>Valor residual (%)</label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={assetForm.residualValue}
+            onChange={(e) => setAssetForm((prev) => ({ ...prev, residualValue: e.target.value }))}
+            placeholder="Ej: 1"
+          />
+          <p className="muted">
+            Se calcula automatico como monto: valor de adquisicion x porcentaje / 100.
+          </p>
+          {assetErrors.residualValue && <p className="error">{assetErrors.residualValue}</p>}
+        </div>
+        <div className="field">
+          <label>Fecha inicio depreciacion</label>
+          <input
+            type="date"
+            value={assetForm.depreciationStartDate}
+            onChange={(e) =>
+              setAssetForm((prev) => ({ ...prev, depreciationStartDate: e.target.value }))
+            }
+          />
+          <p className="muted">Si no se informa, se considera la fecha de adquisicion.</p>
+        </div>
+        {!assetMultiProductEnabled && depreciationPreview && (
+          <div className="muted">
+            <p>Preview de calculo</p>
+            <p>{`Valor residual (%): ${depreciationPreview.residualRate.toFixed(4)}`}</p>
+            <p>{`Valor residual (CLP): ${depreciationPreview.residualAmount.toFixed(2)}`}</p>
+            <p>{`Base depreciable: ${depreciationPreview.depreciableBase.toFixed(2)}`}</p>
+            <p>{`Depreciacion anual: ${depreciationPreview.annual.toFixed(2)}`}</p>
+            <p>{`Depreciacion mensual: ${depreciationPreview.monthly.toFixed(2)}`}</p>
+            <p>{`Tasa depreciacion anual (%): ${depreciationPreview.rate.toFixed(4)}`}</p>
+          </div>
+        )}
+        {assetMultiProductEnabled && (
+          <p className="muted">
+            En modo lote, el calculo se aplica automaticamente por cada producto segun su precio.
+          </p>
+        )}
+        {assetErrors.depreciationConfig && <p className="error">{assetErrors.depreciationConfig}</p>}
+      </div>
+
       <div className="actions">
         <button className="primary" onClick={handleCreateAsset} disabled={assetCreating}>
           {assetCreating
@@ -448,6 +529,10 @@ function AssetCreateFormCard(props) {
                 costCenter: '',
                 acquisitionValue: '',
                 acquisitionDate: '',
+                depreciationMethod: 'LINEAL',
+                usefulLifeYears: '',
+                residualValue: '',
+                depreciationStartDate: '',
                 establishmentId: '',
                 dependencyId: '',
                 assetStateId: '',
