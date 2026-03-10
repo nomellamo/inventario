@@ -241,6 +241,10 @@ function App() {
     costCenter: '',
     acquisitionValue: '',
     acquisitionDate: '',
+    depreciationMethod: 'LINEAL',
+    usefulLifeYears: '',
+    residualValue: '1',
+    depreciationStartDate: '',
     establishmentId: '',
     dependencyId: '',
     assetStateId: '',
@@ -3123,6 +3127,28 @@ function App() {
     }
     if (!useMultiProduct && !assetForm.acquisitionValue) errors.acquisitionValue = 'Requerido'
     if (!assetForm.acquisitionDate) errors.acquisitionDate = 'Requerido'
+    const usefulLifeYears = Number(assetForm.usefulLifeYears)
+    if (!assetForm.usefulLifeYears || !Number.isInteger(usefulLifeYears) || usefulLifeYears <= 0) {
+      errors.usefulLifeYears = 'Vida útil obligatoria (entero > 0)'
+    }
+    const residualValue = Number(assetForm.residualValue)
+    if (!assetForm.residualValue || !Number.isFinite(residualValue) || residualValue < 1) {
+      errors.residualValue = 'Valor residual debe ser >= 1'
+    }
+    const depreciationStartDate = String(
+      assetForm.depreciationStartDate || assetForm.acquisitionDate || ''
+    ).trim()
+    if (!depreciationStartDate) {
+      errors.depreciationStartDate = 'Fecha inicio depreciación requerida'
+    }
+    if (!useMultiProduct && !errors.acquisitionValue && !errors.residualValue) {
+      const acquisitionValue = Number(assetForm.acquisitionValue)
+      if (Number.isFinite(acquisitionValue) && Number.isFinite(residualValue)) {
+        if (acquisitionValue <= residualValue) {
+          errors.residualValue = 'Valor residual debe ser menor al valor de adquisición'
+        }
+      }
+    }
     if (assetHasResponsible && assetForm.responsibleRut) {
       const rut = String(assetForm.responsibleRut).trim()
       const compact = rut.replace(/\./g, '').replace(/\s+/g, '').toUpperCase()
@@ -3860,6 +3886,21 @@ function App() {
       const useMultiProduct = assetMultiProductEnabled
       const requestedQuantity = Number(assetForm.quantity)
       const serialValue = String(assetForm.serialNumber || '').trim()
+      const usefulLifeYears = Number(assetForm.usefulLifeYears)
+      const residualValue = Number(assetForm.residualValue)
+      const depreciationStartDate = String(
+        assetForm.depreciationStartDate || assetForm.acquisitionDate || ''
+      ).trim()
+      const normalizeDepreciationAnnual = (acquisitionValue) => {
+        const value = Number(acquisitionValue)
+        if (!Number.isFinite(value) || value <= 0) return undefined
+        if (!Number.isFinite(usefulLifeYears) || usefulLifeYears <= 0) return undefined
+        if (!Number.isFinite(residualValue) || residualValue < 1) return undefined
+        const base = Math.max(value - residualValue, 0)
+        const annual = base / usefulLifeYears
+        if (!Number.isFinite(annual) || annual <= 0) return undefined
+        return Number(annual.toFixed(2))
+      }
       const basePayload = {
         establishmentId: Number(assetForm.establishmentId),
         dependencyId: Number(assetForm.dependencyId),
@@ -3867,6 +3908,7 @@ function App() {
         assetTypeId: Number(assetForm.assetTypeId),
         accountingAccount: assetForm.accountingAccount,
         acquisitionDate: assetForm.acquisitionDate,
+        usefulLifeYears,
       }
       if (assetHasResponsible) {
         if (assetForm.responsibleName) basePayload.responsibleName = assetForm.responsibleName
@@ -3881,22 +3923,28 @@ function App() {
       let createdItems = []
       if (useMultiProduct) {
         for (const row of assetMultiProducts) {
+          const annualDep = normalizeDepreciationAnnual(row.acquisitionValue)
           const rowPayload = {
             ...basePayload,
             catalogItemId: Number(row.catalogItemId),
             quantity: Number(row.quantity),
             acquisitionValue: Number(row.acquisitionValue),
           }
+          if (annualDep) rowPayload.depreciationAnnualValue = annualDep
+          if (depreciationStartDate) rowPayload.acquisitionDate = depreciationStartDate
           const created = await api('/assets', { method: 'POST', body: rowPayload })
           const rowItems = Array.isArray(created?.items) ? created.items : created ? [created] : []
           createdItems.push(...rowItems)
         }
       } else {
+        const annualDep = normalizeDepreciationAnnual(assetForm.acquisitionValue)
         const payload = {
           ...basePayload,
           quantity: requestedQuantity,
           acquisitionValue: Number(assetForm.acquisitionValue),
         }
+        if (annualDep) payload.depreciationAnnualValue = annualDep
+        if (depreciationStartDate) payload.acquisitionDate = depreciationStartDate
         if (assetForm.catalogItemId) payload.catalogItemId = Number(assetForm.catalogItemId)
         if (assetForm.name) payload.name = assetForm.name
         if (assetForm.brand) payload.brand = assetForm.brand

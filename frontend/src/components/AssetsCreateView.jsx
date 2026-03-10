@@ -41,6 +41,23 @@ function AssetCreateFormCard(props) {
     setAssetMultiProducts,
     setQrCodeUrl,
   } = props
+  const depreciationMethod = assetForm.depreciationMethod || 'LINEAL'
+  const usefulLifeYears = Number(assetForm.usefulLifeYears)
+  const residualValue = Number(assetForm.residualValue)
+  const previewAcquisitionValue = Number(assetForm.acquisitionValue)
+  const depreciationBase =
+    Number.isFinite(previewAcquisitionValue) &&
+    Number.isFinite(residualValue) &&
+    previewAcquisitionValue > 0
+      ? Math.max(previewAcquisitionValue - residualValue, 0)
+      : 0
+  const annualDepreciation =
+    Number.isFinite(depreciationBase) &&
+    Number.isFinite(usefulLifeYears) &&
+    usefulLifeYears > 0
+      ? depreciationBase / usefulLifeYears
+      : 0
+  const monthlyDepreciation = annualDepreciation > 0 ? annualDepreciation / 12 : 0
 
   return (
     <div className="form-card">
@@ -416,10 +433,97 @@ function AssetCreateFormCard(props) {
         <input
           type="date"
           value={assetForm.acquisitionDate}
-          onChange={(e) => setAssetForm((prev) => ({ ...prev, acquisitionDate: e.target.value }))}
+          onChange={(e) =>
+            setAssetForm((prev) => ({
+              ...prev,
+              acquisitionDate: e.target.value,
+              depreciationStartDate: prev.depreciationStartDate || e.target.value,
+            }))
+          }
         />
         {assetErrors.acquisitionDate && <p className="error">{assetErrors.acquisitionDate}</p>}
       </div>
+
+      <details className="field" open>
+        <summary>
+          <strong>Depreciación contable</strong>
+        </summary>
+        <div className="field" style={{ marginTop: 10 }}>
+          <label>Método</label>
+          <select
+            value={depreciationMethod}
+            onChange={(e) =>
+              setAssetForm((prev) => ({
+                ...prev,
+                depreciationMethod: e.target.value || 'LINEAL',
+              }))
+            }
+          >
+            <option value="LINEAL">LINEAL</option>
+          </select>
+        </div>
+
+        <div className="field">
+          <label>Vida útil (años)</label>
+          <input
+            type="number"
+            min="1"
+            step="1"
+            value={assetForm.usefulLifeYears}
+            onChange={(e) =>
+              setAssetForm((prev) => ({ ...prev, usefulLifeYears: e.target.value }))
+            }
+            placeholder="Ej: 5"
+          />
+          {assetErrors.usefulLifeYears && <p className="error">{assetErrors.usefulLifeYears}</p>}
+        </div>
+
+        <div className="field">
+          <label>Valor residual</label>
+          <input
+            type="number"
+            min="1"
+            step="1"
+            value={assetForm.residualValue}
+            onChange={(e) => setAssetForm((prev) => ({ ...prev, residualValue: e.target.value }))}
+            placeholder="1"
+          />
+          {assetErrors.residualValue && <p className="error">{assetErrors.residualValue}</p>}
+        </div>
+
+        <div className="field">
+          <label>Fecha inicio depreciación</label>
+          <input
+            type="date"
+            value={assetForm.depreciationStartDate || assetForm.acquisitionDate || ''}
+            onChange={(e) =>
+              setAssetForm((prev) => ({
+                ...prev,
+                depreciationStartDate: e.target.value,
+              }))
+            }
+          />
+          {assetErrors.depreciationStartDate && (
+            <p className="error">{assetErrors.depreciationStartDate}</p>
+          )}
+          <p className="muted">
+            Si no se informa, usa la fecha de adquisición/puesta en servicio.
+          </p>
+        </div>
+
+        <div className="field">
+          <label>Preview de cálculo</label>
+          <div className="muted">
+            <div>Base depreciable: {depreciationBase > 0 ? depreciationBase.toFixed(2) : '0.00'}</div>
+            <div>
+              Depreciación anual: {annualDepreciation > 0 ? annualDepreciation.toFixed(2) : '0.00'}
+            </div>
+            <div>
+              Depreciación mensual: {monthlyDepreciation > 0 ? monthlyDepreciation.toFixed(2) : '0.00'}
+            </div>
+          </div>
+        </div>
+      </details>
 
       <div className="actions">
         <button className="primary" onClick={handleCreateAsset} disabled={assetCreating}>
@@ -448,6 +552,10 @@ function AssetCreateFormCard(props) {
                 costCenter: '',
                 acquisitionValue: '',
                 acquisitionDate: '',
+                depreciationMethod: 'LINEAL',
+                usefulLifeYears: '',
+                residualValue: '1',
+                depreciationStartDate: '',
                 establishmentId: '',
                 dependencyId: '',
                 assetStateId: '',
