@@ -3172,18 +3172,39 @@ function App() {
     const establishment = asset?.establishment?.name || ''
     const dependency = asset?.dependency?.name || ''
     const assetState = asset?.assetState?.name || ''
-    return { code, name, establishment, dependency, assetState }
+    const assetId = getSafeAssetId(asset)
+    const technicalSheetUrl = buildAssetTechnicalSheetUrl(asset)
+    return { code, name, establishment, dependency, assetState, assetId, technicalSheetUrl }
   }
 
-  function normalizeScannedInternalCode(rawValue) {
+  function buildAssetTechnicalSheetUrl(assetLike) {
+    const assetId = getSafeAssetId(assetLike)
+    if (!assetId) return ''
+    const base = String(API_BASE || '/api').trim().replace(/\/+$/, '')
+    if (/^https?:\/\//i.test(base)) {
+      return `${base}/assets/public/${assetId}/technical-sheet`
+    }
+    const normalizedBase = base.startsWith('/') ? base : `/${base}`
+    return `${window.location.origin}${normalizedBase}/assets/public/${assetId}/technical-sheet`
+  }
+
+  function normalizeScannedAssetReference(rawValue) {
     const raw = String(rawValue || '').trim()
     if (!raw) return null
+    const pathMatch = raw.match(/\/assets\/public\/(\d+)\/technical-sheet/i)
+    if (pathMatch?.[1]) {
+      return { assetId: Number(pathMatch[1]), internalCode: null }
+    }
+    const queryId = raw.match(/[?&]assetId=(\d{1,12})/i)
+    if (queryId?.[1]) {
+      return { assetId: Number(queryId[1]), internalCode: null }
+    }
     const direct = Number(raw)
-    if (Number.isFinite(direct) && direct > 0) return Math.trunc(direct)
+    if (Number.isFinite(direct) && direct > 0) return { internalCode: Math.trunc(direct), assetId: null }
     const invMatch = raw.match(/INV[-_\s]?(\d{1,12})/i)
-    if (invMatch?.[1]) return Number(invMatch[1])
+    if (invMatch?.[1]) return { internalCode: Number(invMatch[1]), assetId: null }
     const anyDigits = raw.match(/(\d{1,12})/)
-    if (anyDigits?.[1]) return Number(anyDigits[1])
+    if (anyDigits?.[1]) return { internalCode: Number(anyDigits[1]), assetId: null }
     return null
   }
 
@@ -3235,9 +3256,10 @@ function App() {
       y += 2.3
     }
 
+    const qrValue = label.technicalSheetUrl || label.code
     let qr = qrCodeUrl
     if (!qr) {
-      qr = await QRCode.toDataURL(label.code, { margin: 1, width: 160 })
+      qr = await QRCode.toDataURL(qrValue, { margin: 1, width: 160 })
     }
     const barcode = await buildBarcodeDataUrl(label.code)
     const qrSize = 8
@@ -3291,7 +3313,10 @@ function App() {
         doc.text(line, centerX, y, { align: 'center' })
         y += 2.3
       }
-      const qr = await QRCode.toDataURL(label.code, { margin: 1, width: 160 })
+      const qr = await QRCode.toDataURL(label.technicalSheetUrl || label.code, {
+        margin: 1,
+        width: 160,
+      })
       const barcode = await buildBarcodeDataUrl(label.code)
       const qrSize = 8
       const barcodeWidth = 24
@@ -3312,9 +3337,10 @@ function App() {
     const { default: QRCode } = await loadQrCodeLib()
     const label = getLabelData(createdAsset)
 
+    const qrValue = label.technicalSheetUrl || label.code
     let qr = qrCodeUrl
     if (!qr) {
-      qr = await QRCode.toDataURL(label.code, { margin: 1, width: 160 })
+      qr = await QRCode.toDataURL(qrValue, { margin: 1, width: 160 })
     }
     const barcode = await buildBarcodeDataUrl(label.code)
 
@@ -3474,7 +3500,10 @@ function App() {
     const sheets = []
     for (const item of batch) {
       const label = getLabelData(item)
-      const qr = await QRCode.toDataURL(label.code, { margin: 1, width: 160 })
+      const qr = await QRCode.toDataURL(label.technicalSheetUrl || label.code, {
+        margin: 1,
+        width: 160,
+      })
       const barcode = await buildBarcodeDataUrl(label.code)
       const metaLines = [
         label.establishment && `Est: ${escapeHtml(label.establishment)}`,
@@ -4009,25 +4038,32 @@ function App() {
   }
 
   async function resolveScannedAsset() {
-    const normalizedCode = normalizeScannedInternalCode(scanInput)
-    if (!normalizedCode) {
+    const reference = normalizeScannedAssetReference(scanInput)
+    if (!reference) {
       setScanResult({
         status: 'error',
-        message: 'Código QR inválido. Usa formato INV-123 o código numerico.',
+        message: 'Código QR inválido. Usa URL de ficha, INV-123 o código numérico.',
       })
       return
     }
     try {
-      const params = new URLSearchParams()
-      params.set('internalCode', String(normalizedCode))
-      params.set('take', '1')
-      params.set('skip', '0')
-      const data = await api(`/assets?${params.toString()}`)
-      const asset = data?.items?.[0] || null
+      let asset = null
+      if (reference.assetId) {
+        asset = await api(`/assets/${reference.assetId}`)
+      } else {
+        const params = new URLSearchParams()
+        params.set('internalCode', String(reference.internalCode))
+        params.set('take', '1')
+        params.set('skip', '0')
+        const data = await api(`/assets?${params.toString()}`)
+        asset = data?.items?.[0] || null
+      }
       if (!asset) {
         setScanResult({
           status: 'error',
-          message: `No se encontro activo fijo para INV-${normalizedCode}.`,
+          message: reference.internalCode
+            ? `No se encontró activo fijo para INV-${reference.internalCode}.`
+            : 'No se encontró activo fijo para el QR escaneado.',
         })
         return
       }
@@ -5116,13 +5152,14 @@ function App() {
       setQrCodeUrl('')
       return
     }
-    const value = `INV-${createdAsset.internalCode}`
+    const barcodeValue = `INV-${createdAsset.internalCode}`
+    const qrValue = buildAssetTechnicalSheetUrl(createdAsset) || barcodeValue
     let cancelled = false
     Promise.all([loadQrCodeLib(), loadJsBarcodeLib()])
       .then(([qrModule, barcodeModule]) => {
         if (cancelled) return
         qrModule.default
-          .toDataURL(value, { margin: 1, width: 180 })
+          .toDataURL(qrValue, { margin: 1, width: 180 })
           .then((url) => {
             if (!cancelled) setQrCodeUrl(url)
           })
@@ -5132,7 +5169,7 @@ function App() {
         const el = document.getElementById('barcode-preview')
         if (el) {
           try {
-            barcodeModule.default(el, value, {
+            barcodeModule.default(el, barcodeValue, {
               format: 'CODE128',
               displayValue: true,
               height: 48,
