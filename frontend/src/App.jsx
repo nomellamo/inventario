@@ -3198,24 +3198,43 @@ function App() {
   function normalizeScannedAssetReference(rawValue) {
     const raw = String(rawValue || '').trim()
     if (!raw) return null
+    const absolutePublicUrlMatch = raw.match(
+      /^https?:\/\/[^/\s]+\/(?:api\/)?assets\/public\/(\d+)\/(?:ficha\.html|technical-sheet)/i
+    )
+    if (absolutePublicUrlMatch?.[1]) {
+      return {
+        assetId: Number(absolutePublicUrlMatch[1]),
+        internalCode: null,
+        publicUrl: raw,
+      }
+    }
     const htmlPathMatch = raw.match(/\/assets\/public\/(\d+)\/ficha\.html/i)
     if (htmlPathMatch?.[1]) {
-      return { assetId: Number(htmlPathMatch[1]), internalCode: null }
+      return {
+        assetId: Number(htmlPathMatch[1]),
+        internalCode: null,
+        publicUrl: buildAssetTechnicalSheetUrl({ id: Number(htmlPathMatch[1]) }),
+      }
     }
     const pathMatch = raw.match(/\/assets\/public\/(\d+)\/technical-sheet/i)
     if (pathMatch?.[1]) {
-      return { assetId: Number(pathMatch[1]), internalCode: null }
+      return {
+        assetId: Number(pathMatch[1]),
+        internalCode: null,
+        publicUrl: buildAssetTechnicalSheetUrl({ id: Number(pathMatch[1]) }),
+      }
     }
     const queryId = raw.match(/[?&]assetId=(\d{1,12})/i)
     if (queryId?.[1]) {
-      return { assetId: Number(queryId[1]), internalCode: null }
+      return { assetId: Number(queryId[1]), internalCode: null, publicUrl: null }
     }
     const direct = Number(raw)
-    if (Number.isFinite(direct) && direct > 0) return { internalCode: Math.trunc(direct), assetId: null }
+    if (Number.isFinite(direct) && direct > 0)
+      return { internalCode: Math.trunc(direct), assetId: null, publicUrl: null }
     const invMatch = raw.match(/INV[-_\s]?(\d{1,12})/i)
-    if (invMatch?.[1]) return { internalCode: Number(invMatch[1]), assetId: null }
+    if (invMatch?.[1]) return { internalCode: Number(invMatch[1]), assetId: null, publicUrl: null }
     const anyDigits = raw.match(/(\d{1,12})/)
-    if (anyDigits?.[1]) return { internalCode: Number(anyDigits[1]), assetId: null }
+    if (anyDigits?.[1]) return { internalCode: Number(anyDigits[1]), assetId: null, publicUrl: null }
     return null
   }
 
@@ -4058,6 +4077,17 @@ function App() {
       return
     }
     try {
+      if (reference.publicUrl) {
+        const opened = window.open(reference.publicUrl, '_blank', 'noopener,noreferrer')
+        if (!opened) {
+          window.location.href = reference.publicUrl
+        }
+        setScanResult({
+          status: 'ok',
+          message: 'Ficha técnica pública abierta sin autenticación.',
+        })
+        return
+      }
       let asset = null
       if (reference.assetId) {
         asset = await api(`/assets/${reference.assetId}`)
