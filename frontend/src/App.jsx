@@ -3190,6 +3190,9 @@ function App() {
     marginMm: 1,
     offsetX: 0,
     offsetY: 0,
+    qrSizeMm: 11,
+    barcodeWidthMm: 20,
+    barcodeHeightMm: 5,
   }
 
   function getLabelData(asset) {
@@ -3315,12 +3318,12 @@ function App() {
     const qrValue = label.technicalSheetUrl || label.code
     let qr = qrCodeUrl
     if (!qr) {
-      qr = await QRCode.toDataURL(qrValue, { margin: 1, width: 160 })
+      qr = await QRCode.toDataURL(qrValue, { margin: 1, width: 260 })
     }
     const barcode = await buildBarcodeDataUrl(label.code)
-    const qrSize = 8
-    const barcodeWidth = 24
-    const barcodeHeight = 5
+    const qrSize = LABEL.qrSizeMm
+    const barcodeWidth = LABEL.barcodeWidthMm
+    const barcodeHeight = LABEL.barcodeHeightMm
     const mediaY = LABEL.heightMm - LABEL.marginMm - qrSize - 1 + LABEL.offsetY
     const qrX = baseX + (contentWidth - (qrSize + 1 + barcodeWidth)) / 2
     const qrY = mediaY
@@ -3371,12 +3374,12 @@ function App() {
       }
       const qr = await QRCode.toDataURL(label.technicalSheetUrl || label.code, {
         margin: 1,
-        width: 160,
+        width: 260,
       })
       const barcode = await buildBarcodeDataUrl(label.code)
-      const qrSize = 8
-      const barcodeWidth = 24
-      const barcodeHeight = 5
+      const qrSize = LABEL.qrSizeMm
+      const barcodeWidth = LABEL.barcodeWidthMm
+      const barcodeHeight = LABEL.barcodeHeightMm
       const mediaY = LABEL.heightMm - LABEL.marginMm - qrSize - 1 + LABEL.offsetY
       const qrX = baseX + (contentWidth - (qrSize + 1 + barcodeWidth)) / 2
       const qrY = mediaY
@@ -3396,7 +3399,7 @@ function App() {
     const qrValue = label.technicalSheetUrl || label.code
     let qr = qrCodeUrl
     if (!qr) {
-      qr = await QRCode.toDataURL(qrValue, { margin: 1, width: 160 })
+      qr = await QRCode.toDataURL(qrValue, { margin: 1, width: 260 })
     }
     const barcode = await buildBarcodeDataUrl(label.code)
 
@@ -3487,19 +3490,19 @@ function App() {
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 1.1mm;
+      gap: 1.5mm;
       margin-bottom: 0.4mm;
     }
     .qr {
-      width: 8mm;
-      height: 8mm;
+      width: 11mm;
+      height: 11mm;
       border: 0.2mm solid #e2e8f0;
       padding: 0.25mm;
       object-fit: contain;
       background: #fff;
     }
     .barcode {
-      width: 24mm;
+      width: 20mm;
       height: 5mm;
       object-fit: contain;
     }
@@ -3558,7 +3561,7 @@ function App() {
       const label = getLabelData(item)
       const qr = await QRCode.toDataURL(label.technicalSheetUrl || label.code, {
         margin: 1,
-        width: 160,
+        width: 260,
       })
       const barcode = await buildBarcodeDataUrl(label.code)
       const metaLines = [
@@ -3655,19 +3658,19 @@ function App() {
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 1.1mm;
+      gap: 1.5mm;
       margin-bottom: 0.4mm;
     }
     .qr {
-      width: 8mm;
-      height: 8mm;
+      width: 11mm;
+      height: 11mm;
       border: 0.2mm solid #e2e8f0;
       padding: 0.25mm;
       object-fit: contain;
       background: #fff;
     }
     .barcode {
-      width: 24mm;
+      width: 20mm;
       height: 5mm;
       object-fit: contain;
     }
@@ -5915,6 +5918,7 @@ function App() {
                           Código: <strong>{createdLabel.code}</strong>
                         </div>
                         {qrCodeUrl && <img className="qr" src={qrCodeUrl} alt="QR" />}
+                        {qrCodeUrl && <div className="qr-caption">Escanea para abrir ficha técnica</div>}
                         <div className="actions">
                           <a
                             className="ghost"

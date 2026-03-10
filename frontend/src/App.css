@@ -563,7 +563,7 @@ textarea:focus {
 
 .modal-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
+  grid-template-columns: minmax(0, 1fr) 360px;
   gap: 16px;
 }
 
@@ -571,7 +571,7 @@ textarea:focus {
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
-  padding: 12px;
+  padding: 14px;
   display: grid;
   gap: 12px;
 }
@@ -996,10 +996,16 @@ textarea:focus {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  padding: 14px;
+  border: 1px solid #dbeafe;
+  border-radius: 14px;
+  background: #f8fbff;
 }
 
 .label-code {
   font-weight: 600;
+  font-size: 18px;
+  line-height: 1.2;
 }
 
 .label-scan-info {
@@ -1015,14 +1021,14 @@ textarea:focus {
   border: 1px solid #dbeafe;
   background: #eff6ff;
   color: #1e3a8a;
-  font-size: 11px;
+  font-size: 13px;
   padding: 3px 8px;
 }
 
 .label-meta {
   display: grid;
   gap: 4px;
-  font-size: 12px;
+  font-size: 14px;
   color: #475569;
 }
 
@@ -1031,12 +1037,22 @@ textarea:focus {
 }
 
 .qr {
-  width: 160px;
-  height: 160px;
-  padding: 8px;
+  width: min(100%, 260px);
+  aspect-ratio: 1 / 1;
+  height: auto;
+  padding: 12px;
   border-radius: 12px;
   border: 1px solid #e2e8f0;
   background: #ffffff;
+  align-self: center;
+}
+
+.qr-caption {
+  margin-top: -4px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e3a8a;
 }
 
 .barcode {

@@ -700,6 +700,7 @@ function AssetLabelCard(props) {
             {labelData.assetState && <span>Estado: {labelData.assetState}</span>}
           </div>
           {qrCodeUrl && <img className="qr" src={qrCodeUrl} alt="QR" />}
+          {qrCodeUrl && <div className="qr-caption">Escanea para abrir ficha técnica</div>}
           <svg id="barcode-preview" className="barcode" />
           <div className="actions">
             <button className="ghost" onClick={openPrintLabel}>
