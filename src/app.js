@@ -43,12 +43,38 @@ app.use(
   })
 );
 app.use(compression());
-const corsOrigins =
-  env.CORS_ORIGIN === "*" ? true : env.CORS_ORIGIN.split(",").map((o) => o.trim());
+const corsOrigins = env.CORS_ORIGIN
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function buildOriginMatcher(patterns) {
+  if (patterns.includes("*")) return () => true;
+
+  const regexPatterns = patterns
+    .filter((pattern) => pattern.includes("*"))
+    .map((pattern) => new RegExp(`^${escapeRegex(pattern).replace(/\\\*/g, ".*")}$`));
+  const exactPatterns = new Set(patterns.filter((pattern) => !pattern.includes("*")));
+
+  return (origin) => {
+    if (!origin) return true;
+    if (exactPatterns.has(origin)) return true;
+    return regexPatterns.some((re) => re.test(origin));
+  };
+}
+
+const isCorsOriginAllowed = buildOriginMatcher(corsOrigins);
 
 app.use(
   cors({
-    origin: corsOrigins,
+    origin(origin, callback) {
+      if (isCorsOriginAllowed(origin)) return callback(null, true);
+      return callback(new Error(`CORS_BLOCKED_ORIGIN:${origin || "unknown"}`));
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE"],
   })
