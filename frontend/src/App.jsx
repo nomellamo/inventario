@@ -3164,17 +3164,20 @@ function App() {
     marginMm: 1,
     offsetX: 0,
     offsetY: 0,
+    qrSizeMm: 17,
+    barcodeWidthMm: 14,
+    barcodeHeightMm: 3.8,
   }
+  const QR_PRINT_WIDTH_PX = 512
 
   function getLabelData(asset) {
     const code = asset?.internalCode ? `INV-${asset.internalCode}` : ''
     const name = asset?.name || asset?.catalogItem?.name || UI_TEXT.assetSingular
-    const establishment = asset?.establishment?.name || ''
-    const dependency = asset?.dependency?.name || ''
+    const responsibleName = asset?.responsibleName || ''
     const assetState = asset?.assetState?.name || ''
     const assetId = getSafeAssetId(asset)
     const technicalSheetUrl = buildAssetTechnicalSheetUrl(asset)
-    return { code, name, establishment, dependency, assetState, assetId, technicalSheetUrl }
+    return { code, name, responsibleName, assetState, assetId, technicalSheetUrl }
   }
 
   function buildAssetTechnicalSheetUrl(assetLike) {
@@ -3276,8 +3279,7 @@ function App() {
     doc.text(name.substring(0, 22), centerX, baseY + 6.3, { align: 'center' })
     doc.setFontSize(6.2)
     const metaLines = [
-      label.establishment ? `Est: ${label.establishment.substring(0, 20)}` : null,
-      label.dependency ? `Dep: ${label.dependency.substring(0, 20)}` : null,
+      label.responsibleName ? `Resp: ${label.responsibleName.substring(0, 20)}` : null,
       label.assetState ? `Estado: ${label.assetState.substring(0, 16)}` : null,
     ].filter(Boolean)
     let y = baseY + 8.6
@@ -3289,12 +3291,16 @@ function App() {
     const qrValue = label.technicalSheetUrl || label.code
     let qr = qrCodeUrl
     if (!qr) {
-      qr = await QRCode.toDataURL(qrValue, { margin: 1, width: 160 })
+      qr = await QRCode.toDataURL(qrValue, {
+        margin: 1,
+        width: QR_PRINT_WIDTH_PX,
+        errorCorrectionLevel: 'H',
+      })
     }
     const barcode = await buildBarcodeDataUrl(label.code)
-    const qrSize = 8
-    const barcodeWidth = 24
-    const barcodeHeight = 5
+    const qrSize = LABEL.qrSizeMm
+    const barcodeWidth = LABEL.barcodeWidthMm
+    const barcodeHeight = LABEL.barcodeHeightMm
     const mediaY = LABEL.heightMm - LABEL.marginMm - qrSize - 1 + LABEL.offsetY
     const qrX = baseX + (contentWidth - (qrSize + 1 + barcodeWidth)) / 2
     const qrY = mediaY
@@ -3334,8 +3340,7 @@ function App() {
       doc.text(name.substring(0, 22), centerX, baseY + 6.3, { align: 'center' })
       doc.setFontSize(6.2)
       const metaLines = [
-        label.establishment ? `Est: ${label.establishment.substring(0, 20)}` : null,
-        label.dependency ? `Dep: ${label.dependency.substring(0, 20)}` : null,
+        label.responsibleName ? `Resp: ${label.responsibleName.substring(0, 20)}` : null,
         label.assetState ? `Estado: ${label.assetState.substring(0, 16)}` : null,
       ].filter(Boolean)
       let y = baseY + 8.6
@@ -3345,12 +3350,13 @@ function App() {
       }
       const qr = await QRCode.toDataURL(label.technicalSheetUrl || label.code, {
         margin: 1,
-        width: 160,
+        width: QR_PRINT_WIDTH_PX,
+        errorCorrectionLevel: 'H',
       })
       const barcode = await buildBarcodeDataUrl(label.code)
-      const qrSize = 8
-      const barcodeWidth = 24
-      const barcodeHeight = 5
+      const qrSize = LABEL.qrSizeMm
+      const barcodeWidth = LABEL.barcodeWidthMm
+      const barcodeHeight = LABEL.barcodeHeightMm
       const mediaY = LABEL.heightMm - LABEL.marginMm - qrSize - 1 + LABEL.offsetY
       const qrX = baseX + (contentWidth - (qrSize + 1 + barcodeWidth)) / 2
       const qrY = mediaY
@@ -3370,7 +3376,11 @@ function App() {
     const qrValue = label.technicalSheetUrl || label.code
     let qr = qrCodeUrl
     if (!qr) {
-      qr = await QRCode.toDataURL(qrValue, { margin: 1, width: 160 })
+      qr = await QRCode.toDataURL(qrValue, {
+        margin: 1,
+        width: QR_PRINT_WIDTH_PX,
+        errorCorrectionLevel: 'H',
+      })
     }
     const barcode = await buildBarcodeDataUrl(label.code)
 
@@ -3381,8 +3391,7 @@ function App() {
     }
 
     const metaLines = [
-      label.establishment && `Est: ${escapeHtml(label.establishment)}`,
-      label.dependency && `Dep: ${escapeHtml(label.dependency)}`,
+      label.responsibleName && `Resp: ${escapeHtml(label.responsibleName)}`,
       label.assetState && `Estado: ${escapeHtml(label.assetState)}`,
     ]
       .filter(Boolean)
@@ -3465,16 +3474,16 @@ function App() {
       margin-bottom: 0.4mm;
     }
     .qr {
-      width: 8mm;
-      height: 8mm;
+      width: ${LABEL.qrSizeMm}mm;
+      height: ${LABEL.qrSizeMm}mm;
       border: 0.2mm solid #e2e8f0;
       padding: 0.25mm;
       object-fit: contain;
       background: #fff;
     }
     .barcode {
-      width: 24mm;
-      height: 5mm;
+      width: ${LABEL.barcodeWidthMm}mm;
+      height: ${LABEL.barcodeHeightMm}mm;
       object-fit: contain;
     }
   </style>
@@ -3532,12 +3541,12 @@ function App() {
       const label = getLabelData(item)
       const qr = await QRCode.toDataURL(label.technicalSheetUrl || label.code, {
         margin: 1,
-        width: 160,
+        width: QR_PRINT_WIDTH_PX,
+        errorCorrectionLevel: 'H',
       })
       const barcode = await buildBarcodeDataUrl(label.code)
       const metaLines = [
-        label.establishment && `Est: ${escapeHtml(label.establishment)}`,
-        label.dependency && `Dep: ${escapeHtml(label.dependency)}`,
+        label.responsibleName && `Resp: ${escapeHtml(label.responsibleName)}`,
         label.assetState && `Estado: ${escapeHtml(label.assetState)}`,
       ]
         .filter(Boolean)
@@ -3633,16 +3642,16 @@ function App() {
       margin-bottom: 0.4mm;
     }
     .qr {
-      width: 8mm;
-      height: 8mm;
+      width: ${LABEL.qrSizeMm}mm;
+      height: ${LABEL.qrSizeMm}mm;
       border: 0.2mm solid #e2e8f0;
       padding: 0.25mm;
       object-fit: contain;
       background: #fff;
     }
     .barcode {
-      width: 24mm;
-      height: 5mm;
+      width: ${LABEL.barcodeWidthMm}mm;
+      height: ${LABEL.barcodeHeightMm}mm;
       object-fit: contain;
     }
   </style>
