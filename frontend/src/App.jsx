@@ -241,6 +241,10 @@ function App() {
     costCenter: '',
     acquisitionValue: '',
     acquisitionDate: '',
+    depreciationMethod: 'LINEAL',
+    usefulLifeYears: '',
+    residualValue: '',
+    depreciationStartDate: '',
     establishmentId: '',
     dependencyId: '',
     assetStateId: '',
@@ -3122,6 +3126,29 @@ function App() {
       }
     }
     if (!useMultiProduct && !assetForm.acquisitionValue) errors.acquisitionValue = 'Requerido'
+    if (assetForm.usefulLifeYears !== '') {
+      const years = Number(assetForm.usefulLifeYears)
+      if (!Number.isInteger(years) || years <= 0) {
+        errors.usefulLifeYears = 'Debe ser un entero mayor a 0'
+      }
+    }
+    if (assetForm.residualValue !== '') {
+      const residual = Number(assetForm.residualValue)
+      if (!Number.isFinite(residual) || residual < 0 || residual >= 100) {
+        errors.residualValue = 'Debe ser un porcentaje entre 0 y menor a 100'
+      }
+    }
+    if (!useMultiProduct && assetForm.usefulLifeYears !== '') {
+      const depreciation = calculateStraightLineDepreciation({
+        acquisitionValue: assetForm.acquisitionValue,
+        usefulLifeYears: assetForm.usefulLifeYears,
+        residualValue: assetForm.residualValue,
+      })
+      if (!depreciation) {
+        errors.depreciationConfig =
+          'Configura vida util y porcentaje residual validos (0 a menor de 100).'
+      }
+    }
     if (!assetForm.acquisitionDate) errors.acquisitionDate = 'Requerido'
     if (assetHasResponsible && assetForm.responsibleRut) {
       const rut = String(assetForm.responsibleRut).trim()
@@ -3144,6 +3171,32 @@ function App() {
 
   function normalizeCostCenterValue(value) {
     return String(value || '').trim().toUpperCase()
+  }
+
+  function calculateStraightLineDepreciation({ acquisitionValue, usefulLifeYears, residualValue }) {
+    const acquisition = Number(acquisitionValue)
+    const lifeYears = Number(usefulLifeYears)
+    const residualRate = residualValue === '' || residualValue === null ? 0 : Number(residualValue)
+    if (!Number.isFinite(acquisition) || acquisition <= 0) return null
+    if (!Number.isInteger(lifeYears) || lifeYears <= 0) return null
+    if (!Number.isFinite(residualRate) || residualRate < 0 || residualRate >= 100) return null
+
+    const residualAmount = Number((acquisition * (residualRate / 100)).toFixed(2))
+    const depreciableBase = Number((acquisition - residualAmount).toFixed(2))
+    if (depreciableBase <= 0) return null
+    const annual = Number((depreciableBase / lifeYears).toFixed(2))
+    const monthly = Number((annual / 12).toFixed(2))
+    const rate = Number(((annual / acquisition) * 100).toFixed(6))
+
+    return {
+      depreciableBase,
+      annual,
+      monthly,
+      rate,
+      residualRate,
+      residualAmount,
+      usefulLifeYears: lifeYears,
+    }
   }
 
   async function buildBarcodeDataUrl(value) {
@@ -3868,6 +3921,21 @@ function App() {
         accountingAccount: assetForm.accountingAccount,
         acquisitionDate: assetForm.acquisitionDate,
       }
+      const applyDepreciationValues = (payload, acquisitionValue) => {
+        if (assetForm.depreciationMethod !== 'LINEAL') return payload
+        const depreciation = calculateStraightLineDepreciation({
+          acquisitionValue,
+          usefulLifeYears: assetForm.usefulLifeYears,
+          residualValue: assetForm.residualValue,
+        })
+        if (!depreciation) return payload
+        return {
+          ...payload,
+          usefulLifeYears: depreciation.usefulLifeYears,
+          depreciationAnnualValue: depreciation.annual,
+          depreciationAnnualRate: depreciation.rate,
+        }
+      }
       if (assetHasResponsible) {
         if (assetForm.responsibleName) basePayload.responsibleName = assetForm.responsibleName
         if (assetForm.responsibleRut) {
@@ -3881,22 +3949,24 @@ function App() {
       let createdItems = []
       if (useMultiProduct) {
         for (const row of assetMultiProducts) {
-          const rowPayload = {
+          let rowPayload = {
             ...basePayload,
             catalogItemId: Number(row.catalogItemId),
             quantity: Number(row.quantity),
             acquisitionValue: Number(row.acquisitionValue),
           }
+          rowPayload = applyDepreciationValues(rowPayload, row.acquisitionValue)
           const created = await api('/assets', { method: 'POST', body: rowPayload })
           const rowItems = Array.isArray(created?.items) ? created.items : created ? [created] : []
           createdItems.push(...rowItems)
         }
       } else {
-        const payload = {
+        let payload = {
           ...basePayload,
           quantity: requestedQuantity,
           acquisitionValue: Number(assetForm.acquisitionValue),
         }
+        payload = applyDepreciationValues(payload, assetForm.acquisitionValue)
         if (assetForm.catalogItemId) payload.catalogItemId = Number(assetForm.catalogItemId)
         if (assetForm.name) payload.name = assetForm.name
         if (assetForm.brand) payload.brand = assetForm.brand
@@ -8340,6 +8410,7 @@ function App() {
                 setAssetHasResponsible,
                 normalizeRutValue,
                 normalizeCostCenterValue,
+                calculateStraightLineDepreciation,
                 handleCreateAsset,
                 assetCreating,
                 setCreatedAsset,
