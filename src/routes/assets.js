@@ -97,6 +97,16 @@ router.get(
   })
 );
 
+router.get(
+  "/public/:id/ficha.html",
+  validateParams(idParam),
+  asyncHandler(async (req, res) => {
+    const html = await buildPublicAssetTechnicalSheetHtml(Number(req.params.id));
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(html);
+  })
+);
+
 router.use(authJwt);
 
 router.get(
