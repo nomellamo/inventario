@@ -3182,15 +3182,19 @@ function App() {
     if (!assetId) return ''
     const base = String(API_BASE || '/api').trim().replace(/\/+$/, '')
     if (/^https?:\/\//i.test(base)) {
-      return `${base}/assets/public/${assetId}/technical-sheet`
+      return `${base}/assets/public/${assetId}/ficha.html`
     }
     const normalizedBase = base.startsWith('/') ? base : `/${base}`
-    return `${window.location.origin}${normalizedBase}/assets/public/${assetId}/technical-sheet`
+    return `${window.location.origin}${normalizedBase}/assets/public/${assetId}/ficha.html`
   }
 
   function normalizeScannedAssetReference(rawValue) {
     const raw = String(rawValue || '').trim()
     if (!raw) return null
+    const htmlPathMatch = raw.match(/\/assets\/public\/(\d+)\/ficha\.html/i)
+    if (htmlPathMatch?.[1]) {
+      return { assetId: Number(htmlPathMatch[1]), internalCode: null }
+    }
     const pathMatch = raw.match(/\/assets\/public\/(\d+)\/technical-sheet/i)
     if (pathMatch?.[1]) {
       return { assetId: Number(pathMatch[1]), internalCode: null }
@@ -4086,6 +4090,22 @@ function App() {
         message: err.message || 'No se pudo resolver el código escaneado.',
       })
     }
+  }
+
+  function copyTechnicalSheetLink() {
+    const url = createdAsset ? buildAssetTechnicalSheetUrl(createdAsset) : ''
+    if (!url) {
+      setErr('No hay enlace de ficha técnica disponible para este activo.')
+      return
+    }
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      navigator.clipboard
+        .writeText(url)
+        .then(() => setOk('Enlace de ficha técnica copiado.'))
+        .catch(() => setErr('No se pudo copiar el enlace de ficha técnica.'))
+      return
+    }
+    setErr('Tu navegador no permite copiar al portapapeles en este contexto.')
   }
 
   function selectAssetForModal(asset, action = null) {
@@ -5811,6 +5831,17 @@ function App() {
                         </div>
                         {qrCodeUrl && <img className="qr" src={qrCodeUrl} alt="QR" />}
                         <div className="actions">
+                          <a
+                            className="ghost"
+                            href={createdLabel.technicalSheetUrl || '#'}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Ver ficha técnica HTML
+                          </a>
+                          <button className="ghost" onClick={copyTechnicalSheetLink}>
+                            Copiar link ficha
+                          </button>
                           <button className="ghost" onClick={openPrintLabel}>
                             Imprimir QR
                           </button>
@@ -5828,6 +5859,12 @@ function App() {
                           Para ver QR e imprimir etiqueta necesitas crear el activo fijo.
                         </p>
                         <div className="actions">
+                          <button className="ghost" disabled>
+                            Ver ficha técnica HTML
+                          </button>
+                          <button className="ghost" disabled>
+                            Copiar link ficha
+                          </button>
                           <button className="ghost" disabled>
                             Imprimir QR
                           </button>
