@@ -3180,7 +3180,14 @@ function App() {
   function buildAssetTechnicalSheetUrl(assetLike) {
     const assetId = getSafeAssetId(assetLike)
     if (!assetId) return ''
-    const base = String(API_BASE || '/api').trim().replace(/\/+$/, '')
+    let base = String(API_BASE || '/api').trim()
+    const forcedHttpsIdx = base.toLowerCase().lastIndexOf('https://')
+    const forcedHttpIdx = base.toLowerCase().lastIndexOf('http://')
+    const forcedIdx = Math.max(forcedHttpsIdx, forcedHttpIdx)
+    if (forcedIdx > 0) {
+      base = base.slice(forcedIdx)
+    }
+    base = base.replace(/\/+$/, '')
     if (/^https?:\/\//i.test(base)) {
       return `${base}/assets/public/${assetId}/ficha.html`
     }
