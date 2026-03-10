@@ -39,6 +39,9 @@ const {
   exportAssetImportHistoryToPdf,
 } = require("../services/assetImportHistoryExportPdfService");
 const {
+  buildPublicAssetTechnicalSheetHtml,
+} = require("../services/assetPublicSheetService");
+const {
   listDepreciationPolicies,
   importDepreciationPoliciesFromFile,
   buildDepreciationPolicyTemplateWorkbook,
@@ -83,6 +86,16 @@ const uploadEvidence = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 8 * 1024 * 1024 },
 });
+
+router.get(
+  "/public/:id/technical-sheet",
+  validateParams(idParam),
+  asyncHandler(async (req, res) => {
+    const html = await buildPublicAssetTechnicalSheetHtml(Number(req.params.id));
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(html);
+  })
+);
 
 router.use(authJwt);
 
