@@ -3217,19 +3217,16 @@ function App() {
     marginMm: 1,
     offsetX: 0,
     offsetY: 0,
-    qrSizeMm: 22,
+    qrSizeMm: 24,
     barcodeWidthMm: 12,
     barcodeHeightMm: 2.2,
   }
   const LABEL_SHOW_BARCODE = false
-  const LABEL_QR_LEFT_MM = 0.8
-  const LABEL_QR_BOTTOM_MM = 0.8
-  const LABEL_LOGO_SIZE_MM = 5
-  const LABEL_LOGO_TOP_MM = 0.1
-  const LABEL_LOGO_LEFT_MM = 0.5
+  const LABEL_QR_LEFT_MM = 0.3
+  const LABEL_QR_BOTTOM_MM = 0.3
   const LABEL_TEXT_RIGHT_MM = 0.8
-  const LABEL_TEXT_GAP_FROM_QR_MM = 1
-  const LABEL_TEXT_WIDTH_MM = 13.4
+  const LABEL_TEXT_GAP_FROM_QR_MM = 0.7
+  const LABEL_TEXT_WIDTH_MM = 12.6
   const QR_PRINT_WIDTH_PX = 2200
 
   async function buildQrLabelDataUrl(qrValue, qrCodeLib) {
@@ -3242,30 +3239,6 @@ function App() {
         dark: '#000000',
         light: '#FFFFFF',
       },
-    })
-  }
-
-  async function buildImageDataUrlFromUrl(url) {
-    const src = String(url || '').trim()
-    if (!src) return ''
-    return new Promise((resolve) => {
-      const img = new Image()
-      img.crossOrigin = 'anonymous'
-      img.onload = () => {
-        try {
-          const canvas = document.createElement('canvas')
-          canvas.width = img.naturalWidth || img.width
-          canvas.height = img.naturalHeight || img.height
-          const ctx = canvas.getContext('2d')
-          if (!ctx) return resolve('')
-          ctx.drawImage(img, 0, 0)
-          resolve(canvas.toDataURL('image/png'))
-        } catch {
-          resolve('')
-        }
-      }
-      img.onerror = () => resolve('')
-      img.src = src
     })
   }
 
@@ -3418,7 +3391,6 @@ function App() {
       qr = await buildQrLabelDataUrl(qrValue, QRCode)
     }
     const barcode = LABEL_SHOW_BARCODE ? await buildBarcodeDataUrl(label.code) : ''
-    const logoDataUrl = await buildImageDataUrlFromUrl(logoInventacore)
     const qrSize = LABEL.qrSizeMm
     const barcodeWidth = LABEL.barcodeWidthMm
     const barcodeHeight = LABEL.barcodeHeightMm
@@ -3429,11 +3401,6 @@ function App() {
     doc.addImage(qr, 'PNG', qrX, qrY, qrSize, qrSize, undefined, 'NONE')
     if (LABEL_SHOW_BARCODE && barcode) {
       doc.addImage(barcode, 'PNG', barcodeX, barcodeY, barcodeWidth, barcodeHeight, undefined, 'NONE')
-    }
-    if (logoDataUrl) {
-      const logoX = LABEL.marginMm + LABEL_LOGO_LEFT_MM
-      const logoY = LABEL.marginMm + LABEL_LOGO_TOP_MM
-      doc.addImage(logoDataUrl, 'PNG', logoX, logoY, LABEL_LOGO_SIZE_MM, LABEL_LOGO_SIZE_MM)
     }
     doc.save(`label_${label.code}.pdf`)
   }
@@ -3453,7 +3420,6 @@ function App() {
     if (!batch.length) return
     const [{ jsPDF }, { default: QRCode }] = await Promise.all([loadJsPdfLib(), loadQrCodeLib()])
     const doc = new jsPDF({ unit: 'mm', format: [LABEL.widthMm, LABEL.heightMm] })
-    const logoDataUrl = await buildImageDataUrlFromUrl(logoInventacore)
     for (let index = 0; index < batch.length; index++) {
       if (index > 0) doc.addPage([LABEL.widthMm, LABEL.heightMm], 'portrait')
       const label = getLabelData(batch[index])
@@ -3488,11 +3454,6 @@ function App() {
       doc.addImage(qr, 'PNG', qrX, qrY, qrSize, qrSize, undefined, 'NONE')
       if (LABEL_SHOW_BARCODE && barcode) {
         doc.addImage(barcode, 'PNG', barcodeX, barcodeY, barcodeWidth, barcodeHeight, undefined, 'NONE')
-      }
-      if (logoDataUrl) {
-        const logoX = LABEL.marginMm + LABEL_LOGO_LEFT_MM
-        const logoY = LABEL.marginMm + LABEL_LOGO_TOP_MM
-        doc.addImage(logoDataUrl, 'PNG', logoX, logoY, LABEL_LOGO_SIZE_MM, LABEL_LOGO_SIZE_MM)
       }
     }
     doc.save(`${filePrefix}_${Date.now()}.pdf`)
@@ -3550,7 +3511,7 @@ function App() {
     }
     .code-top {
       position: absolute;
-      top: 0.9mm;
+      top: 1.6mm;
       right: ${LABEL_TEXT_RIGHT_MM}mm;
       width: ${LABEL_TEXT_WIDTH_MM}mm;
       text-align: right;
@@ -3597,15 +3558,6 @@ function App() {
       background: #fff;
       display: block;
     }
-    .brand {
-      position: absolute;
-      top: ${LABEL_LOGO_TOP_MM}mm;
-      left: ${LABEL_LOGO_LEFT_MM}mm;
-      width: ${LABEL_LOGO_SIZE_MM}mm;
-      height: ${LABEL_LOGO_SIZE_MM}mm;
-      object-fit: contain;
-      opacity: 0.9;
-    }
     .barcode {
       width: ${LABEL.barcodeWidthMm}mm;
       height: ${LABEL.barcodeHeightMm}mm;
@@ -3617,7 +3569,6 @@ function App() {
   <div class="sheet">
     <div class="code-top">${escapeHtml(label.code)}</div>
     <div class="side-right">${bodyHtml}</div>
-    <img class="brand" src="${logoInventacore}" alt="InventaCore" />
     <div class="media">
       <img class="qr" src="${qr}" alt="QR" />
       ${LABEL_SHOW_BARCODE && barcode ? `<img class="barcode" src="${barcode}" alt="Barcode" />` : ''}
@@ -3671,7 +3622,6 @@ function App() {
   <div class="sheet">
     <div class="code-top">${escapeHtml(label.code)}</div>
     <div class="side-right">${bodyHtml}</div>
-    <img class="brand" src="${logoInventacore}" alt="InventaCore" />
     <div class="media">
       <img class="qr" src="${qr}" alt="QR" />
       ${LABEL_SHOW_BARCODE && barcode ? `<img class="barcode" src="${barcode}" alt="Barcode" />` : ''}
@@ -3709,7 +3659,7 @@ function App() {
     .sheet:last-child { page-break-after: auto; }
     .code-top {
       position: absolute;
-      top: 0.9mm;
+      top: 1.6mm;
       right: ${LABEL_TEXT_RIGHT_MM}mm;
       width: ${LABEL_TEXT_WIDTH_MM}mm;
       text-align: right;
@@ -3755,15 +3705,6 @@ function App() {
       height: ${LABEL.qrSizeMm}mm;
       background: #fff;
       display: block;
-    }
-    .brand {
-      position: absolute;
-      top: ${LABEL_LOGO_TOP_MM}mm;
-      left: ${LABEL_LOGO_LEFT_MM}mm;
-      width: ${LABEL_LOGO_SIZE_MM}mm;
-      height: ${LABEL_LOGO_SIZE_MM}mm;
-      object-fit: contain;
-      opacity: 0.9;
     }
     .barcode {
       width: ${LABEL.barcodeWidthMm}mm;
