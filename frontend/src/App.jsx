@@ -3281,7 +3281,16 @@ function App() {
 
   function getLabelTopLines(label) {
     const lines = [String(label?.code || '').trim()]
-    if (label?.responsibleName) lines.push(`Resp: ${String(label.responsibleName).trim()}`)
+    if (label?.responsibleName) {
+      const responsible = String(label.responsibleName).trim()
+      const parts = responsible.split(/\s+/).filter(Boolean)
+      if (parts.length > 1) {
+        lines.push(`Resp: ${parts[0]}`)
+        lines.push(parts.slice(1).join(' '))
+      } else {
+        lines.push(`Resp: ${responsible}`)
+      }
+    }
     if (label?.name) lines.push(String(label.name).trim())
     if (label?.assetState) lines.push(`Estado: ${String(label.assetState).trim()}`)
     return lines.filter(Boolean)
@@ -3390,7 +3399,7 @@ function App() {
     const qrY = baseY + (LABEL.heightMm - 2 * LABEL.marginMm - LABEL_QR_BOTTOM_MM - LABEL.qrSizeMm)
     let textY = qrY + 3.2
     const topLines = getLabelTopLines(label)
-    for (let i = 0; i < topLines.length && i < 4; i++) {
+    for (let i = 0; i < topLines.length && i < 5; i++) {
       doc.setFont(undefined, i === 0 ? 'bold' : 'normal')
       doc.setFontSize(i === 0 ? 8.4 : 7.2)
       doc.text(String(topLines[i]).substring(0, 32), textRightX, textY, { align: 'right' })
@@ -3450,7 +3459,7 @@ function App() {
       const qrY = baseY + (LABEL.heightMm - 2 * LABEL.marginMm - LABEL_QR_BOTTOM_MM - LABEL.qrSizeMm)
       let textY = qrY + 3.2
       const topLines = getLabelTopLines(label)
-      for (let i = 0; i < topLines.length && i < 4; i++) {
+      for (let i = 0; i < topLines.length && i < 5; i++) {
         doc.setFont(undefined, i === 0 ? 'bold' : 'normal')
         doc.setFontSize(i === 0 ? 8.4 : 7.2)
         doc.text(String(topLines[i]).substring(0, 32), textRightX, textY, { align: 'right' })
