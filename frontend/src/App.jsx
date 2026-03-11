@@ -3224,9 +3224,9 @@ function App() {
   const LABEL_SHOW_BARCODE = false
   const LABEL_QR_LEFT_MM = 0.8
   const LABEL_QR_BOTTOM_MM = 0.8
-  const LABEL_LOGO_SIZE_MM = 4.4
-  const LABEL_LOGO_TOP_MM = 0.7
-  const LABEL_LOGO_LEFT_MM = 0.7
+  const LABEL_LOGO_SIZE_MM = 4.8
+  const LABEL_LOGO_TOP_MM = 0.2
+  const LABEL_LOGO_LEFT_MM = 0.5
   const LABEL_TEXT_RIGHT_MM = 0.8
   const LABEL_TEXT_GAP_FROM_QR_MM = 1
   const LABEL_TEXT_WIDTH_MM = 13.4
