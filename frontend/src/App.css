@@ -739,6 +739,16 @@ textarea:focus {
   width: min(640px, 92vw);
 }
 
+.modal-danger-access {
+  width: min(460px, 92vw);
+}
+
+.danger-access-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
 .modal-backdrop-scroll {
   overflow-y: auto;
   align-items: flex-start;

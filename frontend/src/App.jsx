@@ -106,6 +106,9 @@ function App() {
   const [isChangingPassword, setIsChangingPassword] = useState(false)
   const [dangerZoneUnlocked, setDangerZoneUnlocked] = useState(false)
   const [dangerZoneUnlocking, setDangerZoneUnlocking] = useState(false)
+  const [dangerZoneUnlockModalOpen, setDangerZoneUnlockModalOpen] = useState(false)
+  const [dangerZoneUnlockInput, setDangerZoneUnlockInput] = useState('')
+  const [dangerZoneUnlockError, setDangerZoneUnlockError] = useState('')
   const DANGER_ZONE_UNLOCK_TTL_MS = 10 * 60 * 1000
   const DANGER_ZONE_UNLOCK_PASSWORD = String(
     import.meta.env.VITE_DANGER_ZONE_UNLOCK_PASSWORD || ''
@@ -2062,6 +2065,9 @@ function App() {
         clearTimeout(dangerZoneLockTimerRef.current)
         dangerZoneLockTimerRef.current = null
       }
+      setDangerZoneUnlockModalOpen(false)
+      setDangerZoneUnlockInput('')
+      setDangerZoneUnlockError('')
       setDangerZoneUnlocked(false)
       setToken('')
       setCurrentUser(null)
@@ -2192,25 +2198,40 @@ function App() {
       setErr('Falta configurar VITE_DANGER_ZONE_UNLOCK_PASSWORD en frontend.')
       return
     }
-    const rawSecret = window.prompt(
-      'Ingresa la contraseña fija para desbloquear botones críticos (10 minutos).'
-    )
-    if (rawSecret === null) return
-    const secret = String(rawSecret || '').trim()
+    setDangerZoneUnlockInput('')
+    setDangerZoneUnlockError('')
+    setDangerZoneUnlockModalOpen(true)
+  }
+
+  function closeDangerZoneUnlockModal() {
+    if (dangerZoneUnlocking) return
+    setDangerZoneUnlockModalOpen(false)
+    setDangerZoneUnlockInput('')
+    setDangerZoneUnlockError('')
+  }
+
+  async function submitDangerZoneUnlock(e) {
+    e?.preventDefault?.()
+    if (dangerZoneUnlocking) return
+    const secret = String(dangerZoneUnlockInput || '').trim()
     if (!secret) {
-      setErr('Debes ingresar la contraseña para desbloquear botones.')
+      setDangerZoneUnlockError('Debes ingresar la contraseña.')
       return
     }
 
     setDangerZoneUnlocking(true)
+    setDangerZoneUnlockError('')
     try {
       if (secret !== DANGER_ZONE_UNLOCK_PASSWORD) throw new Error('Contraseña incorrecta.')
       setDangerZoneUnlocked(true)
       armDangerZoneAutoLock()
+      setDangerZoneUnlockModalOpen(false)
+      setDangerZoneUnlockInput('')
+      setDangerZoneUnlockError('')
       setOk('Botones críticos desbloqueados por 10 minutos.')
     } catch (err) {
       setDangerZoneUnlocked(false)
-      setErr(err, 'No se pudo desbloquear botones. Verifica la contraseña fija.')
+      setDangerZoneUnlockError('Contraseña incorrecta.')
     } finally {
       setDangerZoneUnlocking(false)
     }
@@ -8913,6 +8934,41 @@ function App() {
                 Restaurar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {dangerZoneUnlockModalOpen && (
+        <div className="modal-backdrop">
+          <div className="modal modal-danger-access">
+            <h3>Desbloquear botones críticos</h3>
+            <p className="muted">
+              Aca solo representante del programa tiene acceso.
+            </p>
+            <form onSubmit={submitDangerZoneUnlock} className="danger-access-form">
+              <label>
+                Contraseña de acceso
+                <input
+                  type="password"
+                  value={dangerZoneUnlockInput}
+                  onChange={(e) => {
+                    setDangerZoneUnlockInput(e.target.value)
+                    if (dangerZoneUnlockError) setDangerZoneUnlockError('')
+                  }}
+                  autoFocus
+                  placeholder="Ingresa contraseña"
+                />
+              </label>
+              {dangerZoneUnlockError && <p className="error">{dangerZoneUnlockError}</p>}
+              <div className="modal-actions">
+                <button type="button" className="ghost" onClick={closeDangerZoneUnlockModal}>
+                  Cancelar
+                </button>
+                <button type="submit" className="primary" disabled={dangerZoneUnlocking}>
+                  {dangerZoneUnlocking ? 'Verificando...' : 'Desbloquear'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
