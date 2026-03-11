@@ -104,6 +104,8 @@ function App() {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false)
   const [isChangingPassword, setIsChangingPassword] = useState(false)
+  const [dangerZoneUnlocked, setDangerZoneUnlocked] = useState(false)
+  const [dangerZoneUnlocking, setDangerZoneUnlocking] = useState(false)
   const [changePasswordForm, setChangePasswordForm] = useState({
     currentPassword: '',
     newPassword: '',
@@ -1568,6 +1570,14 @@ function App() {
     })
   }
 
+  async function guardedPurgeCatalogAllWithReset() {
+    if (!dangerZoneUnlocked) {
+      setErr('Botones críticos bloqueados. Usa "Desbloquear botones".')
+      return
+    }
+    return purgeCatalogAllWithReset()
+  }
+
   async function checkManualOfficialKeyAvailability() {
     const raw = catalogManualForm.officialKey?.trim()
     if (!raw) {
@@ -2043,6 +2053,7 @@ function App() {
     } finally {
       localStorage.removeItem('admin_token')
       localStorage.removeItem('admin_user')
+      setDangerZoneUnlocked(false)
       setToken('')
       setCurrentUser(null)
       setIsUserMenuOpen(false)
@@ -2153,6 +2164,47 @@ function App() {
       setErr(err, 'No se pudo actualizar la clave.')
       setIsChangingPassword(false)
     }
+  }
+
+  async function unlockDangerZoneButtons() {
+    if (dangerZoneUnlocking) return
+    const email = String(currentUser?.email || '').trim()
+    if (!email) {
+      setErr('No se pudo verificar el usuario actual para desbloquear botones.')
+      return
+    }
+    const rawPassword = window.prompt(
+      'Ingresa tu contraseña para desbloquear botones críticos (vaciar/borrar).'
+    )
+    if (rawPassword === null) return
+    const password = String(rawPassword || '')
+    if (!password.trim()) {
+      setErr('Debes ingresar una contraseña para desbloquear botones.')
+      return
+    }
+
+    setDangerZoneUnlocking(true)
+    try {
+      const response = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      })
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.message || 'Contraseña incorrecta.')
+      setDangerZoneUnlocked(true)
+      setOk('Botones críticos desbloqueados para esta sesión.')
+    } catch (err) {
+      setDangerZoneUnlocked(false)
+      setErr(err, 'No se pudo desbloquear botones. Verifica tu contraseña.')
+    } finally {
+      setDangerZoneUnlocking(false)
+    }
+  }
+
+  function lockDangerZoneButtons() {
+    setDangerZoneUnlocked(false)
+    setOk('Botones críticos bloqueados.')
   }
 
   async function loadEstablishments(page = estPage) {
@@ -4543,6 +4595,14 @@ function App() {
         }
       },
     })
+  }
+
+  async function guardedPurgeAssetsAllWithReset(options = {}) {
+    if (!dangerZoneUnlocked) {
+      setErr('Botones críticos bloqueados. Usa "Desbloquear botones".')
+      return
+    }
+    return purgeAssetsAllWithReset(options)
   }
 
   function updateMultiProductRow(index, patch) {
@@ -8581,7 +8641,11 @@ function App() {
           <ImportsAssetsView
             {...{
               downloadFile,
-              purgeAssetsAllWithReset,
+              purgeAssetsAllWithReset: guardedPurgeAssetsAllWithReset,
+              dangerZoneUnlocked,
+              dangerZoneUnlocking,
+              unlockDangerZoneButtons,
+              lockDangerZoneButtons,
               setImportFile,
               handlePreviewFile,
               handleImportUpload,
@@ -8611,7 +8675,11 @@ function App() {
           <ImportsCatalogView
             {...{
               downloadFile,
-              purgeCatalogAllWithReset,
+              purgeCatalogAllWithReset: guardedPurgeCatalogAllWithReset,
+              dangerZoneUnlocked,
+              dangerZoneUnlocking,
+              unlockDangerZoneButtons,
+              lockDangerZoneButtons,
               setCatalogImportFile,
               handleCatalogImportUpload,
               catalogImportLoading,

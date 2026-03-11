@@ -4,6 +4,10 @@ function ImportsCatalogView(props) {
   const {
     downloadFile,
     purgeCatalogAllWithReset,
+    dangerZoneUnlocked,
+    dangerZoneUnlocking,
+    unlockDangerZoneButtons,
+    lockDangerZoneButtons,
     setCatalogImportFile,
     handleCatalogImportUpload,
     catalogImportLoading,
@@ -47,7 +51,23 @@ function ImportsCatalogView(props) {
           >
             Descargar plantilla Activo fijo
           </button>
-          <button className="danger danger-outline" onClick={purgeCatalogAllWithReset}>
+          <button
+            className={dangerZoneUnlocked ? 'ghost' : 'primary'}
+            onClick={dangerZoneUnlocked ? lockDangerZoneButtons : unlockDangerZoneButtons}
+            disabled={dangerZoneUnlocking}
+          >
+            {dangerZoneUnlocking
+              ? 'Verificando...'
+              : dangerZoneUnlocked
+              ? 'Bloquear botones'
+              : 'Desbloquear botones'}
+          </button>
+          <button
+            className="danger danger-outline"
+            onClick={purgeCatalogAllWithReset}
+            disabled={!dangerZoneUnlocked}
+            title={!dangerZoneUnlocked ? 'Primero desbloquea botones críticos.' : ''}
+          >
             {`Vaciar ${UI_TEXT.catalog.toLowerCase()} (ID=1)`}
           </button>
         </div>

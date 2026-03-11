@@ -4,6 +4,10 @@ function ImportsAssetsView(props) {
   const {
     downloadFile,
     purgeAssetsAllWithReset,
+    dangerZoneUnlocked,
+    dangerZoneUnlocking,
+    unlockDangerZoneButtons,
+    lockDangerZoneButtons,
     setImportFile,
     handlePreviewFile,
     handleImportUpload,
@@ -58,12 +62,30 @@ function ImportsAssetsView(props) {
           >
             Descargar IDs
           </button>
-          <button className="danger danger-outline" onClick={purgeAssetsAllWithReset}>
+          <button
+            className={dangerZoneUnlocked ? 'ghost' : 'primary'}
+            onClick={dangerZoneUnlocked ? lockDangerZoneButtons : unlockDangerZoneButtons}
+            disabled={dangerZoneUnlocking}
+          >
+            {dangerZoneUnlocking
+              ? 'Verificando...'
+              : dangerZoneUnlocked
+              ? 'Bloquear botones'
+              : 'Desbloquear botones'}
+          </button>
+          <button
+            className="danger danger-outline"
+            onClick={purgeAssetsAllWithReset}
+            disabled={!dangerZoneUnlocked}
+            title={!dangerZoneUnlocked ? 'Primero desbloquea botones críticos.' : ''}
+          >
             Vaciar activos (ID=1)
           </button>
           <button
             className="danger danger-outline"
             onClick={() => purgeAssetsAllWithReset({ forceStructureDelete: true })}
+            disabled={!dangerZoneUnlocked}
+            title={!dangerZoneUnlocked ? 'Primero desbloquea botones críticos.' : ''}
           >
             Vaciar + borrar deps/est
           </button>
