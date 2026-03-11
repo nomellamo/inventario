@@ -3217,18 +3217,18 @@ function App() {
     marginMm: 1,
     offsetX: 0,
     offsetY: 0,
-    qrSizeMm: 15.8,
+    qrSizeMm: 18,
     barcodeWidthMm: 12,
     barcodeHeightMm: 2.2,
   }
-  const QR_PRINT_WIDTH_PX = 1400
+  const QR_PRINT_WIDTH_PX = 2200
 
   async function buildQrLabelDataUrl(qrValue, qrCodeLib) {
     if (!qrValue) return ''
     return qrCodeLib.toDataURL(qrValue, {
-      margin: 4,
+      margin: 6,
       width: QR_PRINT_WIDTH_PX,
-      errorCorrectionLevel: 'H',
+      errorCorrectionLevel: 'M',
       color: {
         dark: '#000000',
         light: '#FFFFFF',
@@ -3527,8 +3527,6 @@ function App() {
       height: ${LABEL.qrSizeMm}mm;
       background: #fff;
       display: block;
-      image-rendering: pixelated;
-      image-rendering: crisp-edges;
     }
     .barcode {
       width: ${LABEL.barcodeWidthMm}mm;
@@ -3690,8 +3688,6 @@ function App() {
       height: ${LABEL.qrSizeMm}mm;
       background: #fff;
       display: block;
-      image-rendering: pixelated;
-      image-rendering: crisp-edges;
     }
     .barcode {
       width: ${LABEL.barcodeWidthMm}mm;
