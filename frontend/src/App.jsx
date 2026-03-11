@@ -3217,22 +3217,22 @@ function App() {
     marginMm: 1,
     offsetX: 0,
     offsetY: 0,
-    qrSizeMm: 24,
+    qrSizeMm: 25.8,
     barcodeWidthMm: 12,
     barcodeHeightMm: 2.2,
   }
   const LABEL_SHOW_BARCODE = false
-  const LABEL_QR_LEFT_MM = 0.3
-  const LABEL_QR_BOTTOM_MM = 0.3
-  const LABEL_TEXT_RIGHT_MM = 0.8
-  const LABEL_TEXT_GAP_FROM_QR_MM = 0.7
-  const LABEL_TEXT_WIDTH_MM = 12.6
+  const LABEL_QR_LEFT_MM = 0.2
+  const LABEL_QR_TOP_MM = 1.1
+  const LABEL_TEXT_RIGHT_MM = 0.6
+  const LABEL_TEXT_GAP_FROM_QR_MM = 0.6
+  const LABEL_TEXT_WIDTH_MM = 10.8
   const QR_PRINT_WIDTH_PX = 2200
 
   async function buildQrLabelDataUrl(qrValue, qrCodeLib) {
     if (!qrValue) return ''
     return qrCodeLib.toDataURL(qrValue, {
-      margin: 6,
+      margin: 1,
       width: QR_PRINT_WIDTH_PX,
       errorCorrectionLevel: 'M',
       color: {
@@ -3369,19 +3369,19 @@ function App() {
     const baseY = LABEL.marginMm + LABEL.offsetY
     const contentWidth = LABEL.widthMm - 2 * LABEL.marginMm
     const textRightX = LABEL.widthMm - LABEL.marginMm - LABEL_TEXT_RIGHT_MM
-    const qrY = baseY + (LABEL.heightMm - 2 * LABEL.marginMm - LABEL_QR_BOTTOM_MM - LABEL.qrSizeMm)
+    const qrY = baseY + LABEL_QR_TOP_MM
     doc.setFont(undefined, 'bold')
     doc.setFontSize(9.6)
     doc.text(String(label.code || '').substring(0, 20), textRightX, baseY + 2.7, { align: 'right' })
     doc.setFont(undefined, 'normal')
     doc.setFontSize(7.1)
-    let textY = qrY + 7
+    let textY = baseY + 7.2
     const bodyLines = getLabelBodyLines(label)
     for (const line of bodyLines.slice(0, 6)) {
       const wrapped = doc.splitTextToSize(String(line), LABEL_TEXT_WIDTH_MM)
       for (const piece of wrapped) {
         doc.text(String(piece), textRightX, textY, { align: 'right' })
-        textY += 2.35
+        textY += 2.5
       }
     }
 
@@ -3427,19 +3427,19 @@ function App() {
       const baseY = LABEL.marginMm + LABEL.offsetY
       const contentWidth = LABEL.widthMm - 2 * LABEL.marginMm
       const textRightX = LABEL.widthMm - LABEL.marginMm - LABEL_TEXT_RIGHT_MM
-      const qrY = baseY + (LABEL.heightMm - 2 * LABEL.marginMm - LABEL_QR_BOTTOM_MM - LABEL.qrSizeMm)
+      const qrY = baseY + LABEL_QR_TOP_MM
       doc.setFont(undefined, 'bold')
       doc.setFontSize(9.6)
       doc.text(String(label.code || '').substring(0, 20), textRightX, baseY + 2.7, { align: 'right' })
       doc.setFont(undefined, 'normal')
       doc.setFontSize(7.1)
-      let textY = qrY + 7
+      let textY = baseY + 7.2
       const bodyLines = getLabelBodyLines(label)
       for (const line of bodyLines.slice(0, 6)) {
         const wrapped = doc.splitTextToSize(String(line), LABEL_TEXT_WIDTH_MM)
         for (const piece of wrapped) {
           doc.text(String(piece), textRightX, textY, { align: 'right' })
-          textY += 2.35
+          textY += 2.5
         }
       }
       const qr = await buildQrLabelDataUrl(getRequiredTechnicalSheetQrValue(label), QRCode)
@@ -3511,7 +3511,7 @@ function App() {
     }
     .code-top {
       position: absolute;
-      top: 1.6mm;
+      top: 1.8mm;
       right: ${LABEL_TEXT_RIGHT_MM}mm;
       width: ${LABEL_TEXT_WIDTH_MM}mm;
       text-align: right;
@@ -3525,7 +3525,7 @@ function App() {
     .side-right {
       position: absolute;
       left: ${LABEL_QR_LEFT_MM + LABEL.qrSizeMm + LABEL_TEXT_GAP_FROM_QR_MM}mm;
-      bottom: ${LABEL_QR_BOTTOM_MM + 0.9}mm;
+      top: 7.2mm;
       right: ${LABEL_TEXT_RIGHT_MM}mm;
       width: ${LABEL_TEXT_WIDTH_MM}mm;
       display: grid;
@@ -3533,9 +3533,9 @@ function App() {
       text-align: right;
     }
     .line {
-      font-size: 7.8px;
-      line-height: 1.12;
-      font-weight: 600;
+      font-size: 8.2px;
+      line-height: 1.16;
+      font-weight: 700;
       white-space: normal;
       word-break: break-word;
       overflow: visible;
@@ -3545,7 +3545,7 @@ function App() {
       width: 100%;
       position: absolute;
       left: ${LABEL_QR_LEFT_MM}mm;
-      bottom: ${LABEL_QR_BOTTOM_MM}mm;
+      top: ${LABEL_QR_TOP_MM}mm;
       display: flex;
       flex-direction: column;
       align-items: flex-start;
@@ -3659,7 +3659,7 @@ function App() {
     .sheet:last-child { page-break-after: auto; }
     .code-top {
       position: absolute;
-      top: 1.6mm;
+      top: 1.8mm;
       right: ${LABEL_TEXT_RIGHT_MM}mm;
       width: ${LABEL_TEXT_WIDTH_MM}mm;
       text-align: right;
@@ -3673,7 +3673,7 @@ function App() {
     .side-right {
       position: absolute;
       left: ${LABEL_QR_LEFT_MM + LABEL.qrSizeMm + LABEL_TEXT_GAP_FROM_QR_MM}mm;
-      bottom: ${LABEL_QR_BOTTOM_MM + 0.9}mm;
+      top: 7.2mm;
       right: ${LABEL_TEXT_RIGHT_MM}mm;
       width: ${LABEL_TEXT_WIDTH_MM}mm;
       display: grid;
@@ -3681,9 +3681,9 @@ function App() {
       text-align: right;
     }
     .line {
-      font-size: 7.8px;
-      line-height: 1.12;
-      font-weight: 600;
+      font-size: 8.2px;
+      line-height: 1.16;
+      font-weight: 700;
       white-space: normal;
       word-break: break-word;
       overflow: visible;
@@ -3693,7 +3693,7 @@ function App() {
       width: 100%;
       position: absolute;
       left: ${LABEL_QR_LEFT_MM}mm;
-      bottom: ${LABEL_QR_BOTTOM_MM}mm;
+      top: ${LABEL_QR_TOP_MM}mm;
       display: flex;
       flex-direction: column;
       align-items: flex-start;
