@@ -3217,10 +3217,12 @@ function App() {
     marginMm: 1,
     offsetX: 0,
     offsetY: 0,
-    qrSizeMm: 18,
+    qrSizeMm: 20.5,
     barcodeWidthMm: 12,
     barcodeHeightMm: 2.2,
   }
+  const LABEL_SHOW_BARCODE = false
+  const LABEL_MEDIA_TOP_MM = 7.4
   const QR_PRINT_WIDTH_PX = 2200
 
   async function buildQrLabelDataUrl(qrValue, qrCodeLib) {
@@ -3356,18 +3358,20 @@ function App() {
     if (!qr) {
       qr = await buildQrLabelDataUrl(qrValue, QRCode)
     }
-    const barcode = await buildBarcodeDataUrl(label.code)
+    const barcode = LABEL_SHOW_BARCODE ? await buildBarcodeDataUrl(label.code) : ''
     const qrSize = LABEL.qrSizeMm
     const barcodeWidth = LABEL.barcodeWidthMm
     const barcodeHeight = LABEL.barcodeHeightMm
     const mediaGap = 0.3
-    const mediaY = baseY + 10.8
+    const mediaY = baseY + LABEL_MEDIA_TOP_MM
     const qrX = baseX + (contentWidth - qrSize) / 2
     const qrY = mediaY
     const barcodeX = baseX + (contentWidth - barcodeWidth) / 2
     const barcodeY = qrY + qrSize + mediaGap
     doc.addImage(qr, 'PNG', qrX, qrY, qrSize, qrSize, undefined, 'NONE')
-    doc.addImage(barcode, 'PNG', barcodeX, barcodeY, barcodeWidth, barcodeHeight, undefined, 'NONE')
+    if (LABEL_SHOW_BARCODE && barcode) {
+      doc.addImage(barcode, 'PNG', barcodeX, barcodeY, barcodeWidth, barcodeHeight, undefined, 'NONE')
+    }
     doc.save(`label_${label.code}.pdf`)
   }
 
@@ -3406,18 +3410,20 @@ function App() {
         y += 2.3
       }
       const qr = await buildQrLabelDataUrl(label.technicalSheetUrl || label.code, QRCode)
-      const barcode = await buildBarcodeDataUrl(label.code)
+      const barcode = LABEL_SHOW_BARCODE ? await buildBarcodeDataUrl(label.code) : ''
       const qrSize = LABEL.qrSizeMm
       const barcodeWidth = LABEL.barcodeWidthMm
       const barcodeHeight = LABEL.barcodeHeightMm
       const mediaGap = 0.3
-      const mediaY = baseY + 10.8
+      const mediaY = baseY + LABEL_MEDIA_TOP_MM
       const qrX = baseX + (contentWidth - qrSize) / 2
       const qrY = mediaY
       const barcodeX = baseX + (contentWidth - barcodeWidth) / 2
       const barcodeY = qrY + qrSize + mediaGap
       doc.addImage(qr, 'PNG', qrX, qrY, qrSize, qrSize, undefined, 'NONE')
-      doc.addImage(barcode, 'PNG', barcodeX, barcodeY, barcodeWidth, barcodeHeight, undefined, 'NONE')
+      if (LABEL_SHOW_BARCODE && barcode) {
+        doc.addImage(barcode, 'PNG', barcodeX, barcodeY, barcodeWidth, barcodeHeight, undefined, 'NONE')
+      }
     }
     doc.save(`${filePrefix}_${Date.now()}.pdf`)
   }
@@ -3432,7 +3438,7 @@ function App() {
     if (!qr) {
       qr = await buildQrLabelDataUrl(qrValue, QRCode)
     }
-    const barcode = await buildBarcodeDataUrl(label.code)
+    const barcode = LABEL_SHOW_BARCODE ? await buildBarcodeDataUrl(label.code) : ''
 
     const win = window.open('', '_blank', 'width=480,height=420')
     if (!win) {
@@ -3472,7 +3478,7 @@ function App() {
     }
     .top {
       width: 100%;
-      min-height: 8mm;
+      min-height: 6.6mm;
       overflow: hidden;
       display: flex;
       flex-direction: column;
@@ -3514,7 +3520,7 @@ function App() {
       width: 100%;
       position: absolute;
       left: 50%;
-      top: 10.8mm;
+      top: ${LABEL_MEDIA_TOP_MM}mm;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -3544,7 +3550,7 @@ function App() {
     </div>
     <div class="media">
       <img class="qr" src="${qr}" alt="QR" />
-      <img class="barcode" src="${barcode}" alt="Barcode" />
+      ${LABEL_SHOW_BARCODE && barcode ? `<img class="barcode" src="${barcode}" alt="Barcode" />` : ''}
     </div>
   </div>
   <script>
@@ -3587,7 +3593,7 @@ function App() {
     for (const item of batch) {
       const label = getLabelData(item)
       const qr = await buildQrLabelDataUrl(label.technicalSheetUrl || label.code, QRCode)
-      const barcode = await buildBarcodeDataUrl(label.code)
+      const barcode = LABEL_SHOW_BARCODE ? await buildBarcodeDataUrl(label.code) : ''
       const metaLines = ''
       sheets.push(`
   <div class="sheet">
@@ -3598,7 +3604,7 @@ function App() {
     </div>
     <div class="media">
       <img class="qr" src="${qr}" alt="QR" />
-      <img class="barcode" src="${barcode}" alt="Barcode" />
+      ${LABEL_SHOW_BARCODE && barcode ? `<img class="barcode" src="${barcode}" alt="Barcode" />` : ''}
     </div>
   </div>`)
     }
@@ -3633,7 +3639,7 @@ function App() {
     .sheet:last-child { page-break-after: auto; }
     .top {
       width: 100%;
-      min-height: 8mm;
+      min-height: 6.6mm;
       overflow: hidden;
       display: flex;
       flex-direction: column;
@@ -3675,7 +3681,7 @@ function App() {
       width: 100%;
       position: absolute;
       left: 50%;
-      top: 10.8mm;
+      top: ${LABEL_MEDIA_TOP_MM}mm;
       display: flex;
       flex-direction: column;
       align-items: center;
