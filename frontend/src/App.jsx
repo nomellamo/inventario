@@ -3286,6 +3286,14 @@ function App() {
     return lines.filter(Boolean)
   }
 
+  function getRequiredTechnicalSheetQrValue(label) {
+    const value = String(label?.technicalSheetUrl || '').trim()
+    if (!value) {
+      throw new Error(`El activo ${label?.code || ''} no tiene URL de ficha tecnica para QR.`)
+    }
+    return value
+  }
+
   function buildAssetTechnicalSheetUrl(assetLike) {
     const assetId = getSafeAssetId(assetLike)
     if (!assetId) return ''
@@ -3387,7 +3395,7 @@ function App() {
       textY += i === 0 ? 2.2 : 1.9
     }
 
-    const qrValue = label.technicalSheetUrl || label.code
+    const qrValue = getRequiredTechnicalSheetQrValue(label)
     let qr = qrCodeUrl
     if (!qr) {
       qr = await buildQrLabelDataUrl(qrValue, QRCode)
@@ -3444,7 +3452,7 @@ function App() {
         doc.text(String(topLines[i]).substring(0, 32), textRightX, textY, { align: 'right' })
         textY += i === 0 ? 2.2 : 1.9
       }
-      const qr = await buildQrLabelDataUrl(label.technicalSheetUrl || label.code, QRCode)
+      const qr = await buildQrLabelDataUrl(getRequiredTechnicalSheetQrValue(label), QRCode)
       const barcode = LABEL_SHOW_BARCODE ? await buildBarcodeDataUrl(label.code) : ''
       const qrSize = LABEL.qrSizeMm
       const barcodeWidth = LABEL.barcodeWidthMm
@@ -3472,7 +3480,7 @@ function App() {
     const { default: QRCode } = await loadQrCodeLib()
     const label = getLabelData(createdAsset)
 
-    const qrValue = label.technicalSheetUrl || label.code
+    const qrValue = getRequiredTechnicalSheetQrValue(label)
     let qr = qrCodeUrl
     if (!qr) {
       qr = await buildQrLabelDataUrl(qrValue, QRCode)
@@ -3623,7 +3631,7 @@ function App() {
     const sheets = []
     for (const item of batch) {
       const label = getLabelData(item)
-      const qr = await buildQrLabelDataUrl(label.technicalSheetUrl || label.code, QRCode)
+      const qr = await buildQrLabelDataUrl(getRequiredTechnicalSheetQrValue(label), QRCode)
       const barcode = LABEL_SHOW_BARCODE ? await buildBarcodeDataUrl(label.code) : ''
       const topHtml = getLabelTopLines(label)
         .map((line, idx) => `<div class="${idx === 0 ? 'code' : 'name'}">${escapeHtml(line)}</div>`)
