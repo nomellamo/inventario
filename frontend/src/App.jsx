@@ -3222,7 +3222,8 @@ function App() {
     barcodeHeightMm: 2.2,
   }
   const LABEL_SHOW_BARCODE = false
-  const LABEL_MEDIA_TOP_MM = 4.8
+  const LABEL_QR_LEFT_MM = 0.8
+  const LABEL_QR_BOTTOM_MM = 0.8
   const LABEL_LOGO_SIZE_MM = 3
   const LABEL_LOGO_TOP_MM = 0.7
   const LABEL_LOGO_LEFT_MM = 0.7
@@ -3386,7 +3387,7 @@ function App() {
       textY += i === 0 ? 2.2 : 1.9
     }
 
-    const qrValue = label.code
+    const qrValue = label.technicalSheetUrl || label.code
     let qr = qrCodeUrl
     if (!qr) {
       qr = await buildQrLabelDataUrl(qrValue, QRCode)
@@ -3397,9 +3398,8 @@ function App() {
     const barcodeWidth = LABEL.barcodeWidthMm
     const barcodeHeight = LABEL.barcodeHeightMm
     const mediaGap = 0.3
-    const mediaY = baseY + LABEL_MEDIA_TOP_MM
-    const qrX = baseX + (contentWidth - qrSize) / 2
-    const qrY = mediaY
+    const qrX = baseX + LABEL_QR_LEFT_MM
+    const qrY = baseY + (LABEL.heightMm - 2 * LABEL.marginMm - LABEL_QR_BOTTOM_MM - qrSize)
     const barcodeX = baseX + (contentWidth - barcodeWidth) / 2
     const barcodeY = qrY + qrSize + mediaGap
     doc.addImage(qr, 'PNG', qrX, qrY, qrSize, qrSize, undefined, 'NONE')
@@ -3444,15 +3444,14 @@ function App() {
         doc.text(String(topLines[i]).substring(0, 32), textRightX, textY, { align: 'right' })
         textY += i === 0 ? 2.2 : 1.9
       }
-      const qr = await buildQrLabelDataUrl(label.code, QRCode)
+      const qr = await buildQrLabelDataUrl(label.technicalSheetUrl || label.code, QRCode)
       const barcode = LABEL_SHOW_BARCODE ? await buildBarcodeDataUrl(label.code) : ''
       const qrSize = LABEL.qrSizeMm
       const barcodeWidth = LABEL.barcodeWidthMm
       const barcodeHeight = LABEL.barcodeHeightMm
       const mediaGap = 0.3
-      const mediaY = baseY + LABEL_MEDIA_TOP_MM
-      const qrX = baseX + (contentWidth - qrSize) / 2
-      const qrY = mediaY
+      const qrX = baseX + LABEL_QR_LEFT_MM
+      const qrY = baseY + (LABEL.heightMm - 2 * LABEL.marginMm - LABEL_QR_BOTTOM_MM - qrSize)
       const barcodeX = baseX + (contentWidth - barcodeWidth) / 2
       const barcodeY = qrY + qrSize + mediaGap
       doc.addImage(qr, 'PNG', qrX, qrY, qrSize, qrSize, undefined, 'NONE')
@@ -3473,7 +3472,7 @@ function App() {
     const { default: QRCode } = await loadQrCodeLib()
     const label = getLabelData(createdAsset)
 
-    const qrValue = label.code
+    const qrValue = label.technicalSheetUrl || label.code
     let qr = qrCodeUrl
     if (!qr) {
       qr = await buildQrLabelDataUrl(qrValue, QRCode)
@@ -3546,13 +3545,13 @@ function App() {
       width: 100%;
       position: absolute;
       left: 50%;
-      top: ${LABEL_MEDIA_TOP_MM}mm;
+      left: ${LABEL_QR_LEFT_MM}mm;
+      bottom: ${LABEL_QR_BOTTOM_MM}mm;
       display: flex;
       flex-direction: column;
-      align-items: center;
+      align-items: flex-start;
       justify-content: center;
       gap: 0.4mm;
-      transform: translateX(-50%);
     }
     .qr {
       width: ${LABEL.qrSizeMm}mm;
@@ -3624,7 +3623,7 @@ function App() {
     const sheets = []
     for (const item of batch) {
       const label = getLabelData(item)
-      const qr = await buildQrLabelDataUrl(label.code, QRCode)
+      const qr = await buildQrLabelDataUrl(label.technicalSheetUrl || label.code, QRCode)
       const barcode = LABEL_SHOW_BARCODE ? await buildBarcodeDataUrl(label.code) : ''
       const topHtml = getLabelTopLines(label)
         .map((line, idx) => `<div class="${idx === 0 ? 'code' : 'name'}">${escapeHtml(line)}</div>`)
@@ -3696,13 +3695,13 @@ function App() {
       width: 100%;
       position: absolute;
       left: 50%;
-      top: ${LABEL_MEDIA_TOP_MM}mm;
+      left: ${LABEL_QR_LEFT_MM}mm;
+      bottom: ${LABEL_QR_BOTTOM_MM}mm;
       display: flex;
       flex-direction: column;
-      align-items: center;
+      align-items: flex-start;
       justify-content: center;
       gap: 0.4mm;
-      transform: translateX(-50%);
     }
     .qr {
       width: ${LABEL.qrSizeMm}mm;
@@ -5311,7 +5310,7 @@ function App() {
       return
     }
     const barcodeValue = `INV-${createdAsset.internalCode}`
-    const qrValue = barcodeValue
+    const qrValue = buildAssetTechnicalSheetUrl(createdAsset) || barcodeValue
     let cancelled = false
     Promise.all([loadQrCodeLib(), loadJsBarcodeLib()])
       .then(([qrModule, barcodeModule]) => {
