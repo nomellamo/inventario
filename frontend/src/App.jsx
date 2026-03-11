@@ -3224,12 +3224,12 @@ function App() {
   const LABEL_SHOW_BARCODE = false
   const LABEL_QR_LEFT_MM = 0.8
   const LABEL_QR_BOTTOM_MM = 0.8
-  const LABEL_LOGO_SIZE_MM = 3
+  const LABEL_LOGO_SIZE_MM = 4.2
   const LABEL_LOGO_TOP_MM = 0.7
   const LABEL_LOGO_LEFT_MM = 0.7
-  const LABEL_TEXT_TOP_MM = 1.1
   const LABEL_TEXT_RIGHT_MM = 0.8
-  const LABEL_TEXT_WIDTH_MM = 15.5
+  const LABEL_TEXT_GAP_FROM_QR_MM = 1
+  const LABEL_TEXT_WIDTH_MM = 13.4
   const QR_PRINT_WIDTH_PX = 2200
 
   async function buildQrLabelDataUrl(qrValue, qrCodeLib) {
@@ -3280,8 +3280,9 @@ function App() {
   }
 
   function getLabelTopLines(label) {
-    const lines = [String(label?.code || '').trim(), String(label?.name || '').trim()]
+    const lines = [String(label?.code || '').trim()]
     if (label?.responsibleName) lines.push(`Resp: ${String(label.responsibleName).trim()}`)
+    if (label?.name) lines.push(String(label.name).trim())
     if (label?.assetState) lines.push(`Estado: ${String(label.assetState).trim()}`)
     return lines.filter(Boolean)
   }
@@ -3385,15 +3386,17 @@ function App() {
     const baseX = LABEL.marginMm + LABEL.offsetX
     const baseY = LABEL.marginMm + LABEL.offsetY
     const contentWidth = LABEL.widthMm - 2 * LABEL.marginMm
-    const centerX = baseX + contentWidth / 2
     const textRightX = LABEL.widthMm - LABEL.marginMm - LABEL_TEXT_RIGHT_MM
-    let textY = baseY + LABEL_TEXT_TOP_MM + 1.2
+    const qrY = baseY + (LABEL.heightMm - 2 * LABEL.marginMm - LABEL_QR_BOTTOM_MM - LABEL.qrSizeMm)
+    let textY = qrY + 3.2
     const topLines = getLabelTopLines(label)
     for (let i = 0; i < topLines.length && i < 4; i++) {
-      doc.setFontSize(i === 0 ? 7.2 : 6)
+      doc.setFont(undefined, i === 0 ? 'bold' : 'normal')
+      doc.setFontSize(i === 0 ? 8.4 : 7.2)
       doc.text(String(topLines[i]).substring(0, 32), textRightX, textY, { align: 'right' })
-      textY += i === 0 ? 2.2 : 1.9
+      textY += i === 0 ? 3.1 : 2.5
     }
+    doc.setFont(undefined, 'normal')
 
     const qrValue = getRequiredTechnicalSheetQrValue(label)
     let qr = qrCodeUrl
@@ -3407,7 +3410,6 @@ function App() {
     const barcodeHeight = LABEL.barcodeHeightMm
     const mediaGap = 0.3
     const qrX = baseX + LABEL_QR_LEFT_MM
-    const qrY = baseY + (LABEL.heightMm - 2 * LABEL.marginMm - LABEL_QR_BOTTOM_MM - qrSize)
     const barcodeX = baseX + (contentWidth - barcodeWidth) / 2
     const barcodeY = qrY + qrSize + mediaGap
     doc.addImage(qr, 'PNG', qrX, qrY, qrSize, qrSize, undefined, 'NONE')
@@ -3445,13 +3447,16 @@ function App() {
       const baseY = LABEL.marginMm + LABEL.offsetY
       const contentWidth = LABEL.widthMm - 2 * LABEL.marginMm
       const textRightX = LABEL.widthMm - LABEL.marginMm - LABEL_TEXT_RIGHT_MM
-      let textY = baseY + LABEL_TEXT_TOP_MM + 1.2
+      const qrY = baseY + (LABEL.heightMm - 2 * LABEL.marginMm - LABEL_QR_BOTTOM_MM - LABEL.qrSizeMm)
+      let textY = qrY + 3.2
       const topLines = getLabelTopLines(label)
       for (let i = 0; i < topLines.length && i < 4; i++) {
-        doc.setFontSize(i === 0 ? 7.2 : 6)
+        doc.setFont(undefined, i === 0 ? 'bold' : 'normal')
+        doc.setFontSize(i === 0 ? 8.4 : 7.2)
         doc.text(String(topLines[i]).substring(0, 32), textRightX, textY, { align: 'right' })
-        textY += i === 0 ? 2.2 : 1.9
+        textY += i === 0 ? 3.1 : 2.5
       }
+      doc.setFont(undefined, 'normal')
       const qr = await buildQrLabelDataUrl(getRequiredTechnicalSheetQrValue(label), QRCode)
       const barcode = LABEL_SHOW_BARCODE ? await buildBarcodeDataUrl(label.code) : ''
       const qrSize = LABEL.qrSizeMm
@@ -3459,7 +3464,6 @@ function App() {
       const barcodeHeight = LABEL.barcodeHeightMm
       const mediaGap = 0.3
       const qrX = baseX + LABEL_QR_LEFT_MM
-      const qrY = baseY + (LABEL.heightMm - 2 * LABEL.marginMm - LABEL_QR_BOTTOM_MM - qrSize)
       const barcodeX = baseX + (contentWidth - barcodeWidth) / 2
       const barcodeY = qrY + qrSize + mediaGap
       doc.addImage(qr, 'PNG', qrX, qrY, qrSize, qrSize, undefined, 'NONE')
@@ -3525,34 +3529,37 @@ function App() {
       text-align: center;
       overflow: hidden;
     }
-    .top-right {
+    .side-right {
       position: absolute;
-      top: ${LABEL_TEXT_TOP_MM}mm;
+      left: ${LABEL_QR_LEFT_MM + LABEL.qrSizeMm + LABEL_TEXT_GAP_FROM_QR_MM}mm;
+      bottom: ${LABEL_QR_BOTTOM_MM + 0.8}mm;
       right: ${LABEL_TEXT_RIGHT_MM}mm;
       width: ${LABEL_TEXT_WIDTH_MM}mm;
       display: grid;
-      gap: 0.35mm;
+      gap: 0.45mm;
       text-align: right;
     }
     .code {
       font-weight: 700;
-      font-size: 8.8px;
-      line-height: 1.05;
+      font-size: 9.2px;
+      line-height: 1.1;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      color: #020617;
     }
     .name {
       font-size: 8px;
-      line-height: 1.05;
+      line-height: 1.12;
+      font-weight: 600;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      color: #111827;
     }
     .media {
       width: 100%;
       position: absolute;
-      left: 50%;
       left: ${LABEL_QR_LEFT_MM}mm;
       bottom: ${LABEL_QR_BOTTOM_MM}mm;
       display: flex;
@@ -3585,7 +3592,7 @@ function App() {
 </head>
 <body>
   <div class="sheet">
-    <div class="top-right">${topHtml}</div>
+    <div class="side-right">${topHtml}</div>
     <img class="brand" src="${logoInventacore}" alt="InventaCore" />
     <div class="media">
       <img class="qr" src="${qr}" alt="QR" />
@@ -3638,7 +3645,7 @@ function App() {
         .join('')
       sheets.push(`
   <div class="sheet">
-    <div class="top-right">${topHtml}</div>
+    <div class="side-right">${topHtml}</div>
     <img class="brand" src="${logoInventacore}" alt="InventaCore" />
     <div class="media">
       <img class="qr" src="${qr}" alt="QR" />
@@ -3675,34 +3682,37 @@ function App() {
       page-break-after: always;
     }
     .sheet:last-child { page-break-after: auto; }
-    .top-right {
+    .side-right {
       position: absolute;
-      top: ${LABEL_TEXT_TOP_MM}mm;
+      left: ${LABEL_QR_LEFT_MM + LABEL.qrSizeMm + LABEL_TEXT_GAP_FROM_QR_MM}mm;
+      bottom: ${LABEL_QR_BOTTOM_MM + 0.8}mm;
       right: ${LABEL_TEXT_RIGHT_MM}mm;
       width: ${LABEL_TEXT_WIDTH_MM}mm;
       display: grid;
-      gap: 0.35mm;
+      gap: 0.45mm;
       text-align: right;
     }
     .code {
       font-weight: 700;
-      font-size: 8.8px;
-      line-height: 1.05;
+      font-size: 9.2px;
+      line-height: 1.1;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      color: #020617;
     }
     .name {
       font-size: 8px;
-      line-height: 1.05;
+      line-height: 1.12;
+      font-weight: 600;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      color: #111827;
     }
     .media {
       width: 100%;
       position: absolute;
-      left: 50%;
       left: ${LABEL_QR_LEFT_MM}mm;
       bottom: ${LABEL_QR_BOTTOM_MM}mm;
       display: flex;
