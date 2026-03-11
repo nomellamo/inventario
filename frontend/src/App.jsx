@@ -5468,6 +5468,10 @@ function App() {
 
   async function createInstitution() {
     try {
+      if (!dangerZoneUnlocked) {
+        setErr('Botones críticos bloqueados. Usa "Desbloquear botones".')
+        return
+      }
       if (!instForm.name.trim()) {
         setFormErrors((prev) => ({ ...prev, instName: 'Nombre requerido.' }))
         return
@@ -7051,6 +7055,19 @@ function App() {
               <div className="split">
                 <div className="form-card">
                   <h4>Nueva institución</h4>
+                  <div className="actions">
+                    <button
+                      className={dangerZoneUnlocked ? 'ghost' : 'primary'}
+                      onClick={dangerZoneUnlocked ? lockDangerZoneButtons : unlockDangerZoneButtons}
+                      disabled={dangerZoneUnlocking}
+                    >
+                      {dangerZoneUnlocking
+                        ? 'Verificando...'
+                        : dangerZoneUnlocked
+                          ? 'Bloquear botones'
+                          : 'Desbloquear botones'}
+                    </button>
+                  </div>
                   <input
                     placeholder="Nombre"
                     value={instForm.name}
@@ -7062,7 +7079,12 @@ function App() {
                     }}
                   />
                   {formErrors.instName && <p className="error">{formErrors.instName}</p>}
-                  <button className="primary" onClick={createInstitution}>
+                  <button
+                    className="primary"
+                    onClick={createInstitution}
+                    disabled={!dangerZoneUnlocked}
+                    title={!dangerZoneUnlocked ? 'Primero desbloquea botones críticos.' : ''}
+                  >
                     Crear
                   </button>
                 </div>
