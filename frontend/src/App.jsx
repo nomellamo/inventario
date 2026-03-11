@@ -3923,14 +3923,19 @@ function App() {
       }
       const applyDepreciationValues = (payload, acquisitionValue) => {
         if (assetForm.depreciationMethod !== 'LINEAL') return payload
+        const providedYears = Number(assetForm.usefulLifeYears)
+        const withYears =
+          Number.isInteger(providedYears) && providedYears > 0
+            ? { ...payload, usefulLifeYears: providedYears }
+            : payload
         const depreciation = calculateStraightLineDepreciation({
           acquisitionValue,
           usefulLifeYears: assetForm.usefulLifeYears,
           residualValue: assetForm.residualValue,
         })
-        if (!depreciation) return payload
+        if (!depreciation) return withYears
         return {
-          ...payload,
+          ...withYears,
           usefulLifeYears: depreciation.usefulLifeYears,
           depreciationAnnualValue: depreciation.annual,
           depreciationAnnualRate: depreciation.rate,
