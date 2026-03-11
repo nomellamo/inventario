@@ -3351,7 +3351,7 @@ function App() {
       y += 2.3
     }
 
-    const qrValue = label.code || label.technicalSheetUrl
+    const qrValue = label.technicalSheetUrl || label.code
     let qr = qrCodeUrl
     if (!qr) {
       qr = await buildQrLabelDataUrl(qrValue, QRCode)
@@ -3405,7 +3405,7 @@ function App() {
         doc.text(line, centerX, y, { align: 'center' })
         y += 2.3
       }
-      const qr = await buildQrLabelDataUrl(label.code || label.technicalSheetUrl, QRCode)
+      const qr = await buildQrLabelDataUrl(label.technicalSheetUrl || label.code, QRCode)
       const barcode = await buildBarcodeDataUrl(label.code)
       const qrSize = LABEL.qrSizeMm
       const barcodeWidth = LABEL.barcodeWidthMm
@@ -3427,7 +3427,7 @@ function App() {
     const { default: QRCode } = await loadQrCodeLib()
     const label = getLabelData(createdAsset)
 
-    const qrValue = label.code || label.technicalSheetUrl
+    const qrValue = label.technicalSheetUrl || label.code
     let qr = qrCodeUrl
     if (!qr) {
       qr = await buildQrLabelDataUrl(qrValue, QRCode)
@@ -3588,7 +3588,7 @@ function App() {
     const sheets = []
     for (const item of batch) {
       const label = getLabelData(item)
-      const qr = await buildQrLabelDataUrl(label.code || label.technicalSheetUrl, QRCode)
+      const qr = await buildQrLabelDataUrl(label.technicalSheetUrl || label.code, QRCode)
       const barcode = await buildBarcodeDataUrl(label.code)
       const metaLines = ''
       sheets.push(`
