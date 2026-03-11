@@ -3222,10 +3222,13 @@ function App() {
     barcodeHeightMm: 2.2,
   }
   const LABEL_SHOW_BARCODE = false
-  const LABEL_MEDIA_TOP_MM = 5.8
+  const LABEL_MEDIA_TOP_MM = 4.8
   const LABEL_LOGO_SIZE_MM = 3
   const LABEL_LOGO_TOP_MM = 0.7
-  const LABEL_LOGO_RIGHT_MM = 0.7
+  const LABEL_LOGO_LEFT_MM = 0.7
+  const LABEL_TEXT_TOP_MM = 1.1
+  const LABEL_TEXT_RIGHT_MM = 0.8
+  const LABEL_TEXT_WIDTH_MM = 15.5
   const QR_PRINT_WIDTH_PX = 2200
 
   async function buildQrLabelDataUrl(qrValue, qrCodeLib) {
@@ -3273,6 +3276,13 @@ function App() {
     const assetId = getSafeAssetId(asset)
     const technicalSheetUrl = buildAssetTechnicalSheetUrl(asset)
     return { code, name, responsibleName, assetState, assetId, technicalSheetUrl }
+  }
+
+  function getLabelTopLines(label) {
+    const lines = [String(label?.code || '').trim(), String(label?.name || '').trim()]
+    if (label?.responsibleName) lines.push(`Resp: ${String(label.responsibleName).trim()}`)
+    if (label?.assetState) lines.push(`Estado: ${String(label.assetState).trim()}`)
+    return lines.filter(Boolean)
   }
 
   function buildAssetTechnicalSheetUrl(assetLike) {
@@ -3367,20 +3377,16 @@ function App() {
     const baseY = LABEL.marginMm + LABEL.offsetY
     const contentWidth = LABEL.widthMm - 2 * LABEL.marginMm
     const centerX = baseX + contentWidth / 2
-    doc.setFontSize(8.8)
-    doc.text(String(label.code || '').substring(0, 22), centerX, baseY + 3.2, { align: 'center' })
-    const name = label.name || UI_TEXT.assetSingular
-    doc.setFontSize(8)
-    doc.text(name.substring(0, 22), centerX, baseY + 6.3, { align: 'center' })
-    doc.setFontSize(6.2)
-    const metaLines = []
-    let y = baseY + 8.6
-    for (const line of metaLines.slice(0, 3)) {
-      doc.text(line, centerX, y, { align: 'center' })
-      y += 2.3
+    const textRightX = LABEL.widthMm - LABEL.marginMm - LABEL_TEXT_RIGHT_MM
+    let textY = baseY + LABEL_TEXT_TOP_MM + 1.2
+    const topLines = getLabelTopLines(label)
+    for (let i = 0; i < topLines.length && i < 4; i++) {
+      doc.setFontSize(i === 0 ? 7.2 : 6)
+      doc.text(String(topLines[i]).substring(0, 32), textRightX, textY, { align: 'right' })
+      textY += i === 0 ? 2.2 : 1.9
     }
 
-    const qrValue = label.technicalSheetUrl || label.code
+    const qrValue = label.code
     let qr = qrCodeUrl
     if (!qr) {
       qr = await buildQrLabelDataUrl(qrValue, QRCode)
@@ -3401,7 +3407,7 @@ function App() {
       doc.addImage(barcode, 'PNG', barcodeX, barcodeY, barcodeWidth, barcodeHeight, undefined, 'NONE')
     }
     if (logoDataUrl) {
-      const logoX = LABEL.widthMm - LABEL.marginMm - LABEL_LOGO_RIGHT_MM - LABEL_LOGO_SIZE_MM
+      const logoX = LABEL.marginMm + LABEL_LOGO_LEFT_MM
       const logoY = LABEL.marginMm + LABEL_LOGO_TOP_MM
       doc.addImage(logoDataUrl, 'PNG', logoX, logoY, LABEL_LOGO_SIZE_MM, LABEL_LOGO_SIZE_MM)
     }
@@ -3430,20 +3436,15 @@ function App() {
       const baseX = LABEL.marginMm + LABEL.offsetX
       const baseY = LABEL.marginMm + LABEL.offsetY
       const contentWidth = LABEL.widthMm - 2 * LABEL.marginMm
-      const centerX = baseX + contentWidth / 2
-      doc.setFontSize(8.8)
-      doc.text(String(label.code || '').substring(0, 22), centerX, baseY + 3.2, { align: 'center' })
-      const name = label.name || UI_TEXT.assetSingular
-      doc.setFontSize(8)
-      doc.text(name.substring(0, 22), centerX, baseY + 6.3, { align: 'center' })
-      doc.setFontSize(6.2)
-      const metaLines = []
-      let y = baseY + 8.6
-      for (const line of metaLines.slice(0, 3)) {
-        doc.text(line, centerX, y, { align: 'center' })
-        y += 2.3
+      const textRightX = LABEL.widthMm - LABEL.marginMm - LABEL_TEXT_RIGHT_MM
+      let textY = baseY + LABEL_TEXT_TOP_MM + 1.2
+      const topLines = getLabelTopLines(label)
+      for (let i = 0; i < topLines.length && i < 4; i++) {
+        doc.setFontSize(i === 0 ? 7.2 : 6)
+        doc.text(String(topLines[i]).substring(0, 32), textRightX, textY, { align: 'right' })
+        textY += i === 0 ? 2.2 : 1.9
       }
-      const qr = await buildQrLabelDataUrl(label.technicalSheetUrl || label.code, QRCode)
+      const qr = await buildQrLabelDataUrl(label.code, QRCode)
       const barcode = LABEL_SHOW_BARCODE ? await buildBarcodeDataUrl(label.code) : ''
       const qrSize = LABEL.qrSizeMm
       const barcodeWidth = LABEL.barcodeWidthMm
@@ -3459,7 +3460,7 @@ function App() {
         doc.addImage(barcode, 'PNG', barcodeX, barcodeY, barcodeWidth, barcodeHeight, undefined, 'NONE')
       }
       if (logoDataUrl) {
-        const logoX = LABEL.widthMm - LABEL.marginMm - LABEL_LOGO_RIGHT_MM - LABEL_LOGO_SIZE_MM
+        const logoX = LABEL.marginMm + LABEL_LOGO_LEFT_MM
         const logoY = LABEL.marginMm + LABEL_LOGO_TOP_MM
         doc.addImage(logoDataUrl, 'PNG', logoX, logoY, LABEL_LOGO_SIZE_MM, LABEL_LOGO_SIZE_MM)
       }
@@ -3472,7 +3473,7 @@ function App() {
     const { default: QRCode } = await loadQrCodeLib()
     const label = getLabelData(createdAsset)
 
-    const qrValue = label.technicalSheetUrl || label.code
+    const qrValue = label.code
     let qr = qrCodeUrl
     if (!qr) {
       qr = await buildQrLabelDataUrl(qrValue, QRCode)
@@ -3485,7 +3486,9 @@ function App() {
       return
     }
 
-    const metaLines = ''
+    const topHtml = getLabelTopLines(label)
+      .map((line, idx) => `<div class="${idx === 0 ? 'code' : 'name'}">${escapeHtml(line)}</div>`)
+      .join('')
 
     const html = `<!doctype html>
 <html>
@@ -3515,21 +3518,19 @@ function App() {
       text-align: center;
       overflow: hidden;
     }
-    .top {
-      width: 100%;
-      min-height: 6.6mm;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: flex-start;
-      gap: 0.6mm;
+    .top-right {
+      position: absolute;
+      top: ${LABEL_TEXT_TOP_MM}mm;
+      right: ${LABEL_TEXT_RIGHT_MM}mm;
+      width: ${LABEL_TEXT_WIDTH_MM}mm;
+      display: grid;
+      gap: 0.35mm;
+      text-align: right;
     }
     .code {
       font-weight: 700;
       font-size: 8.8px;
       line-height: 1.05;
-      max-width: 100%;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -3537,20 +3538,6 @@ function App() {
     .name {
       font-size: 8px;
       line-height: 1.05;
-      max-width: 100%;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .meta {
-      font-size: 6.3px;
-      line-height: 1.05;
-      color: #334155;
-      width: 100%;
-      display: grid;
-      gap: 0.2mm;
-    }
-    .meta div {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -3576,7 +3563,7 @@ function App() {
     .brand {
       position: absolute;
       top: ${LABEL_LOGO_TOP_MM}mm;
-      right: ${LABEL_LOGO_RIGHT_MM}mm;
+      left: ${LABEL_LOGO_LEFT_MM}mm;
       width: ${LABEL_LOGO_SIZE_MM}mm;
       height: ${LABEL_LOGO_SIZE_MM}mm;
       object-fit: contain;
@@ -3591,11 +3578,7 @@ function App() {
 </head>
 <body>
   <div class="sheet">
-    <div class="top">
-      <div class="code">${escapeHtml(label.code)}</div>
-      <div class="name">${escapeHtml(label.name)}</div>
-      <div class="meta">${metaLines}</div>
-    </div>
+    <div class="top-right">${topHtml}</div>
     <img class="brand" src="${logoInventacore}" alt="InventaCore" />
     <div class="media">
       <img class="qr" src="${qr}" alt="QR" />
@@ -3641,16 +3624,14 @@ function App() {
     const sheets = []
     for (const item of batch) {
       const label = getLabelData(item)
-      const qr = await buildQrLabelDataUrl(label.technicalSheetUrl || label.code, QRCode)
+      const qr = await buildQrLabelDataUrl(label.code, QRCode)
       const barcode = LABEL_SHOW_BARCODE ? await buildBarcodeDataUrl(label.code) : ''
-      const metaLines = ''
+      const topHtml = getLabelTopLines(label)
+        .map((line, idx) => `<div class="${idx === 0 ? 'code' : 'name'}">${escapeHtml(line)}</div>`)
+        .join('')
       sheets.push(`
   <div class="sheet">
-    <div class="top">
-      <div class="code">${escapeHtml(label.code)}</div>
-      <div class="name">${escapeHtml(label.name)}</div>
-      <div class="meta">${metaLines}</div>
-    </div>
+    <div class="top-right">${topHtml}</div>
     <img class="brand" src="${logoInventacore}" alt="InventaCore" />
     <div class="media">
       <img class="qr" src="${qr}" alt="QR" />
@@ -3687,21 +3668,19 @@ function App() {
       page-break-after: always;
     }
     .sheet:last-child { page-break-after: auto; }
-    .top {
-      width: 100%;
-      min-height: 6.6mm;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: flex-start;
-      gap: 0.6mm;
+    .top-right {
+      position: absolute;
+      top: ${LABEL_TEXT_TOP_MM}mm;
+      right: ${LABEL_TEXT_RIGHT_MM}mm;
+      width: ${LABEL_TEXT_WIDTH_MM}mm;
+      display: grid;
+      gap: 0.35mm;
+      text-align: right;
     }
     .code {
       font-weight: 700;
       font-size: 8.8px;
       line-height: 1.05;
-      max-width: 100%;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -3709,20 +3688,6 @@ function App() {
     .name {
       font-size: 8px;
       line-height: 1.05;
-      max-width: 100%;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .meta {
-      font-size: 6.3px;
-      line-height: 1.05;
-      color: #334155;
-      width: 100%;
-      display: grid;
-      gap: 0.2mm;
-    }
-    .meta div {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -3748,7 +3713,7 @@ function App() {
     .brand {
       position: absolute;
       top: ${LABEL_LOGO_TOP_MM}mm;
-      right: ${LABEL_LOGO_RIGHT_MM}mm;
+      left: ${LABEL_LOGO_LEFT_MM}mm;
       width: ${LABEL_LOGO_SIZE_MM}mm;
       height: ${LABEL_LOGO_SIZE_MM}mm;
       object-fit: contain;
@@ -5346,7 +5311,7 @@ function App() {
       return
     }
     const barcodeValue = `INV-${createdAsset.internalCode}`
-    const qrValue = buildAssetTechnicalSheetUrl(createdAsset) || barcodeValue
+    const qrValue = barcodeValue
     let cancelled = false
     Promise.all([loadQrCodeLib(), loadJsBarcodeLib()])
       .then(([qrModule, barcodeModule]) => {
