@@ -70,6 +70,14 @@ async function buildPlanchetaExcel(assets, meta) {
     (acc, item) => acc + Math.max(Number(item?.quantity) || 0, 1),
     0
   );
+  const totalAcquisitionValue = normalizedAssets.reduce(
+    (acc, item) => acc + Math.max(Number(item?.acquisitionValue) || 0, 0),
+    0
+  );
+  const totalAnnualDepreciation = normalizedAssets.reduce(
+    (acc, item) => acc + Math.max(Number(item?.depreciationAnnualValue) || 0, 0),
+    0
+  );
   const stateStats = Array.from(
     normalizedAssets.reduce((map, item) => {
       const stateName = String(item?.assetState?.name || "Sin estado").trim() || "Sin estado";
@@ -172,6 +180,9 @@ async function buildPlanchetaExcel(assets, meta) {
     "RUT Responsable",
     "Estado",
     "Dependencia",
+    "Valor Adq CLP",
+    "Deprec. Anual CLP",
+    "Vida Util (años)",
   ]);
 
   const headerRow = sheet.getRow(sheet.lastRow.number);
@@ -191,6 +202,9 @@ async function buildPlanchetaExcel(assets, meta) {
       a.responsibleRut || "",
       a.assetState.name,
       a.dependency.name,
+      Number(a.acquisitionValue || 0),
+      Number(a.depreciationAnnualValue || 0),
+      a.usefulLifeYears ?? "",
     ]);
   });
 
@@ -200,12 +214,16 @@ async function buildPlanchetaExcel(assets, meta) {
     `Bienes: ${totalUnits}`,
     "",
     "",
+    "",
+    "",
+    `Valor adq: $${Math.round(totalAcquisitionValue).toLocaleString("es-CL")}`,
+    `Deprec anual: $${Math.round(totalAnnualDepreciation).toLocaleString("es-CL")}`,
     `Registros: ${totalAssets}`,
   ]);
-  sheet.mergeCells(`A${totalRow.number}:B${totalRow.number}`);
-  sheet.mergeCells(`E${totalRow.number}:F${totalRow.number}`);
+  sheet.mergeCells(`A${totalRow.number}:C${totalRow.number}`);
+  sheet.mergeCells(`G${totalRow.number}:H${totalRow.number}`);
   totalRow.font = { bold: true };
-  ["A", "B", "E", "F"].forEach((col) => {
+  ["A", "B", "C", "G", "H", "I"].forEach((col) => {
     const cell = sheet.getCell(`${col}${totalRow.number}`);
     cell.fill = {
       type: "pattern",
@@ -226,14 +244,17 @@ async function buildPlanchetaExcel(assets, meta) {
     `Total de registros: ${totalAssets}`,
     "",
     "",
+    "",
+    "",
     `Cantidad total de bienes: ${totalUnits}`,
+    `Deprec anual total: $${Math.round(totalAnnualDepreciation).toLocaleString("es-CL")}`,
     "",
   ]);
-  sheet.mergeCells(`A${summaryRow.number}:B${summaryRow.number}`);
-  sheet.mergeCells(`E${summaryRow.number}:F${summaryRow.number}`);
+  sheet.mergeCells(`A${summaryRow.number}:C${summaryRow.number}`);
+  sheet.mergeCells(`G${summaryRow.number}:H${summaryRow.number}`);
   summaryRow.font = { bold: true };
   summaryRow.alignment = { vertical: "middle" };
-  ["A", "B", "E", "F"].forEach((col) => {
+  ["A", "B", "C", "G", "H", "I"].forEach((col) => {
     const cell = sheet.getCell(`${col}${summaryRow.number}`);
     cell.fill = {
       type: "pattern",
@@ -525,12 +546,14 @@ async function buildPlanchetaExcel(assets, meta) {
     right: { style: "thin", color: { argb: "FF94A3B8" } },
   };
 
-  const widths = [16, 34, 22, 18, 16, 24];
+  const widths = [14, 28, 18, 14, 12, 18, 16, 18, 12];
   for (let i = 1; i <= widths.length; i++) {
     const col = sheet.getColumn(i);
     col.width = widths[i - 1];
     col.alignment = { vertical: "top", wrapText: true };
   }
+  sheet.getColumn(7).numFmt = "#,##0";
+  sheet.getColumn(8).numFmt = "#,##0";
 
   const zebraFill = {
     type: "pattern",

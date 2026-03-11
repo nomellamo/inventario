@@ -13,6 +13,10 @@ function summarizeAssets(assets) {
     (acc, item) => acc + Math.max(Number(item?.acquisitionValue) || 0, 0),
     0
   );
+  const totalAnnualDepreciation = items.reduce(
+    (acc, item) => acc + Math.max(Number(item?.depreciationAnnualValue) || 0, 0),
+    0
+  );
 
   const aggregate = (picker, fallback) =>
     Array.from(
@@ -30,6 +34,7 @@ function summarizeAssets(assets) {
     totalAssets,
     totalUnits,
     totalValue,
+    totalAnnualDepreciation,
     states: aggregate((item) => item?.assetState?.name, "Sin estado"),
     dependencies: aggregate((item) => item?.dependency?.name, "Sin dependencia"),
     types: aggregate((item) => item?.assetType?.name, "Sin tipo"),
@@ -179,7 +184,7 @@ function buildPlanchetaExecutivePdf(assets, meta) {
 
   const cardY = 100;
   const gap = 12;
-  const cardW = (pageWidth - gap * 2) / 3;
+  const cardW = (pageWidth - gap * 3) / 4;
   drawMetricCard(doc, left, cardY, cardW, 76, "Registros", summary.totalAssets, "Activos listados");
   drawMetricCard(doc, left + cardW + gap, cardY, cardW, 76, "Bienes", summary.totalUnits, "Cantidad total");
   drawMetricCard(
@@ -191,6 +196,17 @@ function buildPlanchetaExecutivePdf(assets, meta) {
     "Valor Referencial",
     `$${Math.round(summary.totalValue).toLocaleString("es-CL")}`,
     "Suma de adquisición"
+  );
+
+  drawMetricCard(
+    doc,
+    left + (cardW + gap) * 3,
+    cardY,
+    cardW,
+    76,
+    "Deprec. Anual",
+    `$${Math.round(summary.totalAnnualDepreciation).toLocaleString("es-CL")}`,
+    "Suma anual estimada"
   );
 
   const sectionY = cardY + 96;

@@ -13,6 +13,10 @@ function summarizeAssets(assets) {
     (acc, item) => acc + Math.max(Number(item?.acquisitionValue) || 0, 0),
     0
   );
+  const totalAnnualDepreciation = items.reduce(
+    (acc, item) => acc + Math.max(Number(item?.depreciationAnnualValue) || 0, 0),
+    0
+  );
 
   const aggregate = (picker, fallback) =>
     Array.from(
@@ -28,6 +32,7 @@ function summarizeAssets(assets) {
     totalAssets,
     totalUnits,
     totalValue,
+    totalAnnualDepreciation,
     states: aggregate((item) => item?.assetState?.name, "Sin estado"),
     dependencies: aggregate((item) => item?.dependency?.name, "Sin dependencia"),
     types: aggregate((item) => item?.assetType?.name, "Sin tipo"),
@@ -85,9 +90,10 @@ async function buildPlanchetaExecutiveExcel(assets, meta) {
     { width: 34 },
     { width: 16 },
     { width: 16 },
+    { width: 20 },
   ];
 
-  sheet.mergeCells("A1:C1");
+  sheet.mergeCells("A1:D1");
   sheet.getCell("A1").value = "PLANCHETA GERENCIAL";
   sheet.getCell("A1").font = { bold: true, size: 16, color: { argb: "FFFFFFFF" } };
   sheet.getCell("A1").alignment = { horizontal: "center", vertical: "middle" };
@@ -105,6 +111,7 @@ async function buildPlanchetaExecutiveExcel(assets, meta) {
     `Registros: ${summary.totalAssets}`,
     `Bienes: ${summary.totalUnits}`,
     `Valor: $${Math.round(summary.totalValue).toLocaleString("es-CL")}`,
+    `Deprec anual: $${Math.round(summary.totalAnnualDepreciation).toLocaleString("es-CL")}`,
   ]);
   metrics.font = { bold: true };
   metrics.eachCell((cell) => {

@@ -337,6 +337,19 @@ function PlanchetasSection(props) {
                 {' · '}RUT: {item.responsibleRut || '-'} · Cargo: {item.responsibleRole || '-'}
                 {' · '}CC: {item.costCenter || '-'}
               </div>
+              <div className="muted">
+                Valor adq: $
+                {Number(item.acquisitionValue || 0).toLocaleString('es-CL', {
+                  minimumFractionDigits: 0,
+                  maximumFractionDigits: 0,
+                })}
+                {' · '}Deprec. anual: $
+                {Number(item.depreciationAnnualValue || 0).toLocaleString('es-CL', {
+                  minimumFractionDigits: 0,
+                  maximumFractionDigits: 0,
+                })}
+                {' · '}Vida útil: {item.usefulLifeYears || '-'} años
+              </div>
               {planchetaFilters.includeHistory && (
                 <div className="muted">
                   Historial reciente:{' '}

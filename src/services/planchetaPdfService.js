@@ -61,6 +61,12 @@ function buildAssetDescription(asset, maxLength = 90) {
   return truncateVisualText(detail ? `${main} - ${detail}` : main, maxLength);
 }
 
+function formatCurrency(value) {
+  const amount = Number(value || 0);
+  if (!Number.isFinite(amount)) return "$0";
+  return `$${Math.round(amount).toLocaleString("es-CL")}`;
+}
+
 function drawInsightsSection(doc, meta, tableLeft, tableWidth) {
   const insights = meta?.insights;
   if (!insights) return;
@@ -158,6 +164,10 @@ function buildPlanchetaPdf(assets, meta) {
   const totalAssets = normalizedAssets.length;
   const totalUnits = normalizedAssets.reduce(
     (acc, item) => acc + Math.max(Number(item?.quantity) || 0, 1),
+    0
+  );
+  const totalAnnualDepreciation = normalizedAssets.reduce(
+    (acc, item) => acc + Math.max(Number(item?.depreciationAnnualValue) || 0, 0),
     0
   );
   const stateStats = Array.from(
@@ -278,7 +288,7 @@ function buildPlanchetaPdf(assets, meta) {
   normalizedAssets.forEach((a, index) => {
     const row = [
       `INV-${a.internalCode}`,
-      buildAssetDescription(a, 88),
+      `${buildAssetDescription(a, 74)}\nDeprec. anual: ${formatCurrency(a.depreciationAnnualValue)}`,
       a.responsibleName || "",
       a.responsibleRut || "",
       a.assetState?.name || "",
@@ -323,7 +333,7 @@ function buildPlanchetaPdf(assets, meta) {
     .fill("#E8F5E9")
     .stroke("#9DBA9D");
   doc.fillColor("#163020").font("Helvetica-Bold").fontSize(10).text(
-    `TOTAL GENERAL: ${totalUnits} bienes en ${totalAssets} registros`,
+    `TOTAL GENERAL: ${totalUnits} bienes en ${totalAssets} registros | Deprec anual: ${formatCurrency(totalAnnualDepreciation)}`,
     tableLeft + 12,
     doc.y + 12,
     { width: tableWidth - 24, align: "center" }
