@@ -106,6 +106,11 @@ function App() {
   const [isChangingPassword, setIsChangingPassword] = useState(false)
   const [dangerZoneUnlocked, setDangerZoneUnlocked] = useState(false)
   const [dangerZoneUnlocking, setDangerZoneUnlocking] = useState(false)
+  const DANGER_ZONE_UNLOCK_TTL_MS = 10 * 60 * 1000
+  const DANGER_ZONE_UNLOCK_PASSWORD = String(
+    import.meta.env.VITE_DANGER_ZONE_UNLOCK_PASSWORD || ''
+  ).trim()
+  const dangerZoneLockTimerRef = useRef(null)
   const [changePasswordForm, setChangePasswordForm] = useState({
     currentPassword: '',
     newPassword: '',
@@ -2053,6 +2058,10 @@ function App() {
     } finally {
       localStorage.removeItem('admin_token')
       localStorage.removeItem('admin_user')
+      if (dangerZoneLockTimerRef.current) {
+        clearTimeout(dangerZoneLockTimerRef.current)
+        dangerZoneLockTimerRef.current = null
+      }
       setDangerZoneUnlocked(false)
       setToken('')
       setCurrentUser(null)
@@ -2166,43 +2175,52 @@ function App() {
     }
   }
 
+  function armDangerZoneAutoLock() {
+    if (dangerZoneLockTimerRef.current) {
+      clearTimeout(dangerZoneLockTimerRef.current)
+      dangerZoneLockTimerRef.current = null
+    }
+    dangerZoneLockTimerRef.current = setTimeout(() => {
+      setDangerZoneUnlocked(false)
+      dangerZoneLockTimerRef.current = null
+    }, DANGER_ZONE_UNLOCK_TTL_MS)
+  }
+
   async function unlockDangerZoneButtons() {
     if (dangerZoneUnlocking) return
-    const email = String(currentUser?.email || '').trim()
-    if (!email) {
-      setErr('No se pudo verificar el usuario actual para desbloquear botones.')
+    if (!DANGER_ZONE_UNLOCK_PASSWORD) {
+      setErr('Falta configurar VITE_DANGER_ZONE_UNLOCK_PASSWORD en frontend.')
       return
     }
-    const rawPassword = window.prompt(
-      'Ingresa tu contraseña para desbloquear botones críticos (vaciar/borrar).'
+    const rawSecret = window.prompt(
+      'Ingresa la contraseña fija para desbloquear botones críticos (10 minutos).'
     )
-    if (rawPassword === null) return
-    const password = String(rawPassword || '')
-    if (!password.trim()) {
-      setErr('Debes ingresar una contraseña para desbloquear botones.')
+    if (rawSecret === null) return
+    const secret = String(rawSecret || '').trim()
+    if (!secret) {
+      setErr('Debes ingresar la contraseña para desbloquear botones.')
       return
     }
 
     setDangerZoneUnlocking(true)
     try {
-      const response = await fetch(`${API_BASE}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      })
-      const payload = await response.json().catch(() => null)
-      if (!response.ok) throw new Error(payload?.message || 'Contraseña incorrecta.')
+      if (secret !== DANGER_ZONE_UNLOCK_PASSWORD) throw new Error('Contraseña incorrecta.')
       setDangerZoneUnlocked(true)
-      setOk('Botones críticos desbloqueados para esta sesión.')
+      armDangerZoneAutoLock()
+      setOk('Botones críticos desbloqueados por 10 minutos.')
     } catch (err) {
       setDangerZoneUnlocked(false)
-      setErr(err, 'No se pudo desbloquear botones. Verifica tu contraseña.')
+      setErr(err, 'No se pudo desbloquear botones. Verifica la contraseña fija.')
     } finally {
       setDangerZoneUnlocking(false)
     }
   }
 
   function lockDangerZoneButtons() {
+    if (dangerZoneLockTimerRef.current) {
+      clearTimeout(dangerZoneLockTimerRef.current)
+      dangerZoneLockTimerRef.current = null
+    }
     setDangerZoneUnlocked(false)
     setOk('Botones críticos bloqueados.')
   }
@@ -3868,6 +3886,15 @@ function App() {
   }
 
   useEffect(() => () => stopImportJobPolling(), [])
+  useEffect(
+    () => () => {
+      if (dangerZoneLockTimerRef.current) {
+        clearTimeout(dangerZoneLockTimerRef.current)
+        dangerZoneLockTimerRef.current = null
+      }
+    },
+    []
+  )
 
   async function openPrintAssetListLabels() {
     try {
