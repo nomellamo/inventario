@@ -1,5 +1,29 @@
 const { prisma } = require("../prisma");
 const { notFound } = require("../utils/httpError");
+const fs = require("fs");
+const path = require("path");
+
+let inventacoreLogoDataUrlCache = null;
+
+function getInventacoreLogoDataUrl() {
+  if (inventacoreLogoDataUrlCache !== null) return inventacoreLogoDataUrlCache;
+  const candidates = [
+    path.resolve(process.cwd(), "frontend/src/assets/images/logo-inventacore.png"),
+    path.resolve(__dirname, "../../frontend/src/assets/images/logo-inventacore.png"),
+  ];
+  for (const filePath of candidates) {
+    try {
+      if (!fs.existsSync(filePath)) continue;
+      const buffer = fs.readFileSync(filePath);
+      inventacoreLogoDataUrlCache = `data:image/png;base64,${buffer.toString("base64")}`;
+      return inventacoreLogoDataUrlCache;
+    } catch (_) {
+      // Try next candidate path.
+    }
+  }
+  inventacoreLogoDataUrlCache = "";
+  return inventacoreLogoDataUrlCache;
+}
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -74,6 +98,11 @@ async function buildPublicAssetTechnicalSheetHtml(assetId) {
     Number.isFinite(Number(asset.quantity)) && Number(asset.quantity) > 0
       ? String(asset.quantity)
       : "1";
+  const logoDataUrl = getInventacoreLogoDataUrl();
+  const faviconHtml = logoDataUrl
+    ? `<link rel="icon" type="image/png" href="${logoDataUrl}" />
+  <link rel="shortcut icon" type="image/png" href="${logoDataUrl}" />`
+    : "";
 
   const rows = [
     row("Codigo inventario", `INV-${asset.internalCode}`),
@@ -118,6 +147,7 @@ async function buildPublicAssetTechnicalSheetHtml(assetId) {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>${escapeHtml(title)}</title>
+  ${faviconHtml}
   <style>
     :root {
       --bg: #f3f6fa;
@@ -158,6 +188,27 @@ async function buildPublicAssetTechnicalSheetHtml(assetId) {
       margin: 0;
       font-size: 20px;
       line-height: 1.2;
+      font-weight: 700;
+    }
+    .head-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .head-brand img {
+      height: 34px;
+      width: auto;
+      object-fit: contain;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.92);
+      padding: 3px 4px;
+    }
+    .head-brand span {
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      opacity: 0.92;
       font-weight: 700;
     }
     .head p {
@@ -212,6 +263,14 @@ async function buildPublicAssetTechnicalSheetHtml(assetId) {
   <main class="wrap">
     <article class="card">
       <header class="head">
+        ${
+          logoDataUrl
+            ? `<div class="head-brand">
+        <img src="${logoDataUrl}" alt="Logo InventaCore" />
+        <span>InventaCore</span>
+      </div>`
+            : ""
+        }
         <h1>Ficha Tecnica del Activo</h1>
         <p>Codigo: ${escapeHtml(`INV-${asset.internalCode}`)}</p>
       </header>
