@@ -99,10 +99,8 @@ async function buildPublicAssetTechnicalSheetHtml(assetId) {
       ? String(asset.quantity)
       : "1";
   const logoDataUrl = getInventacoreLogoDataUrl();
-  const faviconHtml = logoDataUrl
-    ? `<link rel="icon" type="image/png" href="${logoDataUrl}" />
-  <link rel="shortcut icon" type="image/png" href="${logoDataUrl}" />`
-    : "";
+  const faviconHtml = `<link rel="icon" type="image/png" href="/assets/public/favicon.ico" />
+  <link rel="shortcut icon" type="image/png" href="/assets/public/favicon.ico" />`;
 
   const rows = [
     row("Codigo inventario", `INV-${asset.internalCode}`),

@@ -1,5 +1,7 @@
 const express = require("express");
 const router = express.Router();
+const fs = require("fs");
+const path = require("path");
 
 const { createAsset } = require("../services/assetService");
 const { updateAsset } = require("../services/assetUpdateService");
@@ -85,6 +87,36 @@ const { sendError } = require("../utils/errorResponse");
 const uploadEvidence = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 8 * 1024 * 1024 },
+});
+
+let cachedPublicFavicon = null;
+
+function getPublicFaviconBuffer() {
+  if (cachedPublicFavicon) return cachedPublicFavicon;
+  const candidates = [
+    path.resolve(process.cwd(), "frontend/src/assets/images/logo-inventacore.png"),
+    path.resolve(__dirname, "../../frontend/src/assets/images/logo-inventacore.png"),
+  ];
+  for (const filePath of candidates) {
+    try {
+      if (!fs.existsSync(filePath)) continue;
+      cachedPublicFavicon = fs.readFileSync(filePath);
+      return cachedPublicFavicon;
+    } catch (_) {
+      // Try next path.
+    }
+  }
+  return null;
+}
+
+router.get("/public/favicon.ico", (req, res) => {
+  const icon = getPublicFaviconBuffer();
+  if (!icon) {
+    return res.status(404).end();
+  }
+  res.setHeader("Content-Type", "image/png");
+  res.setHeader("Cache-Control", "public, max-age=86400");
+  return res.send(icon);
 });
 
 router.get(

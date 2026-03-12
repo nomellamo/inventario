@@ -53,6 +53,7 @@ async function loadJsPdfLib() {
 
 function App() {
   const API_BASE = import.meta.env.VITE_API_BASE || '/api'
+  const PUBLIC_SHEET_BASE = import.meta.env.VITE_PUBLIC_SHEET_BASE || ''
   const STORAGE_KEY = 'admin_panel_prefs'
   const CATALOG_ADMIN_TAKE = 20
   const MAX_TAKE = 100
@@ -700,11 +701,11 @@ function App() {
   }
 
   const API_ERROR_MESSAGES = {
-    VALIDATION_ERROR: 'Datos invÃ¡lidos. Revisa los campos e intenta nuevamente.',
+    VALIDATION_ERROR: 'Datos inválidos. Revisa los campos e intenta nuevamente.',
     ROUTE_NOT_FOUND: 'Ruta no encontrada.',
-    REFRESH_TOKEN_REQUIRED: 'Tu sesiÃ³n expirÃ³. Vuelve a iniciar sesiÃ³n.',
-    UNSUPPORTED_MEDIA_TYPE: 'Formato de envio invÃ¡lido. Usa application/json.',
-    PAYLOAD_TOO_LARGE: 'El archivo o payload excede el tamaÃ±o permitido.',
+    REFRESH_TOKEN_REQUIRED: 'Tu sesión expiró. Vuelve a iniciar sesión.',
+    UNSUPPORTED_MEDIA_TYPE: 'Formato de envio inválido. Usa application/json.',
+    PAYLOAD_TOO_LARGE: 'El archivo o payload excede el tamaño permitido.',
     ASSET_IMPORT_FILE_REQUIRED: 'Debes adjuntar un archivo Excel para importar activos fijos.',
     CATALOG_IMPORT_FILE_REQUIRED: 'Debes adjuntar un archivo Excel para importar catalogo.',
     CATALOG_IMPORT_INVALID_FILE: 'El archivo no es un Excel .xlsx valido o esta danado.',
@@ -716,8 +717,8 @@ function App() {
     ASSET_HARD_DELETE_REQUIRES_DELETED: 'Primero debes dar de baja el activo fijo.',
     PASSWORD_CURRENT_INVALID: 'La clave actual no coincide.',
     PASSWORD_NEW_SAME_AS_CURRENT: 'La nueva clave debe ser distinta a la actual.',
-    UNAUTHORIZED: 'No autorizado. Inicia sesiÃ³n nuevamente.',
-    FORBIDDEN: 'No tienes permisos para realizar esta acciÃ³n.',
+    UNAUTHORIZED: 'No autorizado. Inicia sesión nuevamente.',
+    FORBIDDEN: 'No tienes permisos para realizar esta acción.',
     NOT_FOUND: 'No se encontro el recurso solicitado.',
     CONFLICT: 'Conflicto de datos. Revisa los campos e intenta nuevamente.',
     RATE_LIMITED: 'Demasiadas solicitudes. Intenta de nuevo en unos minutos.',
@@ -965,10 +966,10 @@ function App() {
       return err?.message || fallback
     }
     if (err?.code === 'CATALOG_ITEM_DUPLICATE_OFFICIAL_KEY') {
-      return 'officialKey ya existe en otro Ã­tem de catÃ¡logo.'
+      return 'officialKey ya existe en otro ítem de catálogo.'
     }
     if (err?.code === 'CATALOG_ITEM_DUPLICATE_COMPOSITE') {
-      return 'Ya existe un Ã­tem con la misma combinaciÃ³n de nombre/categorÃ­a/subcategorÃ­a/marca/modelo.'
+      return 'Ya existe un ítem con la misma combinación de nombre/categoría/subcategoría/marca/modelo.'
     }
     if (err?.code === 'CATALOG_ITEM_HAS_ASSETS') {
       return 'No se puede eliminar: hay activos fijos asociados.'
@@ -981,10 +982,10 @@ function App() {
       return err?.message || fallback
     }
     if (err?.code === 'INSTITUTION_ALREADY_INACTIVE') {
-      return 'La instituciÃ³n ya estaba inactiva.'
+      return 'La institución ya estaba inactiva.'
     }
     if (err?.code === 'INSTITUTION_ALREADY_ACTIVE') {
-      return 'La instituciÃ³n ya estaba activa.'
+      return 'La institución ya estaba activa.'
     }
     if (err?.code === 'INSTITUTION_HAS_ACTIVE_ESTABLISHMENTS') {
       return 'No se puede dar de baja: tiene establecimientos activos.'
@@ -996,10 +997,10 @@ function App() {
       return 'No se puede dar de baja: tiene activos vigentes.'
     }
     if (err?.code === 'INSTITUTION_HARD_DELETE_REQUIRES_INACTIVE') {
-      return 'Para eliminar definitivamente, primero debes dar de baja la instituciÃ³n.'
+      return 'Para eliminar definitivamente, primero debes dar de baja la institución.'
     }
     if (err?.code === 'INSTITUTION_HARD_DELETE_HAS_RELATIONS') {
-      return 'No se puede eliminar definitivamente: todavÃ­a tiene registros relacionados.'
+      return 'No se puede eliminar definitivamente: todavía tiene registros relacionados.'
     }
     return err?.message || fallback
   }
@@ -1027,7 +1028,7 @@ function App() {
       return 'Para eliminar definitivamente, primero debes dar de baja el establecimiento.'
     }
     if (err?.code === 'ESTABLISHMENT_HARD_DELETE_HAS_RELATIONS') {
-      return 'No se puede eliminar definitivamente: todavÃ­a tiene registros relacionados.'
+      return 'No se puede eliminar definitivamente: todavía tiene registros relacionados.'
     }
     return err?.message || fallback
   }
@@ -1049,7 +1050,7 @@ function App() {
       return 'Para eliminar definitivamente, primero debes dar de baja la dependencia.'
     }
     if (err?.code === 'DEPENDENCY_HARD_DELETE_HAS_RELATIONS') {
-      return 'No se puede eliminar definitivamente: todavÃ­a tiene registros relacionados.'
+      return 'No se puede eliminar definitivamente: todavía tiene registros relacionados.'
     }
     return err?.message || fallback
   }
@@ -1059,10 +1060,10 @@ function App() {
       const field = err?.details?.field
       if (field === 'fromDate') return 'Fecha "desde" invalida. Usa formato YYYY-MM-DD.'
       if (field === 'toDate') return 'Fecha "hasta" invalida. Usa formato YYYY-MM-DD.'
-      return 'Formato de fecha invÃ¡lido. Usa YYYY-MM-DD.'
+      return 'Formato de fecha inválido. Usa YYYY-MM-DD.'
     }
     if (err?.code === 'PLANCHETA_INVALID_DATE_RANGE') {
-      return 'Rango de fechas invÃ¡lido: "desde" no puede ser mayor que "hasta".'
+      return 'Rango de fechas inválido: "desde" no puede ser mayor que "hasta".'
     }
     return err?.message || fallback
   }
@@ -1091,7 +1092,7 @@ function App() {
       return err?.message || fallback
     }
     if (err?.code === 'ASSET_INTERNAL_CODE_CONFLICT') {
-      return 'Conflicto al generar el cÃ³digo interno del activo fijo. Intenta nuevamente.'
+      return 'Conflicto al generar el código interno del activo fijo. Intenta nuevamente.'
     }
     return err?.message || fallback
   }
@@ -1481,7 +1482,7 @@ function App() {
 
   async function handleCatalogImportUpload() {
     if (!catalogImportFile) {
-      setErr('Selecciona un archivo de catÃ¡logo (.xlsx) antes de importar.')
+      setErr('Selecciona un archivo de catálogo (.xlsx) antes de importar.')
       return
     }
 
@@ -1518,7 +1519,7 @@ function App() {
       setCatalogImportErrors(json?.errors || [])
       setOk(UI_STATUS.catalogBulkImportCompleted)
     } catch (err) {
-      setErr(err, 'Error al importar catÃ¡logo por Excel.')
+      setErr(err, 'Error al importar catálogo por Excel.')
     } finally {
       setCatalogImportLoading(false)
     }
@@ -1550,28 +1551,28 @@ function App() {
       })
       await loadCatalogAdminItems(catalogAdminPage)
       setManualOfficialKeyCheck(null)
-      setOk('Ãtem de catÃ¡logo creado manualmente.')
+      setOk('Ítem de catálogo creado manualmente.')
     } catch (err) {
-      const message = getCatalogConflictMessage(err, 'No se pudo crear el Ã­tem de catÃ¡logo.')
-      setErr(withMappedError(err, message, 'No se pudo crear el Ã­tem de catÃ¡logo.'))
+      const message = getCatalogConflictMessage(err, 'No se pudo crear el ítem de catálogo.')
+      setErr(withMappedError(err, message, 'No se pudo crear el ítem de catálogo.'))
     }
   }
 
   async function purgeCatalogAllWithReset() {
     openConfirm({
-      title: 'Vaciar catÃ¡logo',
+      title: 'Vaciar catálogo',
       message:
-        'Se eliminarÃ¡n todos los Ã­tems del catÃ¡logo, se desvincularÃ¡n de activos y el ID volverÃ¡ a 1. Â¿Continuar?',
+        'Se eliminarán todos los ítems del catálogo, se desvincularán de activos y el ID volverá a 1. ¿Continuar?',
       onConfirm: async () => {
         try {
           const result = await api('/admin/catalog-items/purge/reset', { method: 'DELETE' })
           await loadCatalogAdminItems(1)
           await loadCatalogItems()
           setOk(
-            `CatÃ¡logo vaciado. Eliminados: ${Number(result?.deletedCount || 0)}. PrÃ³ximo ID: 1.`
+            `Catálogo vaciado. Eliminados: ${Number(result?.deletedCount || 0)}. Próximo ID: 1.`
           )
         } catch (err) {
-          setErr(err, UI_ERROR.couldNotClear('el catÃ¡logo'))
+          setErr(err, UI_ERROR.couldNotClear('el catálogo'))
         } finally {
           closeConfirm()
         }
@@ -1581,7 +1582,7 @@ function App() {
 
   async function guardedPurgeCatalogAllWithReset() {
     if (!dangerZoneUnlocked) {
-      setErr('Botones crÃ­ticos bloqueados. Usa "Desbloquear botones".')
+      setErr('Botones críticos bloqueados. Usa "Desbloquear botones".')
       return
     }
     return purgeCatalogAllWithReset()
@@ -1651,7 +1652,7 @@ function App() {
       setCatalogAdminRowStatus({})
       setCatalogAdminKeyStatus({})
     } catch (err) {
-      setErr(err, UI_ERROR.couldNotLoad('Ã­tems de catÃ¡logo'))
+      setErr(err, UI_ERROR.couldNotLoad('ítems de catálogo'))
     } finally {
       setCatalogAdminLoading(false)
     }
@@ -1876,7 +1877,7 @@ function App() {
   function openDeleteBlockModal({ title, summary, dependencies }) {
     setDeleteBlockState({
       open: true,
-      title: title || 'No se puede completar la acciÃ³n',
+      title: title || 'No se puede completar la acción',
       summary: summary || null,
       dependencies: Array.isArray(dependencies) ? dependencies : [],
     })
@@ -1947,7 +1948,7 @@ function App() {
         },
       }
     }
-    throw new Error(`Tipo de eliminaciÃ³n forzada no soportado: ${entityType}`)
+    throw new Error(`Tipo de eliminación forzada no soportado: ${entityType}`)
   }
 
   async function openForceDelete(entityType, entityId, entityLabel) {
@@ -1974,7 +1975,7 @@ function App() {
         loading: false,
       }))
     } catch (err) {
-      setErr(err, UI_ERROR.couldNotLoad('el resumen de eliminaciÃ³n forzada'))
+      setErr(err, UI_ERROR.couldNotLoad('el resumen de eliminación forzada'))
       setForceDeleteState((prev) => ({
         ...prev,
         loading: false,
@@ -2020,7 +2021,7 @@ function App() {
       setOk(UI_STATUS.forceDeleteCompleted)
       closeForceDelete()
     } catch (err) {
-      setErr(err, UI_ERROR.couldNotComplete('la eliminaciÃ³n forzada'))
+      setErr(err, UI_ERROR.couldNotComplete('la eliminación forzada'))
       setForceDeleteState((prev) => ({ ...prev, deleting: false }))
     }
   }
@@ -2216,23 +2217,23 @@ function App() {
     if (dangerZoneUnlocking) return
     const secret = String(dangerZoneUnlockInput || '').trim()
     if (!secret) {
-      setDangerZoneUnlockError('Debes ingresar la contraseÃ±a.')
+      setDangerZoneUnlockError('Debes ingresar la contraseña.')
       return
     }
 
     setDangerZoneUnlocking(true)
     setDangerZoneUnlockError('')
     try {
-      if (secret !== DANGER_ZONE_UNLOCK_PASSWORD) throw new Error('ContraseÃ±a incorrecta.')
+      if (secret !== DANGER_ZONE_UNLOCK_PASSWORD) throw new Error('Contraseña incorrecta.')
       setDangerZoneUnlocked(true)
       armDangerZoneAutoLock()
       setDangerZoneUnlockModalOpen(false)
       setDangerZoneUnlockInput('')
       setDangerZoneUnlockError('')
-      setOk('Botones crÃ­ticos desbloqueados por 10 minutos.')
+      setOk('Botones críticos desbloqueados por 10 minutos.')
     } catch (err) {
       setDangerZoneUnlocked(false)
-      setDangerZoneUnlockError('ContraseÃ±a incorrecta.')
+      setDangerZoneUnlockError('Contraseña incorrecta.')
     } finally {
       setDangerZoneUnlocking(false)
     }
@@ -2244,7 +2245,7 @@ function App() {
       dangerZoneLockTimerRef.current = null
     }
     setDangerZoneUnlocked(false)
-    setOk('Botones crÃ­ticos bloqueados.')
+    setOk('Botones críticos bloqueados.')
   }
 
   async function loadEstablishments(page = estPage) {
@@ -2580,7 +2581,7 @@ function App() {
       const params = new URLSearchParams()
       const safeId = toPositiveIntOrNull(assetListFilters.id)
       if (assetListFilters.id && !safeId) {
-        throw new Error('Filtro ID invÃ¡lido. Usa solo numeros positivos.')
+        throw new Error('Filtro ID inválido. Usa solo numeros positivos.')
       }
       if (safeId) params.set('id', String(safeId))
       if (assetListFilters.internalCode)
@@ -2683,7 +2684,7 @@ function App() {
   async function submitEvidenceUpload() {
     const assetId = getSafeAssetId(createdAsset)
     if (!assetId) {
-      setErr('Activo fijo invÃ¡lido para subir evidencia.')
+      setErr('Activo fijo inválido para subir evidencia.')
       return
     }
     if (!evidenceForm.file) {
@@ -2737,7 +2738,7 @@ function App() {
   function restoreFromTrash(asset) {
     const restoreCodes = movementReasonCodes.restore || []
     if (!restoreCodes.length) {
-      setErr('No hay catÃ¡logo de motivos de restauraciÃ³n disponible.')
+      setErr('No hay catálogo de motivos de restauración disponible.')
       return
     }
     setRestoreModal({
@@ -2753,11 +2754,11 @@ function App() {
   async function confirmRestoreFromTrash() {
     const restoreAssetId = getSafeAssetId(restoreModal.asset)
     if (!restoreAssetId) {
-      setErr('Activo fijo invÃ¡lido para restaurar.')
+      setErr('Activo fijo inválido para restaurar.')
       return
     }
     if (!restoreModal.reasonCode) {
-      setErr('Selecciona un motivo de restauraciÃ³n.')
+      setErr('Selecciona un motivo de restauración.')
       return
     }
     if (!restoreModal.file) {
@@ -2920,7 +2921,7 @@ function App() {
       const establishmentId = toPositiveIntOrNull(userForm.establishmentId)
       if (userForm.roleType === 'ADMIN_CENTRAL') {
         if (userForm.institutionId && !institutionId) {
-          setErr('Institution ID invÃ¡lido. Debe ser un numero mayor a 0.')
+          setErr('Institution ID inválido. Debe ser un numero mayor a 0.')
           return
         }
       } else {
@@ -2972,7 +2973,7 @@ function App() {
       }
       if (user.roleType === 'ADMIN_CENTRAL') {
         if (user.institutionId && !institutionId) {
-          setErr('Institution ID invÃ¡lido. Debe ser un numero mayor a 0.')
+          setErr('Institution ID inválido. Debe ser un numero mayor a 0.')
           return
         }
         if (institutionId) payload.institutionId = institutionId
@@ -2997,7 +2998,7 @@ function App() {
   async function deactivateUserAdmin(userId, email) {
     openConfirm({
       title: 'Desactivar usuario',
-      message: `Se desactivarÃ¡ ${email}. PodrÃ¡ quedar visible con "inactivos".`,
+      message: `Se desactivará ${email}. Podrá quedar visible con "inactivos".`,
       onConfirm: async () => {
         try {
           await api(`/admin/users/${userId}`, { method: 'DELETE' })
@@ -3185,7 +3186,7 @@ function App() {
     if (!assetForm.assetStateId) errors.assetStateId = 'Requerido'
     if (!assetForm.assetTypeId) errors.assetTypeId = 'Requerido'
     if (!useMultiProduct && !assetForm.catalogItemId && !assetForm.name) {
-      errors.name = 'Requerido si no hay catÃ¡logo'
+      errors.name = 'Requerido si no hay catálogo'
     }
     if (!assetForm.accountingAccount) errors.accountingAccount = 'Requerido'
     if (useMultiProduct) {
@@ -3198,15 +3199,15 @@ function App() {
           const rowQuantity = Number(row.quantity)
           const rowValue = Number(row.acquisitionValue)
           if (!rowCatalogId) {
-            errors.multiProducts = `Producto ${i + 1}: selecciona un Ã­tem de catÃ¡logo.`
+            errors.multiProducts = `Producto ${i + 1}: selecciona un ítem de catálogo.`
             break
           }
           if (!Number.isInteger(rowQuantity) || rowQuantity <= 0) {
-            errors.multiProducts = `Producto ${i + 1}: cantidad invÃ¡lida (entero > 0).`
+            errors.multiProducts = `Producto ${i + 1}: cantidad inválida (entero > 0).`
             break
           }
           if (!row.acquisitionValue || !Number.isFinite(rowValue) || rowValue <= 0) {
-            errors.multiProducts = `Producto ${i + 1}: precio invÃ¡lido (> 0).`
+            errors.multiProducts = `Producto ${i + 1}: precio inválido (> 0).`
             break
           }
         }
@@ -3246,7 +3247,7 @@ function App() {
       const rut = String(assetForm.responsibleRut).trim()
       const compact = rut.replace(/\./g, '').replace(/\s+/g, '').toUpperCase()
       if (!/^\d{7,8}-?[\dK]$/.test(compact)) {
-        errors.responsibleRut = 'RUT invÃ¡lido. Usa formato 12345678-9'
+        errors.responsibleRut = 'RUT inválido. Usa formato 12345678-9'
       }
     }
     return errors
@@ -3372,6 +3373,10 @@ function App() {
   function buildAssetTechnicalSheetUrl(assetLike) {
     const assetId = getSafeAssetId(assetLike)
     if (!assetId) return ''
+    const forcedPublicBase = String(PUBLIC_SHEET_BASE || '').trim().replace(/\/+$/, '')
+    if (/^https?:\/\//i.test(forcedPublicBase)) {
+      return `${forcedPublicBase}/assets/public/${assetId}/ficha.html`
+    }
     let base = String(API_BASE || '/api').trim()
     const forcedHttpsIdx = base.toLowerCase().lastIndexOf('https://')
     const forcedHttpIdx = base.toLowerCase().lastIndexOf('http://')
@@ -3565,7 +3570,7 @@ function App() {
 
     const win = window.open('', '_blank', 'width=480,height=420')
     if (!win) {
-      setErr('El navegador bloqueÃ³ la ventana de impresiÃ³n.')
+      setErr('El navegador bloqueó la ventana de impresión.')
       return
     }
 
@@ -3697,7 +3702,7 @@ function App() {
     if (!batch.length) return
     const win = window.open('', '_blank', 'width=640,height=520')
     if (!win) {
-      setErr('El navegador bloqueÃ³ la ventana de impresiÃ³n.')
+      setErr('El navegador bloqueó la ventana de impresión.')
       return
     }
 
@@ -3837,7 +3842,7 @@ function App() {
     const params = new URLSearchParams()
     const safeId = toPositiveIntOrNull(assetListFilters.id)
     if (assetListFilters.id && !safeId) {
-      throw new Error('Filtro ID invÃ¡lido. Usa solo numeros positivos.')
+      throw new Error('Filtro ID inválido. Usa solo numeros positivos.')
     }
     if (safeId) params.set('id', String(safeId))
     if (assetListFilters.internalCode) params.set('internalCode', assetListFilters.internalCode)
@@ -4123,7 +4128,7 @@ function App() {
         : Number(createdFromSingle?.createdCount || createdItems.length || 1)
       if (totalCreated > 1) {
         if (!useMultiProduct && serialValue) {
-          setOk(`Activos fijos creados: ${totalCreated}. Serie omitida por creaciÃ³n en lote.`)
+          setOk(`Activos fijos creados: ${totalCreated}. Serie omitida por creación en lote.`)
         } else {
           setOk(`Activos fijos creados: ${totalCreated}.`)
         }
@@ -4159,10 +4164,10 @@ function App() {
       setCreatedAsset(assetOverride)
       if (overrideId) localStorage.setItem('last_asset_id', String(overrideId))
     }
-    if (type === 'edit') setOk('AcciÃ³n: editar activo fijo')
-    if (type === 'move') setOk('AcciÃ³n: mover activo fijo')
-    if (type === 'transfer') setOk('AcciÃ³n: transferir activo fijo')
-    if (type === 'status') setOk('AcciÃ³n: dar de baja')
+    if (type === 'edit') setOk('Acción: editar activo fijo')
+    if (type === 'move') setOk('Acción: mover activo fijo')
+    if (type === 'transfer') setOk('Acción: transferir activo fijo')
+    if (type === 'status') setOk('Acción: dar de baja')
     if (type === 'edit') {
       setEditAssetForm({
         name: target.name || '',
@@ -4261,7 +4266,7 @@ function App() {
     if (!reference) {
       setScanResult({
         status: 'error',
-        message: 'CÃ³digo QR invÃ¡lido. Usa URL de ficha, INV-123 o cÃ³digo numÃ©rico.',
+        message: 'Código QR inválido. Usa URL de ficha, INV-123 o código numérico.',
       })
       return
     }
@@ -4273,7 +4278,7 @@ function App() {
         }
         setScanResult({
           status: 'ok',
-          message: 'Ficha tÃ©cnica pÃºblica abierta sin autenticaciÃ³n.',
+          message: 'Ficha técnica pública abierta sin autenticación.',
         })
         return
       }
@@ -4292,8 +4297,8 @@ function App() {
         setScanResult({
           status: 'error',
           message: reference.internalCode
-            ? `No se encontrÃ³ activo fijo para INV-${reference.internalCode}.`
-            : 'No se encontrÃ³ activo fijo para el QR escaneado.',
+            ? `No se encontró activo fijo para INV-${reference.internalCode}.`
+            : 'No se encontró activo fijo para el QR escaneado.',
         })
         return
       }
@@ -4313,7 +4318,7 @@ function App() {
     } catch (err) {
       setScanResult({
         status: 'error',
-        message: err.message || 'No se pudo resolver el cÃ³digo escaneado.',
+        message: err.message || 'No se pudo resolver el código escaneado.',
       })
     }
   }
@@ -4321,14 +4326,14 @@ function App() {
   function copyTechnicalSheetLink() {
     const url = createdAsset ? buildAssetTechnicalSheetUrl(createdAsset) : ''
     if (!url) {
-      setErr('No hay enlace de ficha tÃ©cnica disponible para este activo.')
+      setErr('No hay enlace de ficha técnica disponible para este activo.')
       return
     }
     if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
       navigator.clipboard
         .writeText(url)
-        .then(() => setOk('Enlace de ficha tÃ©cnica copiado.'))
-        .catch(() => setErr('No se pudo copiar el enlace de ficha tÃ©cnica.'))
+        .then(() => setOk('Enlace de ficha técnica copiado.'))
+        .catch(() => setErr('No se pudo copiar el enlace de ficha técnica.'))
       return
     }
     setErr('Tu navegador no permite copiar al portapapeles en este contexto.')
@@ -4337,7 +4342,7 @@ function App() {
   function selectAssetForModal(asset, action = null) {
     const assetId = getSafeAssetId(asset)
     if (!assetId) {
-      setErr('Activo fijo invÃ¡lido.')
+      setErr('Activo fijo inválido.')
       return
     }
     setCreatedAsset(asset)
@@ -4379,7 +4384,7 @@ function App() {
             .replace(/\s+/g, '')
             .toUpperCase()
           if (!/^\d{7,8}-?[\dK]$/.test(compact)) {
-            setErr('RUT responsable invÃ¡lido. Usa formato 12345678-9')
+            setErr('RUT responsable inválido. Usa formato 12345678-9')
             return
           }
         }
@@ -4541,7 +4546,7 @@ function App() {
 
   function applyCatalogItem(selected) {
     if (!selected) {
-      setErr('No se encontro el Ã­tem de catÃ¡logo seleccionado.')
+      setErr('No se encontro el ítem de catálogo seleccionado.')
       return
     }
     setSelectedCatalogItem(selected)
@@ -4553,7 +4558,7 @@ function App() {
       brand: selected.brand || '',
       modelName: selected.modelName || '',
     }))
-    setOk(`CatÃ¡logo seleccionado: ${formatCatalogItemDisplay(selected)}`)
+    setOk(`Catálogo seleccionado: ${formatCatalogItemDisplay(selected)}`)
   }
 
   function extractCatalogDetail(description) {
@@ -4648,7 +4653,7 @@ function App() {
 
   async function guardedPurgeAssetsAllWithReset(options = {}) {
     if (!dangerZoneUnlocked) {
-      setErr('Botones crÃ­ticos bloqueados. Usa "Desbloquear botones".')
+      setErr('Botones críticos bloqueados. Usa "Desbloquear botones".')
       return
     }
     return purgeAssetsAllWithReset(options)
@@ -4875,7 +4880,7 @@ function App() {
       setPlanchetaInstitutions(institutions)
       if (!institutions.length) {
         setPlanchetaMessage(
-          'No hay instituciÃ³nes disponibles. Crea estructura base antes de usar planchetas.'
+          'No hay instituciónes disponibles. Crea estructura base antes de usar planchetas.'
         )
       } else {
         setPlanchetaMessage('')
@@ -4932,7 +4937,7 @@ function App() {
           establishmentId: '',
           dependencyId: '',
         }))
-        setPlanchetaMessage('No hay establecimientos en esta instituciÃ³n.')
+        setPlanchetaMessage('No hay establecimientos en esta institución.')
       } else {
         setPlanchetaMessage('')
         setPlanchetaFilters((prev) => {
@@ -5021,7 +5026,7 @@ function App() {
       INVENTORY_CHECK: 'Registro inicial',
       TRANSFER: 'Transferencia',
       STATUS_CHANGE: 'Cambio de estado',
-      RELOCATION: 'ReubicaciÃ³n',
+      RELOCATION: 'Reubicación',
     }
     const typeLabel = typeMap[movement?.type] || movement?.type || 'Movimiento'
     const reason = movement?.reasonCode || movement?.reason || 'sin motivo'
@@ -5470,7 +5475,7 @@ function App() {
   async function createInstitution() {
     try {
       if (!dangerZoneUnlocked) {
-        setErr('Botones crÃ­ticos bloqueados. Usa "Desbloquear botones".')
+        setErr('Botones críticos bloqueados. Usa "Desbloquear botones".')
         return
       }
       if (!instForm.name.trim()) {
@@ -5512,16 +5517,16 @@ function App() {
 
   async function deleteInstitution(id) {
     openConfirm({
-      title: 'Dar de baja instituciÃ³n',
-      message: 'La instituciÃ³n quedara inactiva pero no se eliminara.',
+      title: 'Dar de baja institución',
+      message: 'La institución quedara inactiva pero no se eliminara.',
       onConfirm: async () => {
         try {
           await api(`/admin/institutions/${id}`, { method: 'DELETE' })
           await loadInstitutions()
           setOk(UI_STATUS.institutionDeactivated)
         } catch (err) {
-          const message = getInstitutionConflictMessage(err, UI_ERROR.couldNotDeactivate('la instituciÃ³n'))
-          setErr(withMappedError(err, message, UI_ERROR.couldNotDeactivate('la instituciÃ³n')))
+          const message = getInstitutionConflictMessage(err, UI_ERROR.couldNotDeactivate('la institución'))
+          setErr(withMappedError(err, message, UI_ERROR.couldNotDeactivate('la institución')))
         } finally {
           closeConfirm()
         }
@@ -5535,16 +5540,16 @@ function App() {
       await Promise.all([loadInstitutions(), loadInstitutionCatalog()])
       setOk(UI_STATUS.institutionReactivated)
     } catch (err) {
-      const message = getInstitutionConflictMessage(err, UI_ERROR.couldNotReactivate('la instituciÃ³n'))
-      setErr(withMappedError(err, message, UI_ERROR.couldNotReactivate('la instituciÃ³n')))
+      const message = getInstitutionConflictMessage(err, UI_ERROR.couldNotReactivate('la institución'))
+      setErr(withMappedError(err, message, UI_ERROR.couldNotReactivate('la institución')))
     }
   }
 
   async function hardDeleteInstitution(id) {
     openConfirm({
-      title: 'Eliminar instituciÃ³n definitivamente',
+      title: 'Eliminar institución definitivamente',
       message:
-        'Esta acciÃ³n es irreversible. Se eliminarÃ¡ definitivamente si no tiene relaciones.',
+        'Esta acción es irreversible. Se eliminará definitivamente si no tiene relaciones.',
       onConfirm: async () => {
         try {
           await api(`/admin/institutions/${id}/permanent`, { method: 'DELETE' })
@@ -5553,14 +5558,14 @@ function App() {
         } catch (err) {
           if (err?.code === 'INSTITUTION_HARD_DELETE_HAS_RELATIONS') {
             openForceDelete('institution', id, `#${id}`)
-            setOk('La instituciÃ³n tiene relaciones. Usa eliminaciÃ³n forzada confirmada.')
+            setOk('La institución tiene relaciones. Usa eliminación forzada confirmada.')
             return
           }
           const message = getInstitutionConflictMessage(
             err,
-            UI_ERROR.couldNotDeletePermanently('la instituciÃ³n')
+            UI_ERROR.couldNotDeletePermanently('la institución')
           )
-          setErr(withMappedError(err, message, UI_ERROR.couldNotDeletePermanently('la instituciÃ³n')))
+          setErr(withMappedError(err, message, UI_ERROR.couldNotDeletePermanently('la institución')))
         } finally {
           closeConfirm()
         }
@@ -5581,7 +5586,7 @@ function App() {
       if (!Number(estForm.institutionId)) {
         setFormErrors((prev) => ({
           ...prev,
-          estInstitutionId: 'Institution ID invÃ¡lido.',
+          estInstitutionId: 'Institution ID inválido.',
         }))
         return
       }
@@ -5611,7 +5616,7 @@ function App() {
   async function updateEstablishment(payload) {
     try {
       if (payload.name !== undefined && payload.name !== '' && !payload.name.trim()) {
-        setFormErrors((prev) => ({ ...prev, estEdit: 'Nombre invÃ¡lido.' }))
+        setFormErrors((prev) => ({ ...prev, estEdit: 'Nombre inválido.' }))
         return
       }
       await api(`/admin/establishments/${payload.id}`, {
@@ -5698,7 +5703,7 @@ function App() {
     openConfirm({
       title: 'Eliminar establecimiento definitivamente',
       message:
-        'Esta acciÃ³n es irreversible. Se eliminarÃ¡ definitivamente si no tiene relaciones.',
+        'Esta acción es irreversible. Se eliminará definitivamente si no tiene relaciones.',
       onConfirm: async () => {
         try {
           await api(`/admin/establishments/${id}/permanent`, { method: 'DELETE' })
@@ -5707,7 +5712,7 @@ function App() {
         } catch (err) {
           if (err?.code === 'ESTABLISHMENT_HARD_DELETE_HAS_RELATIONS') {
             openForceDelete('establishment', id, `#${id}`)
-            setOk('El establecimiento tiene relaciones. Usa eliminaciÃ³n forzada confirmada.')
+            setOk('El establecimiento tiene relaciones. Usa eliminación forzada confirmada.')
             return
           }
           const message = getEstablishmentConflictMessage(
@@ -5737,7 +5742,7 @@ function App() {
       if (!Number(depForm.establishmentId)) {
         setFormErrors((prev) => ({
           ...prev,
-          depEstablishmentId: 'Establishment ID invÃ¡lido.',
+          depEstablishmentId: 'Establishment ID inválido.',
         }))
         return
       }
@@ -5764,7 +5769,7 @@ function App() {
   async function updateDependency(payload) {
     try {
       if (payload.name !== undefined && payload.name !== '' && !payload.name.trim()) {
-        setFormErrors((prev) => ({ ...prev, depEdit: 'Nombre invÃ¡lido.' }))
+        setFormErrors((prev) => ({ ...prev, depEdit: 'Nombre inválido.' }))
         return
       }
       await api(`/admin/dependencies/${payload.id}`, {
@@ -5808,11 +5813,11 @@ function App() {
       const sourceEstablishmentId = Number(depReplicateForm.sourceEstablishmentId)
       const targetEstablishmentId = Number(depReplicateForm.targetEstablishmentId)
       if (!sourceEstablishmentId || sourceEstablishmentId <= 0) {
-        setErr('Selecciona establecimiento origen vÃ¡lido.')
+        setErr('Selecciona establecimiento origen válido.')
         return
       }
       if (!targetEstablishmentId || targetEstablishmentId <= 0) {
-        setErr('Selecciona establecimiento destino vÃ¡lido.')
+        setErr('Selecciona establecimiento destino válido.')
         return
       }
       if (sourceEstablishmentId === targetEstablishmentId) {
@@ -5840,7 +5845,7 @@ function App() {
         skipped: Array.isArray(result?.skipped) ? result.skipped : [],
       })
       setOk(
-        `ReplicaciÃ³n completada. Creadas: ${createdCount}. Omitidas: ${skippedCount}.`
+        `Replicación completada. Creadas: ${createdCount}. Omitidas: ${skippedCount}.`
       )
     } catch (err) {
       setDepReplicateResult(null)
@@ -5863,7 +5868,7 @@ function App() {
     openConfirm({
       title: 'Eliminar dependencia definitivamente',
       message:
-        'Esta acciÃ³n es irreversible. Se eliminarÃ¡ definitivamente si no tiene relaciones.',
+        'Esta acción es irreversible. Se eliminará definitivamente si no tiene relaciones.',
       onConfirm: async () => {
         try {
           await api(`/admin/dependencies/${id}/permanent`, { method: 'DELETE' })
@@ -5872,7 +5877,7 @@ function App() {
         } catch (err) {
           if (err?.code === 'DEPENDENCY_HARD_DELETE_HAS_RELATIONS') {
             openForceDelete('dependency', id, `#${id}`)
-            setOk('La dependencia tiene relaciones. Usa eliminaciÃ³n forzada confirmada.')
+            setOk('La dependencia tiene relaciones. Usa eliminación forzada confirmada.')
             return
           }
           const message = getDependencyConflictMessage(
@@ -5903,7 +5908,7 @@ function App() {
     institutions: {
       title: 'Instituciones',
       steps: [
-        'Crear instituciÃ³n con nombre oficial.',
+        'Crear institución con nombre oficial.',
         'Editar inline y guardar cambios.',
         'Dar de baja solo si no tiene establecimientos activos.',
         'Usar Mostrar inactivos para reactivar.',
@@ -5912,7 +5917,7 @@ function App() {
     establishments: {
       title: 'Establecimientos',
       steps: [
-        'Seleccionar instituciÃ³n y crear establecimiento.',
+        'Seleccionar institución y crear establecimiento.',
         'Completar tipo, RBD, comuna y datos administrativos.',
         'Editar inline y guardar.',
         'Dar de baja/reactivar respetando reglas de dependencias activas.',
@@ -5933,14 +5938,14 @@ function App() {
       steps: [
         'Crear usuario con rol correcto.',
         'Asignar establecimiento si el rol lo requiere.',
-        'Usar filtros y paginaciÃ³n para la administraciÃ³n diaria.',
+        'Usar filtros y paginación para la administración diaria.',
         'Desactivar/reactivar sin perder trazabilidad.',
       ],
     },
     assistant: {
       title: 'Asistente Central',
       steps: [
-        'Escribir una consulta operativa o tÃ©cnica del sistema.',
+        'Escribir una consulta operativa o técnica del sistema.',
         'Revisar respuesta concreta y sugerencias aplicables.',
         'Crear solicitud formal para seguimiento cuando corresponda.',
         'Gestionar estados y SLA de 72 horas desde la misma vista.',
@@ -5949,8 +5954,8 @@ function App() {
     assets: {
       title: UI_TEXT.assetPlural,
       steps: [
-        'Seleccionar instituciÃ³n, establecimiento y dependencia.',
-        'Elegir catÃ¡logo o cargar datos manuales del activo.',
+        'Seleccionar institución, establecimiento y dependencia.',
+        'Elegir catálogo o cargar datos manuales del activo.',
         'Definir cantidad, valor, fecha y responsable (o Sin responsable asignado).',
         'Crear, luego operar mover/transferir/baja desde el modal.',
       ],
@@ -5966,7 +5971,7 @@ function App() {
     imports: {
       title: 'Importaciones',
       steps: [
-        'Seleccionar subtipo: Activos fijos, CatÃ¡logo estÃ¡ndar o CatÃ¡logo base SN.',
+        'Seleccionar subtipo: Activos fijos, Catálogo estándar o Catálogo base SN.',
         'Cargar Excel en el formato correspondiente.',
         'Revisar resumen created/skipped/errors.',
         'Corregir y reimportar cuando existan filas con error.',
@@ -5975,19 +5980,19 @@ function App() {
     planchetas: {
       title: 'Planchetas',
       steps: [
-        'Seleccionar instituciÃ³n y establecimiento.',
+        'Seleccionar institución y establecimiento.',
         'Opcionalmente filtrar por dependencia y rango de fechas.',
         'Previsualizar resultados y validar conteos.',
         'Exportar a PDF/Excel para uso ministerial.',
       ],
     },
     audit: {
-      title: 'AuditorÃ­a admin',
+      title: 'Auditoría admin',
       steps: [
-        'Filtrar por entidad, acciÃ³n, usuario y rango de fechas.',
-        'Revisar la trazabilidad de cambios crÃ­ticos.',
+        'Filtrar por entidad, acción, usuario y rango de fechas.',
+        'Revisar la trazabilidad de cambios críticos.',
         'Exportar reportes cuando se requiera respaldo.',
-        'Aplicar limpieza de auditorÃ­a solo con criterio administrativo.',
+        'Aplicar limpieza de auditoría solo con criterio administrativo.',
       ],
     },
   }
@@ -6017,7 +6022,7 @@ function App() {
         <div className="modal-backdrop" onClick={() => setCatalogModalOpen(false)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="modal-head">
-              <h4>{modalCatalogItem ? 'CatÃ¡logo seleccionado' : 'Activo fijo seleccionado'}</h4>
+              <h4>{modalCatalogItem ? 'Catálogo seleccionado' : 'Activo fijo seleccionado'}</h4>
               <button className="ghost" onClick={() => setCatalogModalOpen(false)}>
                 Cerrar
               </button>
@@ -6032,11 +6037,11 @@ function App() {
                         <span>{modalCatalogItem?.name || createdAsset?.name || '-'}</span>
                       </div>
                       <div>
-                        <strong>CategorÃ­a</strong>
+                        <strong>Categoría</strong>
                         <span>{modalCatalogItem?.category || '-'}</span>
                       </div>
                       <div>
-                        <strong>SubcategorÃ­a</strong>
+                        <strong>Subcategoría</strong>
                         <span>{modalCatalogItem?.subcategory || '-'}</span>
                       </div>
                       <div>
@@ -6050,7 +6055,7 @@ function App() {
                     </div>
                     {!modalCatalogItem && (
                       <p className="muted">
-                        Este activo fijo no tiene Ã­tem de catÃ¡logo asociado; puedes operar igual.
+                        Este activo fijo no tiene ítem de catálogo asociado; puedes operar igual.
                       </p>
                     )}
                     {status.details && (
@@ -6065,7 +6070,7 @@ function App() {
                     {createdLabel ? (
                       <div className="modal-label">
                         <div className="label-code">
-                          CÃ³digo: <strong>{createdLabel.code}</strong>
+                          Código: <strong>{createdLabel.code}</strong>
                         </div>
                         {qrCodeUrl && <img className="qr" src={qrCodeUrl} alt="QR" />}
                         <div className="actions">
@@ -6075,7 +6080,7 @@ function App() {
                             target="_blank"
                             rel="noreferrer"
                           >
-                            Ver ficha tÃ©cnica HTML
+                            Ver ficha técnica HTML
                           </a>
                           <button className="ghost" onClick={copyTechnicalSheetLink}>
                             Copiar link ficha
@@ -6098,7 +6103,7 @@ function App() {
                         </p>
                         <div className="actions">
                           <button className="ghost" disabled>
-                            Ver ficha tÃ©cnica HTML
+                            Ver ficha técnica HTML
                           </button>
                           <button className="ghost" disabled>
                             Copiar link ficha
@@ -6221,7 +6226,7 @@ function App() {
                             />
                           </div>
                           <div>
-                            <strong>CÃ³digo analÃ­tico</strong>
+                            <strong>Código analítico</strong>
                             <input
                               value={editAssetForm.analyticCode}
                               onChange={(e) =>
@@ -6316,10 +6321,10 @@ function App() {
                               </div>
                             </>
                           ) : (
-                            <p className="muted">El activo fijo quedarÃ¡ sin responsable.</p>
+                            <p className="muted">El activo fijo quedará sin responsable.</p>
                           )}
                           <div>
-                            <strong>Valor de adquisiciÃ³n</strong>
+                            <strong>Valor de adquisición</strong>
                             <input
                               type="number"
                               value={editAssetForm.acquisitionValue}
@@ -6332,7 +6337,7 @@ function App() {
                             />
                           </div>
                           <div>
-                            <strong>Fecha de adquisiciÃ³n</strong>
+                            <strong>Fecha de adquisición</strong>
                             <input
                               type="date"
                               value={editAssetForm.acquisitionDate}
@@ -6762,7 +6767,7 @@ function App() {
               <img
                 className="hero-logo hero-logo-subsecretaria"
                 src={logoSubsecretaria}
-                alt="Logo Subsecretaria de la Ninez"
+                alt="Logo Subsecretaría de la Niñez"
               />
               <img className="hero-logo" src={logoInventacore} alt="Logo InventaCore" />
             </div>
@@ -6866,7 +6871,7 @@ function App() {
         </div>
         {showHeroNotice && (
           <div className="hero-notice">
-            Gestiona instituciÃ³nes, establecimientos y dependencias con trazabilidad
+            Gestiona instituciónes, establecimientos y dependencias con trazabilidad
             completa. Todos los cambios quedan auditados.
           </div>
         )}
@@ -6923,7 +6928,7 @@ function App() {
             <div>{status.message}</div>
             {status.type === 'error' && (
               <details className="status-meta">
-                <summary>Detalle tÃ©cnico</summary>
+                <summary>Detalle técnico</summary>
                 <div className="status-meta-grid">
                   <div>
                     <strong>Code:</strong> <span>{status.code || 'UNKNOWN_ERROR'}</span>
@@ -6991,7 +6996,7 @@ function App() {
         </div>
 
         {!isAuthed ? (
-          <div className="empty-state">Inicia sesiÃ³n para continuar.</div>
+          <div className="empty-state">Inicia sesión para continuar.</div>
         ) : null}
         {isAuthed && activeMiniManual ? (
           <details className="mini-manual">
@@ -7062,7 +7067,7 @@ function App() {
             {isCentral && (
               <div className="split">
                 <div className="form-card">
-                  <h4>Nueva instituciÃ³n</h4>
+                  <h4>Nueva institución</h4>
                   <div className="actions">
                     <button
                       className={dangerZoneUnlocked ? 'ghost' : 'primary'}
@@ -7091,7 +7096,7 @@ function App() {
                     className="primary"
                     onClick={createInstitution}
                     disabled={!dangerZoneUnlocked}
-                    title={!dangerZoneUnlocked ? 'Primero desbloquea botones crÃ­ticos.' : ''}
+                    title={!dangerZoneUnlocked ? 'Primero desbloquea botones críticos.' : ''}
                   >
                     Crear
                   </button>
@@ -7349,7 +7354,7 @@ function App() {
                 <div className="select-wrap">
                   <input
                     className="select-search"
-                    placeholder="Buscar instituciÃ³n..."
+                    placeholder="Buscar institución..."
                     value={estFilters.institutionSearch || ''}
                     onChange={(e) =>
                       setEstFilters({ ...estFilters, institutionSearch: e.target.value })
@@ -7363,7 +7368,7 @@ function App() {
                     disabled={loadingInstitutions || institutionsCatalog.length === 0}
                   >
                     <option value="">
-                      {loadingInstitutions ? UI_TEXT.loading : 'Selecciona instituciÃ³n'}
+                      {loadingInstitutions ? UI_TEXT.loading : 'Selecciona institución'}
                     </option>
                     {institutionsCatalog
                       .filter((i) =>
@@ -7382,7 +7387,7 @@ function App() {
                 </div>
                 {estForm.institutionId && (
                   <p className="muted">
-                    Comunas ya usadas en esta instituciÃ³n:{' '}
+                    Comunas ya usadas en esta institución:{' '}
                     {[
                       ...new Set(
                         (establishmentsCatalog || [])
@@ -7393,8 +7398,8 @@ function App() {
                   </p>
                 )}
                 <p className="muted">
-                  Nota: cÃ³digo postal aÃºn no existe en base de datos; si lo quieres, agregamos
-                  migraciÃ³n para guardarlo formalmente.
+                  Nota: código postal aún no existe en base de datos; si lo quieres, agregamos
+                  migración para guardarlo formalmente.
                 </p>
                 {formErrors.estInstitutionId && (
                   <p className="error">{formErrors.estInstitutionId}</p>
@@ -8034,7 +8039,7 @@ function App() {
                   }
                   disabled={userForm.roleType !== 'ADMIN_CENTRAL'}
                 >
-                  <option value="">Selecciona instituciÃ³n</option>
+                  <option value="">Selecciona institución</option>
                   {userInstitutionOptions.map((inst) => (
                     <option key={inst.id} value={inst.id}>
                       #{inst.id} - {inst.name}
@@ -8386,7 +8391,7 @@ function App() {
               <div className="form-card">
                 <h4>Respuesta</h4>
                 {!assistantAnswer ? (
-                  <p className="muted">Sin respuesta aÃºn.</p>
+                  <p className="muted">Sin respuesta aún.</p>
                 ) : (
                   <>
                     <p>{assistantAnswer.answer}</p>
@@ -8643,7 +8648,7 @@ function App() {
                   onChange={(e) => setTrashFilters((p) => ({ ...p, q: e.target.value }))}
                 />
                 <input
-                  placeholder="CÃ³digo interno"
+                  placeholder="Código interno"
                   value={trashFilters.internalCode}
                   onChange={(e) =>
                     setTrashFilters((p) => ({ ...p, internalCode: e.target.value }))
@@ -8704,7 +8709,7 @@ function App() {
                 </div>
               ))}
               {!trashAssets.length && !trashLoading && (
-                <p className="muted">Basurero vacÃ­o.</p>
+                <p className="muted">Basurero vacío.</p>
               )}
             </div>
           </div>
@@ -8971,13 +8976,13 @@ function App() {
       {dangerZoneUnlockModalOpen && (
         <div className="modal-backdrop">
           <div className="modal modal-danger-access">
-            <h3>Desbloquear botones crÃ­ticos</h3>
+            <h3>Desbloquear botones críticos</h3>
             <p className="muted">
               Aca solo representante del programa tiene acceso.
             </p>
             <form onSubmit={submitDangerZoneUnlock} className="danger-access-form">
               <label>
-                ContraseÃ±a de acceso
+                Contraseña de acceso
                 <input
                   type="password"
                   value={dangerZoneUnlockInput}
@@ -8986,7 +8991,7 @@ function App() {
                     if (dangerZoneUnlockError) setDangerZoneUnlockError('')
                   }}
                   autoFocus
-                  placeholder="Ingresa contraseÃ±a"
+                  placeholder="Ingresa contraseña"
                 />
               </label>
               {dangerZoneUnlockError && <p className="error">{dangerZoneUnlockError}</p>}
@@ -9067,7 +9072,7 @@ function App() {
           <div className="modal modal-force-delete">
             <h3>Eliminar forzado</h3>
             <p>
-              Esta acciÃ³n elimina de forma permanente <strong>{forceDeleteState.entityLabel}</strong> y
+              Esta acción elimina de forma permanente <strong>{forceDeleteState.entityLabel}</strong> y
               sus registros relacionados.
             </p>
             {forceDeleteState.loading ? (

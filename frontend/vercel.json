@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/assets/public/:path*",
+      "destination": "https://inventario-lxtk.onrender.com/assets/public/:path*"
+    }
+  ]
+}
