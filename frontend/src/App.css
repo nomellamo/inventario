@@ -69,7 +69,9 @@
 }
 
 .hero-logo-subsecretaria {
-  width: clamp(110px, 16vw, 150px);
+  width: 1.8cm;
+  max-width: 1.8cm;
+  height: auto;
 }
 
 .hero-heading {
