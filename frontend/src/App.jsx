@@ -103,6 +103,11 @@ function App() {
   })
   const [statusCopyFeedback, setStatusCopyFeedback] = useState('')
   const [isLoginLoading, setIsLoginLoading] = useState(false)
+  const [loginErrorModal, setLoginErrorModal] = useState({
+    open: false,
+    title: 'No se pudo iniciar sesion',
+    message: '',
+  })
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false)
   const [isChangingPassword, setIsChangingPassword] = useState(false)
@@ -749,6 +754,19 @@ function App() {
       serverMessage ||
       `HTTP ${status}`
     return requestId ? `${base} (ID: ${requestId})` : base
+  }
+
+  function getLoginErrorMessage(errorOrMessage) {
+    if (typeof errorOrMessage === 'string' && errorOrMessage.trim()) {
+      return errorOrMessage
+    }
+    if (errorOrMessage?.code === 'UNAUTHORIZED') {
+      return 'Datos invalidos. Revisa tus credenciales e intenta nuevamente.'
+    }
+    if (errorOrMessage?.code === 'VALIDATION_ERROR') {
+      return 'Ingresa tu email y contrasena para continuar.'
+    }
+    return 'No se pudo iniciar sesion. Revisa tus credenciales e intenta nuevamente.'
   }
 
   function resolveAuthToken(overrideToken) {
@@ -2028,6 +2046,20 @@ function App() {
 
   async function handleLogin(e) {
     e.preventDefault()
+    const sanitizedLogin = {
+      email: String(login.email || '').trim(),
+      password: String(login.password || ''),
+    }
+    if (!sanitizedLogin.email || !sanitizedLogin.password.trim()) {
+      const message = getLoginErrorMessage({ code: 'VALIDATION_ERROR' })
+      setErr(message)
+      setLoginErrorModal({
+        open: true,
+        title: 'Datos invalidos',
+        message,
+      })
+      return
+    }
     setIsLoginLoading(true)
     const startedAt = Date.now()
     const waitAtLeastOneSecond = async () => {
@@ -2038,7 +2070,7 @@ function App() {
       }
     }
     try {
-      const result = await api('/auth/login', { method: 'POST', body: login })
+      const result = await api('/auth/login', { method: 'POST', body: sanitizedLogin })
       await waitAtLeastOneSecond()
       localStorage.setItem('admin_token', result.token)
       setToken(result.token)
@@ -2046,10 +2078,22 @@ function App() {
         localStorage.setItem('admin_user', JSON.stringify(result.user))
         setCurrentUser(result.user)
       }
+      setLoginErrorModal((prev) => ({ ...prev, open: false, message: '' }))
       setOk(UI_STATUS.sessionStarted)
     } catch (err) {
       await waitAtLeastOneSecond()
-      setErr(err)
+      const message = getLoginErrorMessage(err)
+      setErr({
+        ...err,
+        message,
+        requestId: null,
+        details: null,
+      })
+      setLoginErrorModal({
+        open: true,
+        title: 'Acceso denegado',
+        message,
+      })
     } finally {
       setIsLoginLoading(false)
     }
@@ -6926,7 +6970,7 @@ function App() {
         {status.message && (
           <div className={'status ' + status.type}>
             <div>{status.message}</div>
-            {status.type === 'error' && (
+            {status.type === 'error' && isAuthed && (
               <details className="status-meta">
                 <summary>Detalle técnico</summary>
                 <div className="status-meta-grid">
@@ -9060,6 +9104,26 @@ function App() {
             )}
             <div className="modal-actions">
               <button className="primary" onClick={closeDeleteBlockModal}>
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {loginErrorModal.open && !isAuthed && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setLoginErrorModal((prev) => ({ ...prev, open: false }))}
+        >
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>{loginErrorModal.title}</h3>
+            <p>{loginErrorModal.message}</p>
+            <div className="modal-actions">
+              <button
+                className="primary"
+                onClick={() => setLoginErrorModal((prev) => ({ ...prev, open: false }))}
+              >
                 Entendido
               </button>
             </div>
