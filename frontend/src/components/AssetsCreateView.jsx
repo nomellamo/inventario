@@ -446,7 +446,7 @@ function AssetCreateFormCard(props) {
           <p className="muted">LINEAL: se reparte la depreciacion en cuotas iguales por anio.</p>
         </div>
         <div className="field">
-          <label>Vida util (anios)</label>
+          <label>Vida util (años)</label>
           <input
             type="number"
             min="1"
@@ -575,10 +575,8 @@ function AssetLabelCard(props) {
     setCreatedAssetBatch,
     setSelectedCatalogItem,
     openPrintLabel,
-    downloadLabelPdf,
     createdAssetBatch,
     openPrintBatchLabels,
-    downloadBatchLabelsPdf,
     qrCodeUrl,
   } = props
 
@@ -680,10 +678,7 @@ function AssetLabelCard(props) {
           <svg id="barcode-preview" className="barcode" />
           <div className="actions">
             <button className="ghost" onClick={openPrintLabel}>
-              Imprimir
-            </button>
-            <button className="ghost" onClick={downloadLabelPdf}>
-              Descargar PDF
+              Imprimir / Exportar PDF
             </button>
             {createdAssetBatch.length > 1 &&
               createdAssetBatch.some(
@@ -691,10 +686,7 @@ function AssetLabelCard(props) {
               ) && (
                 <>
                   <button className="ghost" onClick={openPrintBatchLabels}>
-                    Imprimir todas
-                  </button>
-                  <button className="ghost" onClick={downloadBatchLabelsPdf}>
-                    Descargar todas (PDF)
+                    Imprimir todas / Exportar PDF
                   </button>
                 </>
               )}

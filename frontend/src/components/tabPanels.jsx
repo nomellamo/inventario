@@ -1,5 +1,5 @@
-function TabPanel({ children }) {
-  return children
+function TabPanel({ children, className = '' }) {
+  return <div className={className}>{children}</div>
 }
 
 function InstitutionsTabPanel({ children }) {
@@ -19,15 +19,15 @@ function UsersTabPanel({ children }) {
 }
 
 function AssistantTabPanel({ children }) {
-  return <TabPanel>{children}</TabPanel>
+  return <TabPanel className="module-shell module-shell-assistant">{children}</TabPanel>
 }
 
 function AssetsTabPanel({ children }) {
-  return <TabPanel>{children}</TabPanel>
+  return <TabPanel className="module-shell module-shell-assets">{children}</TabPanel>
 }
 
 function TrashTabPanel({ children }) {
-  return <TabPanel>{children}</TabPanel>
+  return <TabPanel className="module-shell module-shell-trash">{children}</TabPanel>
 }
 
 function ImportsTabPanel({ children }) {
@@ -35,7 +35,7 @@ function ImportsTabPanel({ children }) {
 }
 
 function PlanchetasTabPanel({ children }) {
-  return <TabPanel>{children}</TabPanel>
+  return <TabPanel className="module-shell module-shell-planchetas">{children}</TabPanel>
 }
 
 function AuditTabPanel({ children }) {

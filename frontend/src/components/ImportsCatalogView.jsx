@@ -66,7 +66,7 @@ function ImportsCatalogView(props) {
             className="danger danger-outline"
             onClick={purgeCatalogAllWithReset}
             disabled={!dangerZoneUnlocked}
-            title={!dangerZoneUnlocked ? 'Primero desbloquea botones críticos.' : ''}
+            title={!dangerZoneUnlocked ? 'Primero habilita las acciones críticas.' : ''}
           >
             {`Vaciar ${UI_TEXT.catalog.toLowerCase()} (ID=1)`}
           </button>

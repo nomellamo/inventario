@@ -1491,7 +1491,7 @@ async function buildAssetImportTemplate() {
     "DESCRIPCI\u00d3N DEL BIEN",
     "Depreciacion Anual CLP",
     "Tasa Depreciacion Anual (%)",
-    "Vida Util (anios)",
+    "Vida Util (años)",
   ]);
   sheet.getRow(1).font = { bold: true };
 
