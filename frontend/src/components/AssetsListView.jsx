@@ -1,4 +1,4 @@
-﻿import { UI_TEXT } from '../constants/uiText'
+import { UI_TEXT } from '../constants/uiText'
 
 function AssetCatalogTable(props) {
   const {
@@ -65,9 +65,7 @@ function AssetRecordsTable(props) {
     toggleSelectAllVisibleAssets,
     clearSelectedAssets,
     openPrintSelectedAssetLabels,
-    downloadSelectedAssetLabelsPdf,
     openPrintAssetListLabels,
-    downloadAssetListLabelsPdf,
     toPositiveIntOrNull,
     downloadFile,
     assetListPage,
@@ -232,23 +230,9 @@ function AssetRecordsTable(props) {
           <button
             className="ghost"
             disabled={assetsLoading || !assetListTotal}
-            onClick={downloadAssetListLabelsPdf}
-          >
-            QR masivo PDF
-          </button>
-          <button
-            className="ghost"
-            disabled={assetsLoading || !assetListTotal}
             onClick={openPrintAssetListLabels}
           >
             Imprimir QR masivo
-          </button>
-          <button
-            className="ghost"
-            disabled={!selectedVisibleCount}
-            onClick={downloadSelectedAssetLabelsPdf}
-          >
-            QR PDF seleccionados
           </button>
           <button
             className="ghost"
@@ -435,4 +419,3 @@ function AssetsListView(props) {
 }
 
 export default AssetsListView
-

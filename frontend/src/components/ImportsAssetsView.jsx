@@ -77,7 +77,7 @@ function ImportsAssetsView(props) {
             className="danger danger-outline"
             onClick={purgeAssetsAllWithReset}
             disabled={!dangerZoneUnlocked}
-            title={!dangerZoneUnlocked ? 'Primero desbloquea botones críticos.' : ''}
+            title={!dangerZoneUnlocked ? 'Primero habilita las acciones críticas.' : ''}
           >
             Vaciar activos (ID=1)
           </button>
@@ -85,7 +85,7 @@ function ImportsAssetsView(props) {
             className="danger danger-outline"
             onClick={() => purgeAssetsAllWithReset({ forceStructureDelete: true })}
             disabled={!dangerZoneUnlocked}
-            title={!dangerZoneUnlocked ? 'Primero desbloquea botones críticos.' : ''}
+            title={!dangerZoneUnlocked ? 'Primero habilita las acciones críticas.' : ''}
           >
             Vaciar + borrar deps/est
           </button>

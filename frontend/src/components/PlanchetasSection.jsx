@@ -22,11 +22,10 @@ function PlanchetasSection(props) {
     planchetaSummary,
     formatPlanchetaMovement,
     openPrintPlanchetaLabels,
-    downloadPlanchetaLabelsPdf,
   } = props
 
   return (
-    <div className="section">
+    <div className="section module-section module-section-planchetas">
       <div className="section-head">
         <h3>Planchetas</h3>
         <div className="actions">
@@ -69,14 +68,6 @@ function PlanchetasSection(props) {
             className="ghost"
             disabled={!canExportPlancheta}
             title={!canExportPlancheta ? 'Previsualiza con datos antes de exportar.' : ''}
-            onClick={downloadPlanchetaLabelsPdf}
-          >
-            QR PDF
-          </button>
-          <button
-            className="ghost"
-            disabled={!canExportPlancheta}
-            title={!canExportPlancheta ? 'Previsualiza con datos antes de exportar.' : ''}
             onClick={openPrintPlanchetaLabels}
           >
             Imprimir QR
@@ -84,13 +75,13 @@ function PlanchetasSection(props) {
         </div>
       </div>
       {!planchetaPreviewLoading && planchetaQuery && !planchetaPreview.length && (
-        <p className="muted">Previsualiza primero. Si no hay filas, la exportacion queda bloqueada.</p>
+        <p className="muted">Previsualiza primero. Si no hay filas, la exportación queda bloqueada.</p>
       )}
       <div className="split">
         <div className="form-card">
           <h4>Filtros</h4>
           <div className="select-wrap">
-            <label>Institucion</label>
+            <label>Institución</label>
             <select
               value={planchetaFilters.institutionId}
               onChange={(e) => {
@@ -107,7 +98,7 @@ function PlanchetasSection(props) {
               }}
               disabled={loadingPlancheta}
             >
-              <option value="">Selecciona institucion</option>
+              <option value="">Selecciona institución</option>
               {planchetaInstitutions.map((inst) => (
                 <option key={inst.id} value={inst.id}>
                   {inst.name}
@@ -159,10 +150,10 @@ function PlanchetasSection(props) {
               ))}
             </select>
           </div>
-          <p className="muted">Si no eliges dependencia, se exporta la plancheta por establecimiento.</p>
+          <p className="muted">Si no eliges dependencia, la plancheta se genera por establecimiento.</p>
           <div className="split">
             <div className="select-wrap">
-              <label>Fecha adquisicion desde (opcional)</label>
+              <label>Fecha de adquisición desde (opcional)</label>
               <input
                 type="date"
                 value={planchetaFilters.fromDate}
@@ -175,7 +166,7 @@ function PlanchetasSection(props) {
               />
             </div>
             <div className="select-wrap">
-              <label>Fecha adquisicion hasta (opcional)</label>
+              <label>Fecha de adquisición hasta (opcional)</label>
               <input
                 type="date"
                 value={planchetaFilters.toDate}
@@ -305,10 +296,10 @@ function PlanchetasSection(props) {
               <div>
                 <strong>{row.dependencyName || 'Sin dependencia'}</strong>
                 <div className="muted">Producto: {row.productName || 'Sin nombre'}</div>
-                <div className="muted">Categoria: {row.category || 'Sin categoria'}</div>
+                <div className="muted">Categoría: {row.category || 'Sin categoría'}</div>
               </div>
               <div className="muted">
-                Marca: {row.brand || '-'} · Modelo: {row.modelName || '-'} · Cantidad total:{' '}
+                Marca: {row.brand || '-'} | Modelo: {row.modelName || '-'} | Cantidad total:{' '}
                 {row.quantity}
               </div>
             </div>
@@ -324,18 +315,18 @@ function PlanchetasSection(props) {
           {planchetaPreview.slice(0, 20).map((item) => (
             <div key={item.id} className="row">
               <div>
-                <strong>INV-{item.internalCode}</strong> · {item.name}
+                <strong>INV-{item.internalCode}</strong> | {item.name}
                 <div className="muted">
-                  Marca: {item.brand || '-'} · Modelo: {item.modelName || '-'}
+                  Marca: {item.brand || '-'} | Modelo: {item.modelName || '-'}
                 </div>
               </div>
               <div className="muted">
-                Dependencia: {item.dependency?.name || '-'} · Estado: {item.assetState?.name || '-'}
+                Dependencia: {item.dependency?.name || '-'} | Estado: {item.assetState?.name || '-'}
               </div>
               <div className="muted">
-                Cantidad: {item.quantity ?? 1} · Responsable: {item.responsibleName || 'Sin asignar'}
-                {' · '}RUT: {item.responsibleRut || '-'} · Cargo: {item.responsibleRole || '-'}
-                {' · '}CC: {item.costCenter || '-'}
+                Cantidad: {item.quantity ?? 1} | Responsable: {item.responsibleName || 'Sin asignar'}
+                {' | '}RUT: {item.responsibleRut || '-'} | Cargo: {item.responsibleRole || '-'}
+                {' | '}CC: {item.costCenter || '-'}
               </div>
               <div className="muted">
                 Valor adq: $
@@ -343,12 +334,12 @@ function PlanchetasSection(props) {
                   minimumFractionDigits: 0,
                   maximumFractionDigits: 0,
                 })}
-                {' · '}Deprec. anual: $
+                {' | '}Deprec. anual: $
                 {Number(item.depreciationAnnualValue || 0).toLocaleString('es-CL', {
                   minimumFractionDigits: 0,
                   maximumFractionDigits: 0,
                 })}
-                {' · '}Vida útil: {item.usefulLifeYears || '-'} años
+                {' | '}Vida útil: {item.usefulLifeYears || '-'} años
               </div>
               {planchetaFilters.includeHistory && (
                 <div className="muted">

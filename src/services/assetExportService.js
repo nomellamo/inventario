@@ -29,7 +29,7 @@ async function exportAssetsToExcel(query, user) {
     { header: "Fecha Adquisicion", key: "acquisitionDate", width: 20 },
     { header: "Depreciacion Anual CLP", key: "depreciationAnnualValue", width: 22 },
     { header: "Tasa Depreciacion Anual (%)", key: "depreciationAnnualRate", width: 24 },
-    { header: "Vida Util (anios)", key: "usefulLifeYears", width: 18 },
+    { header: "Vida Util (años)", key: "usefulLifeYears", width: 18 },
   ];
 
   const dataStartRow = 2;

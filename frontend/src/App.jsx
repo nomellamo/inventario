@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
+﻿import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import logoInventacore from './assets/images/logo-inventacore.png'
 import logoSubsecretaria from './assets/images/logodelgob.png'
 import {
@@ -30,6 +30,7 @@ let xlsxLibPromise
 let qrCodeLibPromise
 let jsBarcodeLibPromise
 let jsPdfLibPromise
+let html2CanvasLibPromise
 
 async function loadXlsxLib() {
   if (!xlsxLibPromise) xlsxLibPromise = import('xlsx')
@@ -51,9 +52,15 @@ async function loadJsPdfLib() {
   return jsPdfLibPromise
 }
 
+async function loadHtml2CanvasLib() {
+  if (!html2CanvasLibPromise) html2CanvasLibPromise = import('html2canvas')
+  return html2CanvasLibPromise
+}
+
 function App() {
   const API_BASE = import.meta.env.VITE_API_BASE || '/api'
   const PUBLIC_SHEET_BASE = import.meta.env.VITE_PUBLIC_SHEET_BASE || ''
+  const INTRO_VIDEO_SRC = import.meta.env.VITE_INTRO_VIDEO_SRC || '/intro.mp4'
   const STORAGE_KEY = 'admin_panel_prefs'
   const CATALOG_ADMIN_TAKE = 20
   const MAX_TAKE = 100
@@ -94,6 +101,7 @@ function App() {
     email: '',
     password: '',
   })
+  const [showIntro, setShowIntro] = useState(false)
   const [status, setStatus] = useState({
     type: 'idle',
     message: '',
@@ -121,6 +129,7 @@ function App() {
     import.meta.env.VITE_DANGER_ZONE_UNLOCK_PASSWORD || ''
   ).trim()
   const dangerZoneLockTimerRef = useRef(null)
+  const introVideoRef = useRef(null)
   const [changePasswordForm, setChangePasswordForm] = useState({
     currentPassword: '',
     newPassword: '',
@@ -546,6 +555,9 @@ function App() {
     }
   }, [token])
   const isAuthed = useMemo(() => Boolean(token), [token])
+  const closeIntro = useEffectEvent(() => {
+    setShowIntro(false)
+  })
   const roleType = useMemo(
     () => currentUser?.role?.type || currentUser?.role || currentUser?.roleType || tokenClaims?.role || '',
     [currentUser, tokenClaims]
@@ -586,6 +598,21 @@ function App() {
     }, 10 * 60 * 1000)
     return () => clearInterval(id)
   }, [isAuthed])
+
+  useEffect(() => {
+    if (!showIntro) return
+    const video = introVideoRef.current
+    if (!video) return
+
+    const playPromise = video.play()
+    if (playPromise && typeof playPromise.catch === 'function') {
+      playPromise.catch(() => {
+        window.setTimeout(() => {
+          closeIntro()
+        }, 1800)
+      })
+    }
+  }, [showIntro, closeIntro])
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -709,14 +736,14 @@ function App() {
     VALIDATION_ERROR: 'Datos inválidos. Revisa los campos e intenta nuevamente.',
     ROUTE_NOT_FOUND: 'Ruta no encontrada.',
     REFRESH_TOKEN_REQUIRED: 'Tu sesión expiró. Vuelve a iniciar sesión.',
-    UNSUPPORTED_MEDIA_TYPE: 'Formato de envio inválido. Usa application/json.',
-    PAYLOAD_TOO_LARGE: 'El archivo o payload excede el tamaño permitido.',
+    UNSUPPORTED_MEDIA_TYPE: 'Formato de envío inválido. Usa application/json.',
+    PAYLOAD_TOO_LARGE: 'El archivo o payload excede el tamano permitido.',
     ASSET_IMPORT_FILE_REQUIRED: 'Debes adjuntar un archivo Excel para importar activos fijos.',
     CATALOG_IMPORT_FILE_REQUIRED: 'Debes adjuntar un archivo Excel para importar catalogo.',
-    CATALOG_IMPORT_INVALID_FILE: 'El archivo no es un Excel .xlsx valido o esta danado.',
+    CATALOG_IMPORT_INVALID_FILE: 'El archivo no es un Excel .xlsx válido o está dañado.',
     PLANCHETA_EMPTY_EXPORT: 'No hay datos para exportar con los filtros actuales.',
-    INVALID_ASSET_ID: 'El identificador de activo fijo no es valido.',
-    FORCE_DELETE_CONFIRMATION_INVALID: 'Confirmacion invalida para eliminacion forzada.',
+    INVALID_ASSET_ID: 'El identificador de activo fijo no es válido.',
+    FORCE_DELETE_CONFIRMATION_INVALID: 'Confirmación inválida para eliminación forzada.',
     USER_FORCE_DELETE_SELF: 'No puedes eliminar forzadamente tu propio usuario.',
     USER_HARD_DELETE_REQUIRES_INACTIVE: 'Primero debes desactivar el usuario.',
     ASSET_HARD_DELETE_REQUIRES_DELETED: 'Primero debes dar de baja el activo fijo.',
@@ -761,12 +788,12 @@ function App() {
       return errorOrMessage
     }
     if (errorOrMessage?.code === 'UNAUTHORIZED') {
-      return 'Datos invalidos. Revisa tus credenciales e intenta nuevamente.'
+      return 'Datos inválidos. Revisa tus credenciales e intenta nuevamente.'
     }
     if (errorOrMessage?.code === 'VALIDATION_ERROR') {
-      return 'Ingresa tu email y contrasena para continuar.'
+      return 'Ingresa tu email y contraseña para continuar.'
     }
-    return 'No se pudo iniciar sesion. Revisa tus credenciales e intenta nuevamente.'
+    return 'No se pudo iniciar sesión. Revisa tus credenciales e intenta nuevamente.'
   }
 
   function resolveAuthToken(overrideToken) {
@@ -984,10 +1011,10 @@ function App() {
       return err?.message || fallback
     }
     if (err?.code === 'CATALOG_ITEM_DUPLICATE_OFFICIAL_KEY') {
-      return 'officialKey ya existe en otro ítem de catálogo.'
+      return 'officialKey ya existe en otro item de catalogo.'
     }
     if (err?.code === 'CATALOG_ITEM_DUPLICATE_COMPOSITE') {
-      return 'Ya existe un ítem con la misma combinación de nombre/categoría/subcategoría/marca/modelo.'
+      return 'Ya existe un item con la misma combinacion de nombre/categoria/subcategoria/marca/modelo.'
     }
     if (err?.code === 'CATALOG_ITEM_HAS_ASSETS') {
       return 'No se puede eliminar: hay activos fijos asociados.'
@@ -1000,10 +1027,10 @@ function App() {
       return err?.message || fallback
     }
     if (err?.code === 'INSTITUTION_ALREADY_INACTIVE') {
-      return 'La institución ya estaba inactiva.'
+      return 'La institucion ya estaba inactiva.'
     }
     if (err?.code === 'INSTITUTION_ALREADY_ACTIVE') {
-      return 'La institución ya estaba activa.'
+      return 'La institucion ya estaba activa.'
     }
     if (err?.code === 'INSTITUTION_HAS_ACTIVE_ESTABLISHMENTS') {
       return 'No se puede dar de baja: tiene establecimientos activos.'
@@ -1015,10 +1042,10 @@ function App() {
       return 'No se puede dar de baja: tiene activos vigentes.'
     }
     if (err?.code === 'INSTITUTION_HARD_DELETE_REQUIRES_INACTIVE') {
-      return 'Para eliminar definitivamente, primero debes dar de baja la institución.'
+      return 'Para eliminar definitivamente, primero debes dar de baja la institucion.'
     }
     if (err?.code === 'INSTITUTION_HARD_DELETE_HAS_RELATIONS') {
-      return 'No se puede eliminar definitivamente: todavía tiene registros relacionados.'
+      return 'No se puede eliminar definitivamente: todavia tiene registros relacionados.'
     }
     return err?.message || fallback
   }
@@ -1046,7 +1073,7 @@ function App() {
       return 'Para eliminar definitivamente, primero debes dar de baja el establecimiento.'
     }
     if (err?.code === 'ESTABLISHMENT_HARD_DELETE_HAS_RELATIONS') {
-      return 'No se puede eliminar definitivamente: todavía tiene registros relacionados.'
+      return 'No se puede eliminar definitivamente: todavia tiene registros relacionados.'
     }
     return err?.message || fallback
   }
@@ -1068,7 +1095,7 @@ function App() {
       return 'Para eliminar definitivamente, primero debes dar de baja la dependencia.'
     }
     if (err?.code === 'DEPENDENCY_HARD_DELETE_HAS_RELATIONS') {
-      return 'No se puede eliminar definitivamente: todavía tiene registros relacionados.'
+      return 'No se puede eliminar definitivamente: todavia tiene registros relacionados.'
     }
     return err?.message || fallback
   }
@@ -1078,10 +1105,10 @@ function App() {
       const field = err?.details?.field
       if (field === 'fromDate') return 'Fecha "desde" invalida. Usa formato YYYY-MM-DD.'
       if (field === 'toDate') return 'Fecha "hasta" invalida. Usa formato YYYY-MM-DD.'
-      return 'Formato de fecha inválido. Usa YYYY-MM-DD.'
+      return 'Formato de fecha invalido. Usa YYYY-MM-DD.'
     }
     if (err?.code === 'PLANCHETA_INVALID_DATE_RANGE') {
-      return 'Rango de fechas inválido: "desde" no puede ser mayor que "hasta".'
+      return 'Rango de fechas invalido: "desde" no puede ser mayor que "hasta".'
     }
     return err?.message || fallback
   }
@@ -1110,7 +1137,7 @@ function App() {
       return err?.message || fallback
     }
     if (err?.code === 'ASSET_INTERNAL_CODE_CONFLICT') {
-      return 'Conflicto al generar el código interno del activo fijo. Intenta nuevamente.'
+      return 'Conflicto al generar el codigo interno del activo fijo. Intenta nuevamente.'
     }
     return err?.message || fallback
   }
@@ -1500,7 +1527,7 @@ function App() {
 
   async function handleCatalogImportUpload() {
     if (!catalogImportFile) {
-      setErr('Selecciona un archivo de catálogo (.xlsx) antes de importar.')
+      setErr('Selecciona un archivo de catalogo (.xlsx) antes de importar.')
       return
     }
 
@@ -1537,7 +1564,7 @@ function App() {
       setCatalogImportErrors(json?.errors || [])
       setOk(UI_STATUS.catalogBulkImportCompleted)
     } catch (err) {
-      setErr(err, 'Error al importar catálogo por Excel.')
+      setErr(err, 'Error al importar catalogo por Excel.')
     } finally {
       setCatalogImportLoading(false)
     }
@@ -1569,28 +1596,28 @@ function App() {
       })
       await loadCatalogAdminItems(catalogAdminPage)
       setManualOfficialKeyCheck(null)
-      setOk('Ítem de catálogo creado manualmente.')
+      setOk('Item de catalogo creado manualmente.')
     } catch (err) {
-      const message = getCatalogConflictMessage(err, 'No se pudo crear el ítem de catálogo.')
-      setErr(withMappedError(err, message, 'No se pudo crear el ítem de catálogo.'))
+      const message = getCatalogConflictMessage(err, 'No se pudo crear el item de catalogo.')
+      setErr(withMappedError(err, message, 'No se pudo crear el item de catalogo.'))
     }
   }
 
   async function purgeCatalogAllWithReset() {
     openConfirm({
-      title: 'Vaciar catálogo',
+      title: 'Vaciar catalogo',
       message:
-        'Se eliminarán todos los ítems del catálogo, se desvincularán de activos y el ID volverá a 1. ¿Continuar?',
+        'Se eliminaran todos los items del catalogo, se desvincularan de activos y el ID volvera a 1. Continuar?',
       onConfirm: async () => {
         try {
           const result = await api('/admin/catalog-items/purge/reset', { method: 'DELETE' })
           await loadCatalogAdminItems(1)
           await loadCatalogItems()
           setOk(
-            `Catálogo vaciado. Eliminados: ${Number(result?.deletedCount || 0)}. Próximo ID: 1.`
+            `Catalogo vaciado. Eliminados: ${Number(result?.deletedCount || 0)}. Proximo ID: 1.`
           )
         } catch (err) {
-          setErr(err, UI_ERROR.couldNotClear('el catálogo'))
+          setErr(err, UI_ERROR.couldNotClear('el catalogo'))
         } finally {
           closeConfirm()
         }
@@ -1600,7 +1627,7 @@ function App() {
 
   async function guardedPurgeCatalogAllWithReset() {
     if (!dangerZoneUnlocked) {
-      setErr('Botones críticos bloqueados. Usa "Desbloquear botones".')
+      setErr('Acciones críticas bloqueadas. Usa "Habilitar acciones críticas".')
       return
     }
     return purgeCatalogAllWithReset()
@@ -1670,7 +1697,7 @@ function App() {
       setCatalogAdminRowStatus({})
       setCatalogAdminKeyStatus({})
     } catch (err) {
-      setErr(err, UI_ERROR.couldNotLoad('ítems de catálogo'))
+      setErr(err, UI_ERROR.couldNotLoad('items de catalogo'))
     } finally {
       setCatalogAdminLoading(false)
     }
@@ -1895,7 +1922,7 @@ function App() {
   function openDeleteBlockModal({ title, summary, dependencies }) {
     setDeleteBlockState({
       open: true,
-      title: title || 'No se puede completar la acción',
+      title: title || 'No se puede completar la accion',
       summary: summary || null,
       dependencies: Array.isArray(dependencies) ? dependencies : [],
     })
@@ -1966,7 +1993,7 @@ function App() {
         },
       }
     }
-    throw new Error(`Tipo de eliminación forzada no soportado: ${entityType}`)
+    throw new Error(`Tipo de eliminacion forzada no soportado: ${entityType}`)
   }
 
   async function openForceDelete(entityType, entityId, entityLabel) {
@@ -1993,7 +2020,7 @@ function App() {
         loading: false,
       }))
     } catch (err) {
-      setErr(err, UI_ERROR.couldNotLoad('el resumen de eliminación forzada'))
+      setErr(err, UI_ERROR.couldNotLoad('el resumen de eliminacion forzada'))
       setForceDeleteState((prev) => ({
         ...prev,
         loading: false,
@@ -2039,7 +2066,7 @@ function App() {
       setOk(UI_STATUS.forceDeleteCompleted)
       closeForceDelete()
     } catch (err) {
-      setErr(err, UI_ERROR.couldNotComplete('la eliminación forzada'))
+      setErr(err, UI_ERROR.couldNotComplete('la eliminacion forzada'))
       setForceDeleteState((prev) => ({ ...prev, deleting: false }))
     }
   }
@@ -2078,6 +2105,7 @@ function App() {
         localStorage.setItem('admin_user', JSON.stringify(result.user))
         setCurrentUser(result.user)
       }
+      setShowIntro(true)
       setLoginErrorModal((prev) => ({ ...prev, open: false, message: '' }))
       setOk(UI_STATUS.sessionStarted)
     } catch (err) {
@@ -2261,23 +2289,23 @@ function App() {
     if (dangerZoneUnlocking) return
     const secret = String(dangerZoneUnlockInput || '').trim()
     if (!secret) {
-      setDangerZoneUnlockError('Debes ingresar la contraseña.')
+      setDangerZoneUnlockError('Debes ingresar la contrasena.')
       return
     }
 
     setDangerZoneUnlocking(true)
     setDangerZoneUnlockError('')
     try {
-      if (secret !== DANGER_ZONE_UNLOCK_PASSWORD) throw new Error('Contraseña incorrecta.')
+      if (secret !== DANGER_ZONE_UNLOCK_PASSWORD) throw new Error('Contrasena incorrecta.')
       setDangerZoneUnlocked(true)
       armDangerZoneAutoLock()
       setDangerZoneUnlockModalOpen(false)
       setDangerZoneUnlockInput('')
       setDangerZoneUnlockError('')
-      setOk('Botones críticos desbloqueados por 10 minutos.')
-    } catch (err) {
+      setOk('Botones criticos desbloqueados por 10 minutos.')
+    } catch {
       setDangerZoneUnlocked(false)
-      setDangerZoneUnlockError('Contraseña incorrecta.')
+      setDangerZoneUnlockError('Contrasena incorrecta.')
     } finally {
       setDangerZoneUnlocking(false)
     }
@@ -2289,7 +2317,7 @@ function App() {
       dangerZoneLockTimerRef.current = null
     }
     setDangerZoneUnlocked(false)
-    setOk('Botones críticos bloqueados.')
+    setOk('Botones criticos bloqueados.')
   }
 
   async function loadEstablishments(page = estPage) {
@@ -2625,7 +2653,7 @@ function App() {
       const params = new URLSearchParams()
       const safeId = toPositiveIntOrNull(assetListFilters.id)
       if (assetListFilters.id && !safeId) {
-        throw new Error('Filtro ID inválido. Usa solo numeros positivos.')
+        throw new Error('Filtro ID invalido. Usa solo numeros positivos.')
       }
       if (safeId) params.set('id', String(safeId))
       if (assetListFilters.internalCode)
@@ -2728,7 +2756,7 @@ function App() {
   async function submitEvidenceUpload() {
     const assetId = getSafeAssetId(createdAsset)
     if (!assetId) {
-      setErr('Activo fijo inválido para subir evidencia.')
+      setErr('Activo fijo invalido para subir evidencia.')
       return
     }
     if (!evidenceForm.file) {
@@ -2782,7 +2810,7 @@ function App() {
   function restoreFromTrash(asset) {
     const restoreCodes = movementReasonCodes.restore || []
     if (!restoreCodes.length) {
-      setErr('No hay catálogo de motivos de restauración disponible.')
+      setErr('No hay catalogo de motivos de restauracion disponible.')
       return
     }
     setRestoreModal({
@@ -2798,11 +2826,11 @@ function App() {
   async function confirmRestoreFromTrash() {
     const restoreAssetId = getSafeAssetId(restoreModal.asset)
     if (!restoreAssetId) {
-      setErr('Activo fijo inválido para restaurar.')
+      setErr('Activo fijo invalido para restaurar.')
       return
     }
     if (!restoreModal.reasonCode) {
-      setErr('Selecciona un motivo de restauración.')
+      setErr('Selecciona un motivo de restauracion.')
       return
     }
     if (!restoreModal.file) {
@@ -2965,7 +2993,7 @@ function App() {
       const establishmentId = toPositiveIntOrNull(userForm.establishmentId)
       if (userForm.roleType === 'ADMIN_CENTRAL') {
         if (userForm.institutionId && !institutionId) {
-          setErr('Institution ID inválido. Debe ser un numero mayor a 0.')
+          setErr('Institution ID invalido. Debe ser un numero mayor a 0.')
           return
         }
       } else {
@@ -3017,7 +3045,7 @@ function App() {
       }
       if (user.roleType === 'ADMIN_CENTRAL') {
         if (user.institutionId && !institutionId) {
-          setErr('Institution ID inválido. Debe ser un numero mayor a 0.')
+          setErr('Institution ID invalido. Debe ser un numero mayor a 0.')
           return
         }
         if (institutionId) payload.institutionId = institutionId
@@ -3042,7 +3070,7 @@ function App() {
   async function deactivateUserAdmin(userId, email) {
     openConfirm({
       title: 'Desactivar usuario',
-      message: `Se desactivará ${email}. Podrá quedar visible con "inactivos".`,
+      message: `Se desactivara ${email}. Podra quedar visible con "inactivos".`,
       onConfirm: async () => {
         try {
           await api(`/admin/users/${userId}`, { method: 'DELETE' })
@@ -3230,7 +3258,7 @@ function App() {
     if (!assetForm.assetStateId) errors.assetStateId = 'Requerido'
     if (!assetForm.assetTypeId) errors.assetTypeId = 'Requerido'
     if (!useMultiProduct && !assetForm.catalogItemId && !assetForm.name) {
-      errors.name = 'Requerido si no hay catálogo'
+      errors.name = 'Requerido si no hay catalogo'
     }
     if (!assetForm.accountingAccount) errors.accountingAccount = 'Requerido'
     if (useMultiProduct) {
@@ -3243,15 +3271,15 @@ function App() {
           const rowQuantity = Number(row.quantity)
           const rowValue = Number(row.acquisitionValue)
           if (!rowCatalogId) {
-            errors.multiProducts = `Producto ${i + 1}: selecciona un ítem de catálogo.`
+            errors.multiProducts = `Producto ${i + 1}: selecciona un item de catalogo.`
             break
           }
           if (!Number.isInteger(rowQuantity) || rowQuantity <= 0) {
-            errors.multiProducts = `Producto ${i + 1}: cantidad inválida (entero > 0).`
+            errors.multiProducts = `Producto ${i + 1}: cantidad invalida (entero > 0).`
             break
           }
           if (!row.acquisitionValue || !Number.isFinite(rowValue) || rowValue <= 0) {
-            errors.multiProducts = `Producto ${i + 1}: precio inválido (> 0).`
+            errors.multiProducts = `Producto ${i + 1}: precio invalido (> 0).`
             break
           }
         }
@@ -3291,7 +3319,7 @@ function App() {
       const rut = String(assetForm.responsibleRut).trim()
       const compact = rut.replace(/\./g, '').replace(/\s+/g, '').toUpperCase()
       if (!/^\d{7,8}-?[\dK]$/.test(compact)) {
-        errors.responsibleRut = 'RUT inválido. Usa formato 12345678-9'
+        errors.responsibleRut = 'RUT invalido. Usa formato 12345678-9'
       }
     }
     return errors
@@ -3363,7 +3391,8 @@ function App() {
   const LABEL_QR_TOP_MM = 1.1
   const LABEL_TEXT_RIGHT_MM = 0.6
   const LABEL_TEXT_GAP_FROM_QR_MM = 0.6
-  const LABEL_TEXT_WIDTH_MM = 10.8
+  const LABEL_CODE_TOP_MM = 1.8
+  const LABEL_BODY_TOP_MM = 7.2
   const QR_PRINT_WIDTH_PX = 2200
 
   async function buildQrLabelDataUrl(qrValue, qrCodeLib) {
@@ -3383,27 +3412,204 @@ function App() {
     const code = asset?.internalCode ? `INV-${asset.internalCode}` : ''
     const name = asset?.name || asset?.catalogItem?.name || UI_TEXT.assetSingular
     const responsibleName = asset?.responsibleName || ''
-    const assetState = asset?.assetState?.name || ''
     const assetId = getSafeAssetId(asset)
     const technicalSheetUrl = buildAssetTechnicalSheetUrl(asset)
-    return { code, name, responsibleName, assetState, assetId, technicalSheetUrl }
+    return {
+      code,
+      name,
+      responsibleName,
+      assetId,
+      technicalSheetUrl,
+    }
+  }
+
+  function truncateLabelText(value, maxLength = 26) {
+    const normalized = String(value || '').replace(/\s+/g, ' ').trim()
+    if (!normalized) return ''
+    if (normalized.length <= maxLength) return normalized
+    return `${normalized.slice(0, Math.max(0, maxLength - 1)).trimEnd()}...`
+  }
+
+  function splitLabelText(value, maxCharsPerLine = 12, maxLines = 2) {
+    const normalized = truncateLabelText(value, maxCharsPerLine * maxLines + 4)
+    if (!normalized) return []
+    const words = normalized.split(/\s+/).filter(Boolean)
+    const lines = []
+    let current = ''
+    for (const word of words) {
+      const candidate = current ? `${current} ${word}` : word
+      if (candidate.length <= maxCharsPerLine || !current) {
+        current = candidate
+        continue
+      }
+      lines.push(current)
+      current = word
+      if (lines.length >= maxLines - 1) break
+    }
+    if (lines.length < maxLines && current) lines.push(current)
+    const remainingWords = words.slice(lines.join(' ').split(/\s+/).filter(Boolean).length)
+    if (remainingWords.length && lines.length) {
+      const lastIndex = Math.min(lines.length - 1, maxLines - 1)
+      lines[lastIndex] = truncateLabelText(
+        `${lines[lastIndex]} ${remainingWords.join(' ')}`.trim(),
+        maxCharsPerLine
+      )
+    }
+    return lines.slice(0, maxLines)
   }
 
   function getLabelBodyLines(label) {
     const lines = []
     if (label?.responsibleName) {
-      const responsible = String(label.responsibleName).trim()
-      const parts = responsible.split(/\s+/).filter(Boolean)
-      if (parts.length > 1) {
-        lines.push(`Resp: ${parts[0]}`)
-        lines.push(parts.slice(1).join(' '))
-      } else {
-        lines.push(`Resp: ${responsible}`)
-      }
+      lines.push(...splitLabelText(label.responsibleName, 12, 2))
     }
-    if (label?.name) lines.push(String(label.name).trim())
-    if (label?.assetState) lines.push(String(label.assetState).trim())
+    if (label?.name) lines.push(...splitLabelText(label.name, 12, 2))
     return lines.filter(Boolean)
+  }
+
+  function getLabelLayoutMetrics() {
+    const baseX = LABEL.marginMm + LABEL.offsetX
+    const baseY = LABEL.marginMm + LABEL.offsetY
+    const contentWidth = LABEL.widthMm - 2 * LABEL.marginMm
+    const qrX = baseX + LABEL_QR_LEFT_MM
+    const qrY = baseY + LABEL_QR_TOP_MM
+    const qrSize = LABEL.qrSizeMm
+    const textLeftX = qrX + qrSize + LABEL_TEXT_GAP_FROM_QR_MM
+    const textTopY = baseY + LABEL_BODY_TOP_MM
+    const codeTopY = baseY + LABEL_CODE_TOP_MM
+    const textWidth = Math.max(4, LABEL.widthMm - LABEL.marginMm - LABEL_TEXT_RIGHT_MM - textLeftX)
+    return { baseX, baseY, contentWidth, qrX, qrY, qrSize, textLeftX, textTopY, codeTopY, textWidth }
+  }
+
+  function getLabelBodyHtml(label) {
+    return getLabelBodyLines(label)
+      .map((line) => `<div class="line">${escapeHtml(line)}</div>`)
+      .join('')
+  }
+
+  function getSingleLabelSheetStyles() {
+    const { textLeftX, textTopY, textWidth } = getLabelLayoutMetrics()
+    return `
+      * { box-sizing: border-box; }
+      .label-pdf-root {
+        margin: 0;
+        padding: ${LABEL.marginMm}mm;
+        width: ${LABEL.widthMm}mm;
+        height: ${LABEL.heightMm}mm;
+        font-family: Arial, "Helvetica Neue", sans-serif;
+        color: #0f172a;
+        background: #fff;
+      }
+      .sheet {
+        width: ${LABEL.widthMm - 2 * LABEL.marginMm}mm;
+        height: ${LABEL.heightMm - 2 * LABEL.marginMm}mm;
+        transform: translate(${LABEL.offsetX}mm, ${LABEL.offsetY}mm);
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        text-align: center;
+        overflow: hidden;
+        background: #fff;
+      }
+      .code-top {
+        position: absolute;
+        top: ${LABEL_CODE_TOP_MM}mm;
+        left: ${textLeftX}mm;
+        width: ${textWidth}mm;
+        text-align: left;
+        font-weight: 800;
+        font-size: 8.6px;
+        line-height: 1.1;
+        color: #020617;
+        letter-spacing: 0;
+        white-space: normal;
+        word-break: break-word;
+      }
+      .side-right {
+        position: absolute;
+        left: ${textLeftX}mm;
+        top: ${textTopY}mm;
+        width: ${textWidth}mm;
+        display: grid;
+        gap: 0.5mm;
+        text-align: left;
+      }
+      .line {
+        font-size: 7.6px;
+        line-height: 1.12;
+        font-weight: 700;
+        white-space: normal;
+        word-break: break-word;
+        overflow: visible;
+        color: #111827;
+      }
+      .media {
+        width: 100%;
+        position: absolute;
+        left: ${LABEL_QR_LEFT_MM}mm;
+        top: ${LABEL_QR_TOP_MM}mm;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
+        gap: 0.4mm;
+      }
+      .qr {
+        width: ${LABEL.qrSizeMm}mm;
+        height: ${LABEL.qrSizeMm}mm;
+        background: #fff;
+        display: block;
+      }
+      .barcode {
+        width: ${LABEL.barcodeWidthMm}mm;
+        height: ${LABEL.barcodeHeightMm}mm;
+        object-fit: contain;
+      }
+    `
+  }
+
+  function getLabelSheetMarkup(label, qr, barcode = '') {
+    return `
+      <div class="sheet">
+        <div class="code-top">${escapeHtml(label.code)}</div>
+        <div class="side-right">${getLabelBodyHtml(label)}</div>
+        <div class="media">
+          <img class="qr" src="${qr}" alt="QR" />
+          ${LABEL_SHOW_BARCODE && barcode ? `<img class="barcode" src="${barcode}" alt="Barcode" />` : ''}
+        </div>
+      </div>
+    `
+  }
+
+  async function renderLabelSheetImageDataUrl(label, qr, barcode = '') {
+    const { default: html2canvas } = await loadHtml2CanvasLib()
+    const host = document.createElement('div')
+    host.style.position = 'fixed'
+    host.style.left = '-10000px'
+    host.style.top = '0'
+    host.style.zIndex = '-1'
+    host.style.pointerEvents = 'none'
+    host.innerHTML = `
+      <style>${getSingleLabelSheetStyles()}</style>
+      <div class="label-pdf-root">
+        ${getLabelSheetMarkup(label, qr, barcode)}
+      </div>
+    `
+    document.body.appendChild(host)
+    try {
+      const root = host.querySelector('.label-pdf-root')
+      const canvas = await html2canvas(root, {
+        backgroundColor: '#ffffff',
+        scale: Math.max(3, window.devicePixelRatio || 1),
+        useCORS: true,
+        logging: false,
+      })
+      return canvas.toDataURL('image/png')
+    } finally {
+      host.remove()
+    }
   }
 
   function getRequiredTechnicalSheetQrValue(label) {
@@ -3506,43 +3712,14 @@ function App() {
     const [{ jsPDF }, { default: QRCode }] = await Promise.all([loadJsPdfLib(), loadQrCodeLib()])
     const label = getLabelData(createdAsset)
     const doc = new jsPDF({ unit: 'mm', format: [LABEL.widthMm, LABEL.heightMm] })
-    const baseX = LABEL.marginMm + LABEL.offsetX
-    const baseY = LABEL.marginMm + LABEL.offsetY
-    const contentWidth = LABEL.widthMm - 2 * LABEL.marginMm
-    const textRightX = LABEL.widthMm - LABEL.marginMm - LABEL_TEXT_RIGHT_MM
-    const qrY = baseY + LABEL_QR_TOP_MM
-    doc.setFont(undefined, 'bold')
-    doc.setFontSize(9.6)
-    doc.text(String(label.code || '').substring(0, 20), textRightX, baseY + 2.7, { align: 'right' })
-    doc.setFont(undefined, 'normal')
-    doc.setFontSize(7.1)
-    let textY = baseY + 7.2
-    const bodyLines = getLabelBodyLines(label)
-    for (const line of bodyLines.slice(0, 6)) {
-      const wrapped = doc.splitTextToSize(String(line), LABEL_TEXT_WIDTH_MM)
-      for (const piece of wrapped) {
-        doc.text(String(piece), textRightX, textY, { align: 'right' })
-        textY += 2.5
-      }
-    }
-
     const qrValue = getRequiredTechnicalSheetQrValue(label)
     let qr = qrCodeUrl
     if (!qr) {
       qr = await buildQrLabelDataUrl(qrValue, QRCode)
     }
     const barcode = LABEL_SHOW_BARCODE ? await buildBarcodeDataUrl(label.code) : ''
-    const qrSize = LABEL.qrSizeMm
-    const barcodeWidth = LABEL.barcodeWidthMm
-    const barcodeHeight = LABEL.barcodeHeightMm
-    const mediaGap = 0.3
-    const qrX = baseX + LABEL_QR_LEFT_MM
-    const barcodeX = baseX + (contentWidth - barcodeWidth) / 2
-    const barcodeY = qrY + qrSize + mediaGap
-    doc.addImage(qr, 'PNG', qrX, qrY, qrSize, qrSize, undefined, 'NONE')
-    if (LABEL_SHOW_BARCODE && barcode) {
-      doc.addImage(barcode, 'PNG', barcodeX, barcodeY, barcodeWidth, barcodeHeight, undefined, 'NONE')
-    }
+    const imageDataUrl = await renderLabelSheetImageDataUrl(label, qr, barcode)
+    doc.addImage(imageDataUrl, 'PNG', 0, 0, LABEL.widthMm, LABEL.heightMm, undefined, 'FAST')
     doc.save(`label_${label.code}.pdf`)
   }
 
@@ -3564,38 +3741,10 @@ function App() {
     for (let index = 0; index < batch.length; index++) {
       if (index > 0) doc.addPage([LABEL.widthMm, LABEL.heightMm], 'portrait')
       const label = getLabelData(batch[index])
-      const baseX = LABEL.marginMm + LABEL.offsetX
-      const baseY = LABEL.marginMm + LABEL.offsetY
-      const contentWidth = LABEL.widthMm - 2 * LABEL.marginMm
-      const textRightX = LABEL.widthMm - LABEL.marginMm - LABEL_TEXT_RIGHT_MM
-      const qrY = baseY + LABEL_QR_TOP_MM
-      doc.setFont(undefined, 'bold')
-      doc.setFontSize(9.6)
-      doc.text(String(label.code || '').substring(0, 20), textRightX, baseY + 2.7, { align: 'right' })
-      doc.setFont(undefined, 'normal')
-      doc.setFontSize(7.1)
-      let textY = baseY + 7.2
-      const bodyLines = getLabelBodyLines(label)
-      for (const line of bodyLines.slice(0, 6)) {
-        const wrapped = doc.splitTextToSize(String(line), LABEL_TEXT_WIDTH_MM)
-        for (const piece of wrapped) {
-          doc.text(String(piece), textRightX, textY, { align: 'right' })
-          textY += 2.5
-        }
-      }
       const qr = await buildQrLabelDataUrl(getRequiredTechnicalSheetQrValue(label), QRCode)
       const barcode = LABEL_SHOW_BARCODE ? await buildBarcodeDataUrl(label.code) : ''
-      const qrSize = LABEL.qrSizeMm
-      const barcodeWidth = LABEL.barcodeWidthMm
-      const barcodeHeight = LABEL.barcodeHeightMm
-      const mediaGap = 0.3
-      const qrX = baseX + LABEL_QR_LEFT_MM
-      const barcodeX = baseX + (contentWidth - barcodeWidth) / 2
-      const barcodeY = qrY + qrSize + mediaGap
-      doc.addImage(qr, 'PNG', qrX, qrY, qrSize, qrSize, undefined, 'NONE')
-      if (LABEL_SHOW_BARCODE && barcode) {
-        doc.addImage(barcode, 'PNG', barcodeX, barcodeY, barcodeWidth, barcodeHeight, undefined, 'NONE')
-      }
+      const imageDataUrl = await renderLabelSheetImageDataUrl(label, qr, barcode)
+      doc.addImage(imageDataUrl, 'PNG', 0, 0, LABEL.widthMm, LABEL.heightMm, undefined, 'FAST')
     }
     doc.save(`${filePrefix}_${Date.now()}.pdf`)
   }
@@ -3614,13 +3763,11 @@ function App() {
 
     const win = window.open('', '_blank', 'width=480,height=420')
     if (!win) {
-      setErr('El navegador bloqueó la ventana de impresión.')
+      setErr('El navegador bloqueo la ventana de impresion.')
       return
     }
 
-    const bodyHtml = getLabelBodyLines(label)
-      .map((line) => `<div class="line">${escapeHtml(line)}</div>`)
-      .join('')
+    const bodyHtml = getLabelBodyHtml(label)
 
     const html = `<!doctype html>
 <html>
@@ -3635,7 +3782,7 @@ function App() {
       padding: ${LABEL.marginMm}mm;
       width: ${LABEL.widthMm}mm;
       height: ${LABEL.heightMm}mm;
-      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      font-family: Arial, "Helvetica Neue", sans-serif;
       color: #0f172a;
     }
     .sheet {
@@ -3651,31 +3798,33 @@ function App() {
       overflow: hidden;
     }
     .code-top {
+      ${(() => {
+        const { textLeftX, textWidth } = getLabelLayoutMetrics()
+        return `left: ${textLeftX}mm; width: ${textWidth}mm; text-align: left;`
+      })()}
       position: absolute;
-      top: 1.8mm;
-      right: ${LABEL_TEXT_RIGHT_MM}mm;
-      width: ${LABEL_TEXT_WIDTH_MM}mm;
-      text-align: right;
+      top: ${LABEL_CODE_TOP_MM}mm;
       font-weight: 800;
-      font-size: 9.6px;
+      font-size: 8.6px;
       line-height: 1.1;
       color: #020617;
-      letter-spacing: 0.1px;
-      white-space: nowrap;
+      letter-spacing: 0;
+      white-space: normal;
+      word-break: break-word;
     }
     .side-right {
+      ${(() => {
+        const { textLeftX, textTopY, textWidth } = getLabelLayoutMetrics()
+        return `left: ${textLeftX}mm; top: ${textTopY}mm; width: ${textWidth}mm;`
+      })()}
       position: absolute;
-      left: ${LABEL_QR_LEFT_MM + LABEL.qrSizeMm + LABEL_TEXT_GAP_FROM_QR_MM}mm;
-      top: 7.2mm;
-      right: ${LABEL_TEXT_RIGHT_MM}mm;
-      width: ${LABEL_TEXT_WIDTH_MM}mm;
       display: grid;
-      gap: 0.35mm;
-      text-align: right;
+      gap: 0.5mm;
+      text-align: left;
     }
     .line {
-      font-size: 8.2px;
-      line-height: 1.16;
+      font-size: 7.6px;
+      line-height: 1.12;
       font-weight: 700;
       white-space: normal;
       word-break: break-word;
@@ -3746,7 +3895,7 @@ function App() {
     if (!batch.length) return
     const win = window.open('', '_blank', 'width=640,height=520')
     if (!win) {
-      setErr('El navegador bloqueó la ventana de impresión.')
+      setErr('El navegador bloqueo la ventana de impresion.')
       return
     }
 
@@ -3756,9 +3905,7 @@ function App() {
       const label = getLabelData(item)
       const qr = await buildQrLabelDataUrl(getRequiredTechnicalSheetQrValue(label), QRCode)
       const barcode = LABEL_SHOW_BARCODE ? await buildBarcodeDataUrl(label.code) : ''
-      const bodyHtml = getLabelBodyLines(label)
-        .map((line) => `<div class="line">${escapeHtml(line)}</div>`)
-        .join('')
+      const bodyHtml = getLabelBodyHtml(label)
       sheets.push(`
   <div class="sheet">
     <div class="code-top">${escapeHtml(label.code)}</div>
@@ -3780,7 +3927,7 @@ function App() {
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      font-family: Arial, "Helvetica Neue", sans-serif;
       color: #0f172a;
     }
     .sheet {
@@ -3799,31 +3946,33 @@ function App() {
     }
     .sheet:last-child { page-break-after: auto; }
     .code-top {
+      ${(() => {
+        const { textLeftX, textWidth } = getLabelLayoutMetrics()
+        return `left: ${textLeftX}mm; width: ${textWidth}mm; text-align: left;`
+      })()}
       position: absolute;
-      top: 1.8mm;
-      right: ${LABEL_TEXT_RIGHT_MM}mm;
-      width: ${LABEL_TEXT_WIDTH_MM}mm;
-      text-align: right;
+      top: ${LABEL_CODE_TOP_MM}mm;
       font-weight: 800;
-      font-size: 9.6px;
+      font-size: 8.6px;
       line-height: 1.1;
       color: #020617;
-      letter-spacing: 0.1px;
-      white-space: nowrap;
+      letter-spacing: 0;
+      white-space: normal;
+      word-break: break-word;
     }
     .side-right {
+      ${(() => {
+        const { textLeftX, textTopY, textWidth } = getLabelLayoutMetrics()
+        return `left: ${textLeftX}mm; top: ${textTopY}mm; width: ${textWidth}mm;`
+      })()}
       position: absolute;
-      left: ${LABEL_QR_LEFT_MM + LABEL.qrSizeMm + LABEL_TEXT_GAP_FROM_QR_MM}mm;
-      top: 7.2mm;
-      right: ${LABEL_TEXT_RIGHT_MM}mm;
-      width: ${LABEL_TEXT_WIDTH_MM}mm;
       display: grid;
-      gap: 0.35mm;
-      text-align: right;
+      gap: 0.5mm;
+      text-align: left;
     }
     .line {
-      font-size: 8.2px;
-      line-height: 1.16;
+      font-size: 7.6px;
+      line-height: 1.12;
       font-weight: 700;
       white-space: normal;
       word-break: break-word;
@@ -3886,7 +4035,7 @@ function App() {
     const params = new URLSearchParams()
     const safeId = toPositiveIntOrNull(assetListFilters.id)
     if (assetListFilters.id && !safeId) {
-      throw new Error('Filtro ID inválido. Usa solo numeros positivos.')
+      throw new Error('Filtro ID invalido. Usa solo numeros positivos.')
     }
     if (safeId) params.set('id', String(safeId))
     if (assetListFilters.internalCode) params.set('internalCode', assetListFilters.internalCode)
@@ -3905,19 +4054,6 @@ function App() {
     params.set('withCount', 'false')
     const data = await api(`/assets?${params.toString()}`)
     return data.items || []
-  }
-
-  async function downloadAssetListLabelsPdf() {
-    try {
-      const items = await fetchAssetListBatchForLabels()
-      if (!items.length) {
-        setErr('No hay activos fijos filtrados para exportar QR.')
-        return
-      }
-      await downloadLabelsPdfForBatch(items, 'labels_activos')
-    } catch (err) {
-      setErr(err)
-    }
   }
 
   async function loadImportJobStatus(batchId, { silent = false } = {}) {
@@ -4006,21 +4142,6 @@ function App() {
 
   function clearSelectedAssets() {
     setSelectedAssetIds([])
-  }
-
-  async function downloadSelectedAssetLabelsPdf() {
-    try {
-      const selectedItems = (assetsList || []).filter((asset) =>
-        selectedAssetIds.includes(toPositiveIntOrNull(asset.id))
-      )
-      if (!selectedItems.length) {
-        setErr('Selecciona al menos un activo fijo visible para exportar QR.')
-        return
-      }
-      await downloadLabelsPdfForBatch(selectedItems, 'labels_activos_seleccionados')
-    } catch (err) {
-      setErr(err)
-    }
   }
 
   async function openPrintSelectedAssetLabels() {
@@ -4172,7 +4293,7 @@ function App() {
         : Number(createdFromSingle?.createdCount || createdItems.length || 1)
       if (totalCreated > 1) {
         if (!useMultiProduct && serialValue) {
-          setOk(`Activos fijos creados: ${totalCreated}. Serie omitida por creación en lote.`)
+          setOk(`Activos fijos creados: ${totalCreated}. Serie omitida por creacion en lote.`)
         } else {
           setOk(`Activos fijos creados: ${totalCreated}.`)
         }
@@ -4208,10 +4329,10 @@ function App() {
       setCreatedAsset(assetOverride)
       if (overrideId) localStorage.setItem('last_asset_id', String(overrideId))
     }
-    if (type === 'edit') setOk('Acción: editar activo fijo')
-    if (type === 'move') setOk('Acción: mover activo fijo')
-    if (type === 'transfer') setOk('Acción: transferir activo fijo')
-    if (type === 'status') setOk('Acción: dar de baja')
+    if (type === 'edit') setOk('Accion: editar activo fijo')
+    if (type === 'move') setOk('Accion: mover activo fijo')
+    if (type === 'transfer') setOk('Accion: transferir activo fijo')
+    if (type === 'status') setOk('Accion: dar de baja')
     if (type === 'edit') {
       setEditAssetForm({
         name: target.name || '',
@@ -4310,74 +4431,47 @@ function App() {
     if (!reference) {
       setScanResult({
         status: 'error',
-        message: 'Código QR inválido. Usa URL de ficha, INV-123 o código numérico.',
+        message: 'Ingresa o escanea un codigo QR valido para continuar.',
       })
       return
     }
     try {
-      if (reference.publicUrl) {
-        const opened = window.open(reference.publicUrl, '_blank', 'noopener,noreferrer')
-        if (!opened) {
-          window.location.href = reference.publicUrl
-        }
-        setScanResult({
-          status: 'ok',
-          message: 'Ficha técnica pública abierta sin autenticación.',
-        })
-        return
-      }
-      let asset = null
-      if (reference.assetId) {
-        asset = await api(`/assets/${reference.assetId}`)
-      } else {
-        const params = new URLSearchParams()
-        params.set('internalCode', String(reference.internalCode))
-        params.set('take', '1')
-        params.set('skip', '0')
-        const data = await api(`/assets?${params.toString()}`)
-        asset = data?.items?.[0] || null
-      }
+      setScanResult(null)
+      const asset = await getAssetByScanReference(reference)
       if (!asset) {
         setScanResult({
           status: 'error',
-          message: reference.internalCode
-            ? `No se encontró activo fijo para INV-${reference.internalCode}.`
-            : 'No se encontró activo fijo para el QR escaneado.',
+          message:
+            reference.kind === 'internalCode'
+              ? 'No se encontro un activo fijo para el codigo interno ingresado.'
+              : 'No se encontro un activo fijo para el QR escaneado.',
         })
         return
       }
-      setCreatedAsset(asset)
-      setCreatedAssetBatch([])
-      setSelectedCatalogItem(asset?.catalogItem || null)
-      const scannedAssetId = toPositiveIntOrNull(asset.id)
-      if (scannedAssetId) {
-        setLabelAssetId(String(scannedAssetId))
-        localStorage.setItem('last_asset_id', String(scannedAssetId))
-      }
-      setScanResult({
-        status: 'ok',
-        message: `Activo fijo encontrado: INV-${asset.internalCode}.`,
-      })
+      openAssetModal(asset, { focusTechnicalSheet: true })
       setOk(`Activo fijo cargado desde QR: INV-${asset.internalCode}`)
-    } catch (err) {
+      setScanResult({
+        status: 'success',
+        message: `Activo fijo encontrado: INV-${asset.internalCode}`,
+      })
+    } catch (error) {
       setScanResult({
         status: 'error',
-        message: err.message || 'No se pudo resolver el código escaneado.',
+        message: getErrorMessage(error, 'No se pudo resolver el codigo QR escaneado.'),
       })
     }
   }
-
   function copyTechnicalSheetLink() {
-    const url = createdAsset ? buildAssetTechnicalSheetUrl(createdAsset) : ''
-    if (!url) {
-      setErr('No hay enlace de ficha técnica disponible para este activo.')
+    const technicalSheetUrl = createdLabel?.technicalSheetUrl || labelData?.technicalSheetUrl
+    if (!technicalSheetUrl) {
+      setErr('No hay ficha tecnica disponible para copiar.')
       return
     }
     if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
       navigator.clipboard
-        .writeText(url)
-        .then(() => setOk('Enlace de ficha técnica copiado.'))
-        .catch(() => setErr('No se pudo copiar el enlace de ficha técnica.'))
+        .writeText(technicalSheetUrl)
+        .then(() => setOk('Enlace de ficha tecnica copiado al portapapeles.'))
+        .catch(() => setErr('Tu navegador no permite copiar al portapapeles en este contexto.'))
       return
     }
     setErr('Tu navegador no permite copiar al portapapeles en este contexto.')
@@ -4386,7 +4480,7 @@ function App() {
   function selectAssetForModal(asset, action = null) {
     const assetId = getSafeAssetId(asset)
     if (!assetId) {
-      setErr('Activo fijo inválido.')
+      setErr('Activo fijo invalido.')
       return
     }
     setCreatedAsset(asset)
@@ -4428,7 +4522,7 @@ function App() {
             .replace(/\s+/g, '')
             .toUpperCase()
           if (!/^\d{7,8}-?[\dK]$/.test(compact)) {
-            setErr('RUT responsable inválido. Usa formato 12345678-9')
+            setErr('RUT responsable invalido. Usa formato 12345678-9')
             return
           }
         }
@@ -4590,7 +4684,7 @@ function App() {
 
   function applyCatalogItem(selected) {
     if (!selected) {
-      setErr('No se encontro el ítem de catálogo seleccionado.')
+      setErr('No se encontro el catalogo seleccionado.')
       return
     }
     setSelectedCatalogItem(selected)
@@ -4602,7 +4696,7 @@ function App() {
       brand: selected.brand || '',
       modelName: selected.modelName || '',
     }))
-    setOk(`Catálogo seleccionado: ${formatCatalogItemDisplay(selected)}`)
+    setOk(`Catalogo seleccionado: ${formatCatalogItemDisplay(selected)}`)
   }
 
   function extractCatalogDetail(description) {
@@ -4697,7 +4791,7 @@ function App() {
 
   async function guardedPurgeAssetsAllWithReset(options = {}) {
     if (!dangerZoneUnlocked) {
-      setErr('Botones críticos bloqueados. Usa "Desbloquear botones".')
+      setErr('Acciones críticas bloqueadas. Usa "Habilitar acciones críticas".')
       return
     }
     return purgeAssetsAllWithReset(options)
@@ -4924,7 +5018,7 @@ function App() {
       setPlanchetaInstitutions(institutions)
       if (!institutions.length) {
         setPlanchetaMessage(
-          'No hay instituciónes disponibles. Crea estructura base antes de usar planchetas.'
+          'No hay instituciones disponibles. Crea estructura base antes de usar planchetas.'
         )
       } else {
         setPlanchetaMessage('')
@@ -4981,7 +5075,7 @@ function App() {
           establishmentId: '',
           dependencyId: '',
         }))
-        setPlanchetaMessage('No hay establecimientos en esta institución.')
+        setPlanchetaMessage('No hay establecimientos en esta institucion.')
       } else {
         setPlanchetaMessage('')
         setPlanchetaFilters((prev) => {
@@ -5070,7 +5164,7 @@ function App() {
       INVENTORY_CHECK: 'Registro inicial',
       TRANSFER: 'Transferencia',
       STATUS_CHANGE: 'Cambio de estado',
-      RELOCATION: 'Reubicación',
+      RELOCATION: 'Reubicacion',
     }
     const typeLabel = typeMap[movement?.type] || movement?.type || 'Movimiento'
     const reason = movement?.reasonCode || movement?.reason || 'sin motivo'
@@ -5519,7 +5613,7 @@ function App() {
   async function createInstitution() {
     try {
       if (!dangerZoneUnlocked) {
-        setErr('Botones críticos bloqueados. Usa "Desbloquear botones".')
+        setErr('Acciones críticas bloqueadas. Usa "Habilitar acciones críticas".')
         return
       }
       if (!instForm.name.trim()) {
@@ -5535,7 +5629,7 @@ function App() {
       setOk(UI_SUCCESS.institutionCreated(created.name))
     } catch (err) {
       if (err?.status === 403) {
-        setErr('Tu sesion no tiene permisos ADMIN_CENTRAL. Cierra sesion y vuelve a ingresar.')
+        setErr('Tu sesión no tiene permisos ADMIN_CENTRAL. Cierra sesión y vuelve a ingresar.')
         return
       }
       setErr(err)
@@ -5561,16 +5655,16 @@ function App() {
 
   async function deleteInstitution(id) {
     openConfirm({
-      title: 'Dar de baja institución',
-      message: 'La institución quedara inactiva pero no se eliminara.',
+      title: 'Dar de baja institucion',
+      message: 'La institucion quedara inactiva y ya no podra operar hasta su reactivacion.',
       onConfirm: async () => {
         try {
           await api(`/admin/institutions/${id}`, { method: 'DELETE' })
           await loadInstitutions()
           setOk(UI_STATUS.institutionDeactivated)
         } catch (err) {
-          const message = getInstitutionConflictMessage(err, UI_ERROR.couldNotDeactivate('la institución'))
-          setErr(withMappedError(err, message, UI_ERROR.couldNotDeactivate('la institución')))
+          const message = getInstitutionConflictMessage(err, UI_ERROR.couldNotDeactivate('la institucion'))
+          setErr(withMappedError(err, message, UI_ERROR.couldNotDeactivate('la institucion')))
         } finally {
           closeConfirm()
         }
@@ -5584,16 +5678,16 @@ function App() {
       await Promise.all([loadInstitutions(), loadInstitutionCatalog()])
       setOk(UI_STATUS.institutionReactivated)
     } catch (err) {
-      const message = getInstitutionConflictMessage(err, UI_ERROR.couldNotReactivate('la institución'))
-      setErr(withMappedError(err, message, UI_ERROR.couldNotReactivate('la institución')))
+      const message = getInstitutionConflictMessage(err, UI_ERROR.couldNotReactivate('la institucion'))
+      setErr(withMappedError(err, message, UI_ERROR.couldNotReactivate('la institucion')))
     }
   }
 
   async function hardDeleteInstitution(id) {
     openConfirm({
-      title: 'Eliminar institución definitivamente',
+      title: 'Eliminar institucion',
       message:
-        'Esta acción es irreversible. Se eliminará definitivamente si no tiene relaciones.',
+        'Esta accion es irreversible. Se eliminara definitivamente si no tiene relaciones.',
       onConfirm: async () => {
         try {
           await api(`/admin/institutions/${id}/permanent`, { method: 'DELETE' })
@@ -5602,14 +5696,14 @@ function App() {
         } catch (err) {
           if (err?.code === 'INSTITUTION_HARD_DELETE_HAS_RELATIONS') {
             openForceDelete('institution', id, `#${id}`)
-            setOk('La institución tiene relaciones. Usa eliminación forzada confirmada.')
+            setOk('La institucion tiene relaciones. Usa eliminacion forzada confirmada.')
             return
           }
           const message = getInstitutionConflictMessage(
             err,
-            UI_ERROR.couldNotDeletePermanently('la institución')
+            UI_ERROR.couldNotDeletePermanently('la institucion')
           )
-          setErr(withMappedError(err, message, UI_ERROR.couldNotDeletePermanently('la institución')))
+          setErr(withMappedError(err, message, UI_ERROR.couldNotDeletePermanently('la institucion')))
         } finally {
           closeConfirm()
         }
@@ -5630,7 +5724,7 @@ function App() {
       if (!Number(estForm.institutionId)) {
         setFormErrors((prev) => ({
           ...prev,
-          estInstitutionId: 'Institution ID inválido.',
+          estInstitutionId: 'ID de institucion invalido.',
         }))
         return
       }
@@ -5660,7 +5754,7 @@ function App() {
   async function updateEstablishment(payload) {
     try {
       if (payload.name !== undefined && payload.name !== '' && !payload.name.trim()) {
-        setFormErrors((prev) => ({ ...prev, estEdit: 'Nombre inválido.' }))
+        setFormErrors((prev) => ({ ...prev, estEdit: 'Nombre invalido.' }))
         return
       }
       await api(`/admin/establishments/${payload.id}`, {
@@ -5747,7 +5841,7 @@ function App() {
     openConfirm({
       title: 'Eliminar establecimiento definitivamente',
       message:
-        'Esta acción es irreversible. Se eliminará definitivamente si no tiene relaciones.',
+        'Esta accion es irreversible. Se eliminara definitivamente si no tiene relaciones.',
       onConfirm: async () => {
         try {
           await api(`/admin/establishments/${id}/permanent`, { method: 'DELETE' })
@@ -5756,7 +5850,7 @@ function App() {
         } catch (err) {
           if (err?.code === 'ESTABLISHMENT_HARD_DELETE_HAS_RELATIONS') {
             openForceDelete('establishment', id, `#${id}`)
-            setOk('El establecimiento tiene relaciones. Usa eliminación forzada confirmada.')
+            setOk('El establecimiento tiene relaciones. Usa eliminacion forzada confirmada.')
             return
           }
           const message = getEstablishmentConflictMessage(
@@ -5786,7 +5880,7 @@ function App() {
       if (!Number(depForm.establishmentId)) {
         setFormErrors((prev) => ({
           ...prev,
-          depEstablishmentId: 'Establishment ID inválido.',
+          depEstablishmentId: 'ID de establecimiento invalido.',
         }))
         return
       }
@@ -5813,7 +5907,7 @@ function App() {
   async function updateDependency(payload) {
     try {
       if (payload.name !== undefined && payload.name !== '' && !payload.name.trim()) {
-        setFormErrors((prev) => ({ ...prev, depEdit: 'Nombre inválido.' }))
+        setFormErrors((prev) => ({ ...prev, depEdit: 'Nombre invalido.' }))
         return
       }
       await api(`/admin/dependencies/${payload.id}`, {
@@ -5857,11 +5951,11 @@ function App() {
       const sourceEstablishmentId = Number(depReplicateForm.sourceEstablishmentId)
       const targetEstablishmentId = Number(depReplicateForm.targetEstablishmentId)
       if (!sourceEstablishmentId || sourceEstablishmentId <= 0) {
-        setErr('Selecciona establecimiento origen válido.')
+        setErr('Selecciona un establecimiento de origen valido.')
         return
       }
       if (!targetEstablishmentId || targetEstablishmentId <= 0) {
-        setErr('Selecciona establecimiento destino válido.')
+        setErr('Selecciona un establecimiento de destino valido.')
         return
       }
       if (sourceEstablishmentId === targetEstablishmentId) {
@@ -5889,7 +5983,7 @@ function App() {
         skipped: Array.isArray(result?.skipped) ? result.skipped : [],
       })
       setOk(
-        `Replicación completada. Creadas: ${createdCount}. Omitidas: ${skippedCount}.`
+        `Replicacion completada. Creadas: ${createdCount}. Omitidas: ${skippedCount}.`
       )
     } catch (err) {
       setDepReplicateResult(null)
@@ -5912,7 +6006,7 @@ function App() {
     openConfirm({
       title: 'Eliminar dependencia definitivamente',
       message:
-        'Esta acción es irreversible. Se eliminará definitivamente si no tiene relaciones.',
+        'Esta accion es irreversible. Se eliminara definitivamente si no tiene relaciones.',
       onConfirm: async () => {
         try {
           await api(`/admin/dependencies/${id}/permanent`, { method: 'DELETE' })
@@ -5921,7 +6015,7 @@ function App() {
         } catch (err) {
           if (err?.code === 'DEPENDENCY_HARD_DELETE_HAS_RELATIONS') {
             openForceDelete('dependency', id, `#${id}`)
-            setOk('La dependencia tiene relaciones. Usa eliminación forzada confirmada.')
+            setOk('La dependencia tiene relaciones. Usa eliminacion forzada confirmada.')
             return
           }
           const message = getDependencyConflictMessage(
@@ -5946,52 +6040,52 @@ function App() {
     { id: 'trash', label: 'Basurero' },
     { id: 'imports', label: 'Importaciones' },
     { id: 'planchetas', label: 'Planchetas' },
-    { id: 'audit', label: 'Auditoria Admin' },
+    { id: 'audit', label: 'Auditoría Administrativa' },
   ]
   const miniManualByTab = {
     institutions: {
       title: 'Instituciones',
       steps: [
-        'Crear institución con nombre oficial.',
-        'Editar inline y guardar cambios.',
-        'Dar de baja solo si no tiene establecimientos activos.',
-        'Usar Mostrar inactivos para reactivar.',
+        'Registrar la institución con su nombre oficial.',
+        'Actualizar los datos y guardar los cambios.',
+        'Dar de baja solo si no mantiene establecimientos activos.',
+        'Usar "Mostrar inactivos" para reactivar cuando corresponda.',
       ],
     },
     establishments: {
       title: 'Establecimientos',
       steps: [
-        'Seleccionar institución y crear establecimiento.',
-        'Completar tipo, RBD, comuna y datos administrativos.',
-        'Editar inline y guardar.',
-        'Dar de baja/reactivar respetando reglas de dependencias activas.',
+        'Seleccionar la institución y revisar la nómina de establecimientos.',
+        'Completar tipo, RBD, comuna y antecedentes administrativos.',
+        'Actualizar los datos y guardar.',
+        'Dar de baja o reactivar respetando las reglas de dependencias activas.',
       ],
     },
     dependencies: {
       title: 'Dependencias',
       steps: [
-        'Elegir establecimiento para crear la dependencia.',
-        'Verificar que el nombre identifique sala/oficina/bodega.',
-        'Usar replicar dependencias base para copiar estructura a otro establecimiento.',
-        'Editar inline si cambia la estructura interna.',
+        'Seleccionar el establecimiento antes de crear la dependencia.',
+        'Verificar que el nombre identifique claramente sala, oficina o bodega.',
+        'Usar la replicación de dependencias base para copiar estructura a otro establecimiento.',
+        'Actualizar los datos si cambia la estructura interna.',
         'Dar de baja solo cuando no existan activos vinculados.',
       ],
     },
     users: {
       title: 'Usuarios',
       steps: [
-        'Crear usuario con rol correcto.',
-        'Asignar establecimiento si el rol lo requiere.',
-        'Usar filtros y paginación para la administración diaria.',
-        'Desactivar/reactivar sin perder trazabilidad.',
+        'Crear cada usuario con el rol que corresponda.',
+        'Asignar establecimiento cuando el rol lo requiera.',
+        'Usar filtros y paginación para revisar cuentas activas e inactivas.',
+        'Desactivar o reactivar sin perder trazabilidad.',
       ],
     },
     assistant: {
       title: 'Asistente Central',
       steps: [
         'Escribir una consulta operativa o técnica del sistema.',
-        'Revisar respuesta concreta y sugerencias aplicables.',
-        'Crear solicitud formal para seguimiento cuando corresponda.',
+        'Revisar la respuesta y las sugerencias aplicables.',
+        'Crear una solicitud formal para seguimiento cuando corresponda.',
         'Gestionar estados y SLA de 72 horas desde la misma vista.',
       ],
     },
@@ -5999,39 +6093,38 @@ function App() {
       title: UI_TEXT.assetPlural,
       steps: [
         'Seleccionar institución, establecimiento y dependencia.',
-        'Elegir catálogo o cargar datos manuales del activo.',
-        'Definir cantidad, valor, fecha y responsable (o Sin responsable asignado).',
-        'Crear, luego operar mover/transferir/baja desde el modal.',
+        'Elegir catálogo o ingresar los datos del activo de forma manual.',
+        'Definir cantidad, valor, fecha y responsable, si corresponde.',
+        'Crear el activo y luego gestionar movimiento, transferencia o baja desde el modal.',
       ],
     },
     trash: {
       title: 'Basurero',
       steps: [
-        'Revisar activos dados de baja.',
+        'Revisar los activos dados de baja.',
         'Filtrar por fechas y texto para localizar registros.',
-        'Usar restaurar con motivo cuando corresponda.',
+        'Usar la restauración con motivo cuando corresponda.',
       ],
     },
     imports: {
       title: 'Importaciones',
       steps: [
         'Seleccionar subtipo: Activos fijos, Catálogo estándar o Catálogo base SN.',
-        'Cargar Excel en el formato correspondiente.',
-        'Revisar resumen created/skipped/errors.',
+        'Cargar el archivo Excel en el formato correspondiente.',
+        'Revisar el resumen de creados, omitidos y errores.',
         'Corregir y reimportar cuando existan filas con error.',
       ],
     },
     planchetas: {
-      title: 'Planchetas',
       steps: [
         'Seleccionar institución y establecimiento.',
         'Opcionalmente filtrar por dependencia y rango de fechas.',
-        'Previsualizar resultados y validar conteos.',
-        'Exportar a PDF/Excel para uso ministerial.',
+        'Previsualizar los resultados y validar los conteos.',
+        'Exportar a PDF o Excel para uso administrativo.',
       ],
     },
     audit: {
-      title: 'Auditoría admin',
+      title: 'Auditoría administrativa',
       steps: [
         'Filtrar por entidad, acción, usuario y rango de fechas.',
         'Revisar la trazabilidad de cambios críticos.',
@@ -6059,6 +6152,44 @@ function App() {
   const hasModalContext = Boolean(createdAsset || modalCatalogItem)
   const isBaja =
     Boolean(createdAsset?.isDeleted) || createdAsset?.assetState?.name === 'BAJA'
+  const assistantScopeCoverage = [
+    assistantScope.institutionId,
+    assistantScope.establishmentId,
+    assistantScope.dependencyId,
+  ].filter(Boolean).length
+  const supportOpenCount = supportRequests.filter((item) => item.status === 'OPEN').length
+  const supportOverdueCount = supportRequests.filter((item) => item.status === 'OVERDUE').length
+  const supportResolvedCount = supportRequests.filter((item) => item.status === 'RESOLVED').length
+  const trashWithDateCount = trashAssets.filter((asset) => asset.deletedAt).length
+  const trashWithDependencyCount = trashAssets.filter((asset) => asset.dependency?.name).length
+
+  if (showIntro) {
+    return (
+      <div className="intro-screen" role="dialog" aria-label="Introduccion de bienvenida">
+        <video
+          ref={introVideoRef}
+          className="intro-video"
+          src={INTRO_VIDEO_SRC}
+          autoPlay
+          muted
+          playsInline
+          preload="auto"
+          onEnded={closeIntro}
+          onError={closeIntro}
+        />
+        <div className="intro-overlay">
+          <div className="intro-copy">
+            <span>Inventario</span>
+            <h2>Bienvenido al panel</h2>
+            <p>Al terminar la introduccion entraras automaticamente al sistema.</p>
+          </div>
+          <button type="button" className="ghost intro-skip" onClick={closeIntro}>
+            Saltar introduccion
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="page">
@@ -6066,7 +6197,7 @@ function App() {
         <div className="modal-backdrop" onClick={() => setCatalogModalOpen(false)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="modal-head">
-              <h4>{modalCatalogItem ? 'Catálogo seleccionado' : 'Activo fijo seleccionado'}</h4>
+              <h4>{modalCatalogItem ? 'Catalogo seleccionado' : 'Activo fijo seleccionado'}</h4>
               <button className="ghost" onClick={() => setCatalogModalOpen(false)}>
                 Cerrar
               </button>
@@ -6081,11 +6212,11 @@ function App() {
                         <span>{modalCatalogItem?.name || createdAsset?.name || '-'}</span>
                       </div>
                       <div>
-                        <strong>Categoría</strong>
+                        <strong>Categoria</strong>
                         <span>{modalCatalogItem?.category || '-'}</span>
                       </div>
                       <div>
-                        <strong>Subcategoría</strong>
+                        <strong>Subcategoria</strong>
                         <span>{modalCatalogItem?.subcategory || '-'}</span>
                       </div>
                       <div>
@@ -6099,7 +6230,7 @@ function App() {
                     </div>
                     {!modalCatalogItem && (
                       <p className="muted">
-                        Este activo fijo no tiene ítem de catálogo asociado; puedes operar igual.
+                        Este activo fijo no tiene item de catalogo asociado; puedes operar igual.
                       </p>
                     )}
                     {status.details && (
@@ -6114,7 +6245,7 @@ function App() {
                     {createdLabel ? (
                       <div className="modal-label">
                         <div className="label-code">
-                          Código: <strong>{createdLabel.code}</strong>
+                          Codigo: <strong>{createdLabel.code}</strong>
                         </div>
                         {qrCodeUrl && <img className="qr" src={qrCodeUrl} alt="QR" />}
                         <div className="actions">
@@ -6124,7 +6255,7 @@ function App() {
                             target="_blank"
                             rel="noreferrer"
                           >
-                            Ver ficha técnica HTML
+                            Ver ficha tecnica HTML
                           </a>
                           <button className="ghost" onClick={copyTechnicalSheetLink}>
                             Copiar link ficha
@@ -6147,7 +6278,7 @@ function App() {
                         </p>
                         <div className="actions">
                           <button className="ghost" disabled>
-                            Ver ficha técnica HTML
+                            Ver ficha tecnica HTML
                           </button>
                           <button className="ghost" disabled>
                             Copiar link ficha
@@ -6270,7 +6401,7 @@ function App() {
                             />
                           </div>
                           <div>
-                            <strong>Código analítico</strong>
+                            <strong>Codigo analitico</strong>
                             <input
                               value={editAssetForm.analyticCode}
                               onChange={(e) =>
@@ -6365,10 +6496,10 @@ function App() {
                               </div>
                             </>
                           ) : (
-                            <p className="muted">El activo fijo quedará sin responsable.</p>
+                            <p className="muted">El activo fijo quedara sin responsable.</p>
                           )}
                           <div>
-                            <strong>Valor de adquisición</strong>
+                            <strong>Valor de adquisicion</strong>
                             <input
                               type="number"
                               value={editAssetForm.acquisitionValue}
@@ -6381,7 +6512,7 @@ function App() {
                             />
                           </div>
                           <div>
-                            <strong>Fecha de adquisición</strong>
+                            <strong>Fecha de adquisicion</strong>
                             <input
                               type="date"
                               value={editAssetForm.acquisitionDate}
@@ -6811,7 +6942,7 @@ function App() {
               <img
                 className="hero-logo hero-logo-subsecretaria"
                 src={logoSubsecretaria}
-                alt="Logo Subsecretaría de la Niñez"
+                alt="Logo Subsecretaria de la Ninez"
               />
               <img className="hero-logo" src={logoInventacore} alt="Logo InventaCore" />
             </div>
@@ -6915,8 +7046,8 @@ function App() {
         </div>
         {showHeroNotice && (
           <div className="hero-notice">
-            Gestiona instituciónes, establecimientos y dependencias con trazabilidad
-            completa. Todos los cambios quedan auditados.
+            Gestión institucional del inventario con trazabilidad, control operativo y
+            seguimiento de cada movimiento.
           </div>
         )}
       </div>
@@ -6926,27 +7057,27 @@ function App() {
         {!isAuthed ? (
           <>
             <div>
-              <h2>Acceso Admin</h2>
-              <p className="muted">Solo ADMIN_CENTRAL</p>
+              <h2>Acceso al sistema</h2>
+              <p className="muted">Plataforma institucional para la gestión y trazabilidad del inventario</p>
             </div>
             <form onSubmit={handleLogin} className="auth-form" autoComplete="off">
               <div className="field">
-                <label>Email</label>
+                <label>Correo</label>
                 <input
                   type="email"
                   value={login.email}
                   onChange={(e) => setLogin({ ...login, email: e.target.value })}
-                  placeholder="admin@cordillera.local"
+                  placeholder="correo@institucion.cl"
                   autoComplete="off"
                 />
               </div>
               <div className="field">
-                <label>Password</label>
+                <label>Contraseña</label>
                 <input
                   type="password"
                   value={login.password}
                   onChange={(e) => setLogin({ ...login, password: e.target.value })}
-                  placeholder="admin123"
+                  placeholder="Ingresa tu contraseña"
                   autoComplete="off"
                 />
               </div>
@@ -6955,10 +7086,10 @@ function App() {
                   {isLoginLoading ? (
                     <span className="btn-loading">
                       <span className="btn-spinner" aria-hidden="true" />
-                      Iniciando...
+                      Iniciando sesión...
                     </span>
                   ) : (
-                    'Ingresar'
+                    'Iniciar sesión'
                   )}
                 </button>
               </div>
@@ -6972,7 +7103,7 @@ function App() {
             <div>{status.message}</div>
             {status.type === 'error' && isAuthed && (
               <details className="status-meta">
-                <summary>Detalle técnico</summary>
+                <summary>Detalle tecnico</summary>
                 <div className="status-meta-grid">
                   <div>
                     <strong>Code:</strong> <span>{status.code || 'UNKNOWN_ERROR'}</span>
@@ -7027,13 +7158,6 @@ function App() {
               {tab.label}
             </button>
           ))}
-          <a
-            className="ghost"
-            href="/manual/manual-operativo-tecnico.pdf"
-            download="manual-operativo-tecnico.pdf"
-          >
-            Descargar manual
-          </a>
           <button className="ghost" onClick={resetPreferences}>
             Reset preferencias
           </button>
@@ -7055,7 +7179,7 @@ function App() {
 
         {isAuthed && activeTab === 'institutions' && (
           <InstitutionsTabPanel>
-          <div className="section">
+          <div className="section module-section module-section-assistant">
             <div className="section-head">
               <h3>Instituciones</h3>
               <div className="actions">
@@ -7121,8 +7245,8 @@ function App() {
                       {dangerZoneUnlocking
                         ? 'Verificando...'
                         : dangerZoneUnlocked
-                          ? 'Bloquear botones'
-                          : 'Desbloquear botones'}
+                          ? 'Bloquear acciones críticas'
+                          : 'Habilitar acciones críticas'}
                     </button>
                   </div>
                   <input
@@ -7140,7 +7264,7 @@ function App() {
                     className="primary"
                     onClick={createInstitution}
                     disabled={!dangerZoneUnlocked}
-                    title={!dangerZoneUnlocked ? 'Primero desbloquea botones críticos.' : ''}
+                    title={!dangerZoneUnlocked ? 'Primero habilita las acciones críticas.' : ''}
                   >
                     Crear
                   </button>
@@ -7289,7 +7413,7 @@ function App() {
 
         {isAuthed && activeTab === 'establishments' && isCentral && (
           <EstablishmentsTabPanel>
-          <div className="section">
+          <div className="section module-section module-section-trash">
             <div className="section-head">
               <h3>Establecimientos</h3>
               <div className="actions">
@@ -7398,7 +7522,7 @@ function App() {
                 <div className="select-wrap">
                   <input
                     className="select-search"
-                    placeholder="Buscar institución..."
+                    placeholder="Buscar institucion..."
                     value={estFilters.institutionSearch || ''}
                     onChange={(e) =>
                       setEstFilters({ ...estFilters, institutionSearch: e.target.value })
@@ -7412,7 +7536,7 @@ function App() {
                     disabled={loadingInstitutions || institutionsCatalog.length === 0}
                   >
                     <option value="">
-                      {loadingInstitutions ? UI_TEXT.loading : 'Selecciona institución'}
+                      {loadingInstitutions ? UI_TEXT.loading : 'Selecciona institucion'}
                     </option>
                     {institutionsCatalog
                       .filter((i) =>
@@ -7431,7 +7555,7 @@ function App() {
                 </div>
                 {estForm.institutionId && (
                   <p className="muted">
-                    Comunas ya usadas en esta institución:{' '}
+                    Comunas ya usadas en esta institucion:{' '}
                     {[
                       ...new Set(
                         (establishmentsCatalog || [])
@@ -7442,8 +7566,8 @@ function App() {
                   </p>
                 )}
                 <p className="muted">
-                  Nota: código postal aún no existe en base de datos; si lo quieres, agregamos
-                  migración para guardarlo formalmente.
+                  Nota: codigo postal aun no existe en base de datos; si lo quieres, agregamos
+                  migracion para guardarlo formalmente.
                 </p>
                 {formErrors.estInstitutionId && (
                   <p className="error">{formErrors.estInstitutionId}</p>
@@ -8083,7 +8207,7 @@ function App() {
                   }
                   disabled={userForm.roleType !== 'ADMIN_CENTRAL'}
                 >
-                  <option value="">Selecciona institución</option>
+                  <option value="">Selecciona institucion</option>
                   {userInstitutionOptions.map((inst) => (
                     <option key={inst.id} value={inst.id}>
                       #{inst.id} - {inst.name}
@@ -8336,7 +8460,7 @@ function App() {
 
         {isAuthed && activeTab === 'assistant' && isCentral && (
           <AssistantTabPanel>
-          <div className="section">
+          <div className="section module-section module-section-assistant">
             <div className="section-head">
               <h3>Asistente Central y Mesa de Solicitudes</h3>
               <div className="actions">
@@ -8350,7 +8474,6 @@ function App() {
                 </button>
               </div>
             </div>
-
             <div className="split">
               <div className="form-card">
                 <h4>Consulta al asistente</h4>
@@ -8435,7 +8558,7 @@ function App() {
               <div className="form-card">
                 <h4>Respuesta</h4>
                 {!assistantAnswer ? (
-                  <p className="muted">Sin respuesta aún.</p>
+                  <p className="muted">Sin respuesta aun.</p>
                 ) : (
                   <>
                     <p>{assistantAnswer.answer}</p>
@@ -8635,10 +8758,8 @@ function App() {
                 assetsList,
                 toPositiveIntOrNull,
                 openPrintLabel,
-                downloadLabelPdf,
                 createdAssetBatch,
                 openPrintBatchLabels,
-                downloadBatchLabelsPdf,
                 qrCodeUrl,
               }}
             />
@@ -8665,9 +8786,7 @@ function App() {
                 toggleSelectAllVisibleAssets,
                 clearSelectedAssets,
                 openPrintSelectedAssetLabels,
-                downloadSelectedAssetLabelsPdf,
                 openPrintAssetListLabels,
-                downloadAssetListLabelsPdf,
                 toPositiveIntOrNull,
                 downloadFile,
                 assetListPage,
@@ -8682,7 +8801,7 @@ function App() {
 
         {isAuthed && activeTab === 'trash' && (
           <TrashTabPanel>
-          <div className="section">
+          <div className="section module-section module-section-trash">
             <div className="section-head">
               <h3>Basurero</h3>
               <div className="actions">
@@ -8692,7 +8811,7 @@ function App() {
                   onChange={(e) => setTrashFilters((p) => ({ ...p, q: e.target.value }))}
                 />
                 <input
-                  placeholder="Código interno"
+                  placeholder="Codigo interno"
                   value={trashFilters.internalCode}
                   onChange={(e) =>
                     setTrashFilters((p) => ({ ...p, internalCode: e.target.value }))
@@ -8753,7 +8872,7 @@ function App() {
                 </div>
               ))}
               {!trashAssets.length && !trashLoading && (
-                <p className="muted">Basurero vacío.</p>
+                <p className="muted">Basurero vacio.</p>
               )}
             </div>
           </div>
@@ -8882,7 +9001,6 @@ function App() {
                 planchetaSummary,
                 formatPlanchetaMovement,
                 openPrintPlanchetaLabels,
-                downloadPlanchetaLabelsPdf,
               }}
             />
           </PlanchetasTabPanel>
@@ -9017,41 +9135,6 @@ function App() {
         </div>
       )}
 
-      {dangerZoneUnlockModalOpen && (
-        <div className="modal-backdrop">
-          <div className="modal modal-danger-access">
-            <h3>Desbloquear botones críticos</h3>
-            <p className="muted">
-              Aca solo representante del programa tiene acceso.
-            </p>
-            <form onSubmit={submitDangerZoneUnlock} className="danger-access-form">
-              <label>
-                Contraseña de acceso
-                <input
-                  type="password"
-                  value={dangerZoneUnlockInput}
-                  onChange={(e) => {
-                    setDangerZoneUnlockInput(e.target.value)
-                    if (dangerZoneUnlockError) setDangerZoneUnlockError('')
-                  }}
-                  autoFocus
-                  placeholder="Ingresa contraseña"
-                />
-              </label>
-              {dangerZoneUnlockError && <p className="error">{dangerZoneUnlockError}</p>}
-              <div className="modal-actions">
-                <button type="button" className="ghost" onClick={closeDangerZoneUnlockModal}>
-                  Cancelar
-                </button>
-                <button type="submit" className="primary" disabled={dangerZoneUnlocking}>
-                  {dangerZoneUnlocking ? 'Verificando...' : 'Desbloquear'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
       {confirmState.open && (
         <div className="modal-backdrop">
           <div className="modal">
@@ -9111,6 +9194,41 @@ function App() {
         </div>
       )}
 
+      {dangerZoneUnlockModalOpen && (
+        <div className="modal-backdrop">
+          <div className="modal modal-danger-access">
+            <h3>Habilitar acciones críticas</h3>
+            <p className="muted">
+              Este acceso está reservado para personal autorizado del programa.
+            </p>
+            <form onSubmit={submitDangerZoneUnlock} className="danger-access-form">
+              <label>
+                Contraseña de acceso
+                <input
+                  type="password"
+                  value={dangerZoneUnlockInput}
+                  onChange={(e) => {
+                    setDangerZoneUnlockInput(e.target.value)
+                    if (dangerZoneUnlockError) setDangerZoneUnlockError('')
+                  }}
+                  autoFocus
+                  placeholder="Ingresa la contraseña"
+                />
+              </label>
+              {dangerZoneUnlockError && <p className="error">{dangerZoneUnlockError}</p>}
+              <div className="modal-actions">
+                <button type="button" className="ghost" onClick={closeDangerZoneUnlockModal}>
+                  Cancelar
+                </button>
+                <button type="submit" className="primary" disabled={dangerZoneUnlocking}>
+                  {dangerZoneUnlocking ? 'Verificando...' : 'Habilitar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {loginErrorModal.open && !isAuthed && (
         <div
           className="modal-backdrop"
@@ -9134,7 +9252,7 @@ function App() {
       {forceDeleteState.open && (
         <div className="modal-backdrop modal-backdrop-scroll">
           <div className="modal modal-force-delete">
-            <h3>Eliminar forzado</h3>
+            <h3>Eliminación forzada</h3>
             <p>
               Esta acción elimina de forma permanente <strong>{forceDeleteState.entityLabel}</strong> y
               sus registros relacionados.
@@ -9156,7 +9274,7 @@ function App() {
                 {Array.isArray(forceDeleteState.details?.dependencies) &&
                   forceDeleteState.details.dependencies.length > 0 && (
                     <>
-                      <p className="muted">Dependencias y ramas relacionadas:</p>
+                      <p className="muted">Dependencias y relaciones asociadas:</p>
                       <div className="rows">
                         {forceDeleteState.details.dependencies.map((dep) => (
                           <div key={`fd-dep-${dep.id}`} className="row">
