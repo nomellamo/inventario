@@ -150,10 +150,13 @@ Hay un flujo automatico en GitHub Actions para generar un respaldo descargable s
 - Disparadores:
   - diario a las `03:00 UTC`,
   - ejecucion manual con `workflow_dispatch`.
+- Nombre del archivo:
+  - `inventario_backup_YYYY-MM-DD_HH-MM-SS.dump` por defecto,
+  - `<prefijo>_YYYY-MM-DD_HH-MM-SS.dump` si pasas un prefijo manual.
 - Requisito:
   - crear el secret `BACKUP_DATABASE_URL` en GitHub con la URL externa de la DB que quieras resguardar.
 - Salida:
-  - un artifact `inventario-db-backup-<run_id>` con un archivo `.dump`.
+  - un artifact `inventario-db-backup-<nombre>` con un archivo `.dump`.
 - Retencion:
   - 30 dias por defecto.
 

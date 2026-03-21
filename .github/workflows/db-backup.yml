@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       out_name:
-        description: "Nombre opcional del archivo sin extension"
+        description: "Prefijo opcional para el respaldo"
         required: false
         default: ""
 
@@ -51,6 +51,22 @@ jobs:
           which pg_dump
           pg_dump --version
 
+      - name: Prepare backup filename
+        id: naming
+        shell: bash
+        run: |
+          set -euo pipefail
+          stamp="$(date -u +%Y-%m-%d_%H-%M-%S)"
+          label="$(printf '%s' "${BACKUP_NAME:-}" | tr -cd 'A-Za-z0-9._-')"
+          if [ -n "$label" ]; then
+            base="${label}_${stamp}"
+          else
+            base="inventario_backup_${stamp}"
+          fi
+          out_file="backups/${base}.dump"
+          echo "out_file=$out_file" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=inventario-db-backup-${base}" >> "$GITHUB_OUTPUT"
+
       - name: Validate backup source
         shell: bash
         run: |
@@ -62,21 +78,16 @@ jobs:
 
       - name: Create backup
         shell: bash
+        env:
+          OUT_FILE: ${{ steps.naming.outputs.out_file }}
         run: |
           set -euo pipefail
-          mkdir -p backups
-          safe_name="$(printf '%s' "${BACKUP_NAME:-}" | tr -cd 'A-Za-z0-9._-')"
-          if [ -n "$safe_name" ]; then
-            out="backups/${safe_name}.dump"
-          else
-            out="backups/inventario_backup_$(date -u +%Y%m%d_%H%M%S).dump"
-          fi
-          node scripts/dbBackup.js --out "$out"
+          node scripts/dbBackup.js --out "$OUT_FILE"
 
       - name: Upload backup artifact
         uses: actions/upload-artifact@v6
         with:
-          name: inventario-db-backup-${{ github.run_id }}
-          path: backups/*.dump
+          name: ${{ steps.naming.outputs.artifact_name }}
+          path: ${{ steps.naming.outputs.out_file }}
           if-no-files-found: error
           retention-days: 30
