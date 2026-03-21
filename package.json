@@ -24,7 +24,7 @@
     "dev:db": "prisma dev",
     "dev:api": "node src/server.js",
     "dev:full": "concurrently -n API,WEB \"npm run dev:api\" \"npm --prefix frontend run dev\"",
-    "dev": "concurrently -n DB,API \"npm run dev:db\" \"npm run dev:api\"",
+    "dev": "npm run dev:full",
     "test:guards": "node scripts/testInstitutionIdGuard.js",
     "test:integration": "node scripts/integrationTests.js",
     "test:transfer-deleted": "node scripts/testTransferDeletedAsset.js",

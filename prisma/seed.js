@@ -133,7 +133,14 @@ async function main() {
   // 8) User admin central (password con hash)
   await prisma.user.upsert({
     where: { email: "admin@cordillera.local" },
-    update: { password: adminCentralPassword },
+    update: {
+      name: "Admin Central",
+      password: adminCentralPassword,
+      roleId: roleCentral.id,
+      institutionId: institution.id,
+      establishmentId: null,
+      isActive: true,
+    },
     create: {
       name: "Admin Central",
       email: "admin@cordillera.local",
@@ -147,7 +154,14 @@ async function main() {
   // 9) User admin establishment (password con hash)
   await prisma.user.upsert({
     where: { email: "a.nunezu.n@gmail.com" },
-    update: { password: adminEstablishmentPassword },
+    update: {
+      name: "Admin Establecimiento",
+      password: adminEstablishmentPassword,
+      roleId: roleEstablishment.id,
+      institutionId: institution.id,
+      establishmentId: establishmentSchool.id,
+      isActive: true,
+    },
     create: {
       name: "Admin Establecimiento",
       email: "a.nunezu.n@gmail.com",
