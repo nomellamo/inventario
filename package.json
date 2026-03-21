@@ -16,6 +16,7 @@
     "test:api": "node scripts/testApiSimple.js",
     "test:critical": "node scripts/criticalSuite.js",
     "db:check": "node scripts/checkDb.js",
+    "db:count-rows": "node scripts/countDbRows.js",
     "prisma:deploy": "npx prisma migrate deploy",
     "prisma:generate": "npx prisma generate",
     "release:check": "npm run prisma:deploy && npm run prisma:generate && npm test",

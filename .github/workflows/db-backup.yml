@@ -51,22 +51,6 @@ jobs:
           which pg_dump
           pg_dump --version
 
-      - name: Prepare backup filename
-        id: naming
-        shell: bash
-        run: |
-          set -euo pipefail
-          stamp="$(date -u +%Y-%m-%d_%H-%M-%S)"
-          label="$(printf '%s' "${BACKUP_NAME:-}" | tr -cd 'A-Za-z0-9._-')"
-          if [ -n "$label" ]; then
-            base="${label}_${stamp}"
-          else
-            base="inventario_backup_${stamp}"
-          fi
-          out_file="backups/${base}.dump"
-          echo "out_file=$out_file" >> "$GITHUB_OUTPUT"
-          echo "artifact_name=inventario-db-backup-${base}" >> "$GITHUB_OUTPUT"
-
       - name: Validate backup source
         shell: bash
         run: |
@@ -75,6 +59,27 @@ jobs:
             echo "Falta el secret BACKUP_DATABASE_URL."
             exit 1
           fi
+
+      - name: Prepare backup filename
+        id: naming
+        shell: bash
+        run: |
+          set -euo pipefail
+          stamp="$(date -u +%Y-%m-%d_%H-%M-%S)"
+          row_count="$(node scripts/countDbRows.js --total-only)"
+          if ! [[ "$row_count" =~ ^[0-9]+$ ]]; then
+            echo "No se pudo calcular el conteo exacto de filas."
+            exit 1
+          fi
+          label="$(printf '%s' "${BACKUP_NAME:-}" | tr -cd 'A-Za-z0-9._-')"
+          if [ -n "$label" ]; then
+            base="${label}_${row_count}rows_${stamp}"
+          else
+            base="inventario_${row_count}rows_${stamp}"
+          fi
+          out_file="backups/${base}.dump"
+          echo "out_file=$out_file" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=inventario-db-backup-${base}" >> "$GITHUB_OUTPUT"
 
       - name: Create backup
         shell: bash
