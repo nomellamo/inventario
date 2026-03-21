@@ -45,6 +45,8 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Generate Prisma client
+        env:
+          PRISMA_MIGRATE_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
         run: npm run prisma:generate
 
       - name: Verify PostgreSQL client
