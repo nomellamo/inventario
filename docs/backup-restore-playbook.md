@@ -54,6 +54,7 @@ Opciones:
 - `npm run db:restore -- --file backups/mi_respaldo.dump --clean`
 - `npm run db:restore -- --database-url <url_destino> --file backups/mi_respaldo.dump --clean`
 - `npm run db:restore -- --database-url <url_destino> --file backups/mi_respaldo.dump --reset-schema`
+- `npm run db:restore-latest -- --reset-schema`
 - `npm run db:check -- --database-url <url>`
 
 Notas:
@@ -63,7 +64,17 @@ Notas:
 
 ---
 
-## 4. Flujo operativo diario (backup)
+## 4. Flujo antes de deploy
+1. Ejecutar:
+```bash
+npm run release:full
+```
+Este comando hace backup primero y luego corre validaciones criticas antes de mover a produccion.
+2. Si vas a publicar un cambio grande, tambien puedes disparar manualmente `DB Backup` en GitHub Actions para guardar un artifact descargable adicional.
+
+---
+
+## 5. Flujo operativo diario (backup)
 1. Confirmar conectividad DB.
 2. Ejecutar:
 ```bash
@@ -72,22 +83,6 @@ npm run db:backup
 3. Confirmar archivo generado en `backups/`.
 4. Copiar respaldo a almacenamiento externo (bucket/cloud seguro).
 5. Registrar ejecucion (fecha, hash, operador).
-
----
-
-## 5. Flujo previo a despliegue (obligatorio)
-1. Ejecutar backup:
-```bash
-npm run db:backup
-```
-2. Ejecutar release check:
-```bash
-npm run release:check
-```
-3. Si `release:check` falla:
-- no desplegar,
-- corregir,
-- repetir.
 
 ---
 
@@ -102,6 +97,10 @@ Objetivo: comprobar que el respaldo realmente sirve.
 ## 6.2 Restauracion
 ```bash
 npm run db:restore -- --file backups/<archivo>.dump --reset-schema
+```
+Si solo quieres levantar el ultimo respaldo disponible:
+```bash
+npm run db:restore-latest -- --reset-schema
 ```
 
 ## 6.3 Validacion minima
@@ -144,7 +143,7 @@ npm run test:smoke-admin
 
 ---
 
-## 8. Backup automatizado
+## 7. Backup automatizado
 Hay un flujo automatico en GitHub Actions para generar un respaldo descargable sin hacerlo a mano:
 
 - Archivo: `.github/workflows/db-backup.yml`
@@ -174,7 +173,7 @@ Nota:
 
 ---
 
-## 9. Riesgos comunes y mitigacion
+## 8. Riesgos comunes y mitigacion
 - Riesgo: backup existe pero no restaura.
   - Mitigacion: restore drill mensual obligatorio.
 - Riesgo: sobrescribir produccion por error.
@@ -186,7 +185,7 @@ Nota:
 
 ---
 
-## 10. Checklist de cierre de incidente DB
+## 9. Checklist de cierre de incidente DB
 - [ ] Backup confirmado y accesible.
 - [ ] Restore probado en entorno seguro.
 - [ ] Servicio operativo.

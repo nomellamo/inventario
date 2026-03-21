@@ -34,6 +34,7 @@
     "db:backup": "node scripts/dbBackup.js",
     "db:snapshot": "node scripts/exportSnapshot.js",
     "db:restore": "node scripts/dbRestore.js",
+    "db:restore-latest": "node scripts/dbRestoreLatest.js",
     "db:seed": "node prisma/seed.js",
     "db:reset-single-admin": "node scripts/resetSingleAdmin.js",
     "cleanup:qa": "node scripts/cleanupQa.js",
