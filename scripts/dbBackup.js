@@ -24,6 +24,24 @@ function argValue(name) {
   return process.argv[idx + 1] || null;
 }
 
+function resolveDatabaseUrl() {
+  return (
+    argValue("--database-url") ||
+    process.env.BACKUP_DATABASE_URL ||
+    process.env.DIRECT_DATABASE_URL ||
+    process.env.DATABASE_URL
+  );
+}
+
+function isRenderUrl(raw) {
+  try {
+    const url = new URL(raw);
+    return /render\.com$/i.test(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
 function run(cmd, args, env) {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, {
@@ -39,9 +57,11 @@ function run(cmd, args, env) {
 }
 
 async function main() {
-  const databaseUrl = process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL;
+  const databaseUrl = resolveDatabaseUrl();
   if (!databaseUrl) {
-    throw new Error("DIRECT_DATABASE_URL o DATABASE_URL no definido");
+    throw new Error(
+      "Falta BACKUP_DATABASE_URL, DIRECT_DATABASE_URL o DATABASE_URL en .env"
+    );
   }
 
   const outArg = argValue("--out");
@@ -58,11 +78,21 @@ async function main() {
     "--no-privileges",
     "--file",
     outFile,
+    "--dbname",
     databaseUrl,
   ];
 
   console.log(`[backup] creando respaldo en: ${outFile}`);
-  await run("pg_dump", args, process.env);
+  try {
+    await run("pg_dump", args, process.env);
+  } catch (error) {
+    if (isRenderUrl(databaseUrl)) {
+      console.error(
+        "[backup] Tip: si esta DB de Render sigue cortando SSL desde tu PC, prueba ejecutar el backup desde un servicio/one-off job dentro de Render o verifica la URL externa exacta y las reglas de red."
+      );
+    }
+    throw error;
+  }
   console.log("[backup] OK");
 }
 

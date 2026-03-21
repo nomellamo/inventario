@@ -24,7 +24,7 @@ Este documento define politica, comandos y prueba operativa mensual.
 ---
 
 ## 2. Requisitos tecnicos
-- `DATABASE_URL` configurado.
+- `DIRECT_DATABASE_URL` o `DATABASE_URL` configurado.
 - Cliente PostgreSQL instalado:
   - `pg_dump`
   - `pg_restore`
@@ -43,10 +43,18 @@ psql --version
 Comandos agregados al repo:
 - `npm run db:backup`
 - `npm run db:restore -- --file <ruta>`
+- `npm run db:check`
+
+Si vas a migrar de una base vieja de Render a una nueva, sigue tambien:
+- `docs/render-db-migration-playbook.md`
 
 Opciones:
 - `npm run db:backup -- --out backups/mi_respaldo.dump`
+- `npm run db:backup -- --database-url <url_origen> --out backups/mi_respaldo.dump`
 - `npm run db:restore -- --file backups/mi_respaldo.dump --clean`
+- `npm run db:restore -- --database-url <url_destino> --file backups/mi_respaldo.dump --clean`
+- `npm run db:restore -- --database-url <url_destino> --file backups/mi_respaldo.dump --reset-schema`
+- `npm run db:check -- --database-url <url>`
 
 Notas:
 - `--clean` elimina objetos existentes antes de restaurar.
@@ -88,12 +96,12 @@ Objetivo: comprobar que el respaldo realmente sirve.
 
 ## 6.1 Preparacion
 1. Crear base temporal de prueba (`inventario_restore_test`).
-2. Apuntar `DATABASE_URL` a la base temporal.
+2. Apuntar `DIRECT_DATABASE_URL` o `DATABASE_URL` a la base temporal.
 3. Seleccionar backup reciente.
 
 ## 6.2 Restauracion
 ```bash
-npm run db:restore -- --file backups/<archivo>.dump --clean
+npm run db:restore -- --file backups/<archivo>.dump --reset-schema
 ```
 
 ## 6.3 Validacion minima
@@ -104,6 +112,10 @@ npm run db:restore -- --file backups/<archivo>.dump --clean
 - listado catalogos funciona.
 - al menos una consulta de activos funciona.
 3. Ejecutar:
+```bash
+npm run db:check -- --database-url <url_restaurada>
+```
+4. Ejecutar:
 ```bash
 npm run test:smoke-admin
 ```
@@ -118,11 +130,17 @@ npm run test:smoke-admin
 
 ---
 
-## 7. Supabase (PostgreSQL) - recomendaciones
+## 7. PostgreSQL - recomendaciones
 - Mantener backups nativos del proveedor activos.
 - Complementar con backup logico del proyecto (defensa en profundidad).
 - Probar restore en entorno separado (staging o DB temporal).
 - Rotar claves de acceso y restringir IP si aplica.
+
+## 7.1 Render
+- Para este repo, usa la misma conexion en `DATABASE_URL` y `DIRECT_DATABASE_URL` si no necesitas separar runtime y migraciones.
+- Antes de borrar una instancia vieja, valida primero el restore en la nueva.
+- Si el backup desde tu PC corta SSL, ejecuta el backup con la URL externa correcta o desde un servicio/one-off job dentro de Render.
+- Si `pg_restore` dice que objetos ya existen, vuelve a correr con `--reset-schema`.
 
 ---
 
@@ -144,4 +162,3 @@ npm run test:smoke-admin
 - [ ] Servicio operativo.
 - [ ] Integridad funcional validada (smoke + flujo critico).
 - [ ] Causa raiz documentada.
-

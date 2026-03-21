@@ -2,6 +2,7 @@
 "use strict";
 
 const { spawn } = require("child_process");
+const fs = require("fs");
 const path = require("path");
 require("dotenv").config();
 
@@ -9,6 +10,15 @@ function argValue(name) {
   const idx = process.argv.indexOf(name);
   if (idx === -1) return null;
   return process.argv[idx + 1] || null;
+}
+
+function resolveDatabaseUrl() {
+  return (
+    argValue("--database-url") ||
+    process.env.RESTORE_DATABASE_URL ||
+    process.env.DIRECT_DATABASE_URL ||
+    process.env.DATABASE_URL
+  );
 }
 
 function hasFlag(name) {
@@ -30,9 +40,11 @@ function run(cmd, args, env) {
 }
 
 async function main() {
-  const databaseUrl = process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL;
+  const databaseUrl = resolveDatabaseUrl();
   if (!databaseUrl) {
-    throw new Error("DIRECT_DATABASE_URL o DATABASE_URL no definido");
+    throw new Error(
+      "Falta RESTORE_DATABASE_URL, DIRECT_DATABASE_URL o DATABASE_URL en .env"
+    );
   }
 
   const fileArg = argValue("--file");
@@ -41,8 +53,41 @@ async function main() {
   }
 
   const filePath = path.resolve(fileArg);
+  if (!fs.existsSync(filePath)) {
+    const backupsDir = path.join(process.cwd(), "backups");
+    const availableFiles = fs.existsSync(backupsDir)
+      ? fs.readdirSync(backupsDir).filter((name) => {
+          const fullPath = path.join(backupsDir, name);
+          return fs.statSync(fullPath).isFile();
+        })
+      : [];
+
+    const availableMessage = availableFiles.length
+      ? `Archivos disponibles en backups/: ${availableFiles.join(", ")}`
+      : "No hay archivos disponibles en backups/.";
+
+    throw new Error(`No existe el archivo de backup: ${filePath}. ${availableMessage}`);
+  }
+
   const isSql = filePath.toLowerCase().endsWith(".sql");
-  const clean = hasFlag("--clean");
+  const resetSchema = hasFlag("--reset-schema");
+  const clean = hasFlag("--clean") && !resetSchema;
+
+  if (resetSchema) {
+    console.log("[restore] reiniciando schema public");
+    await run(
+      "psql",
+      [
+        "-d",
+        databaseUrl,
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-c",
+        'DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;'
+      ],
+      process.env
+    );
+  }
 
   if (isSql) {
     console.log(`[restore] restaurando SQL: ${filePath}`);
