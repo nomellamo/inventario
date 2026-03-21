@@ -1,0 +1,64 @@
+name: DB Backup
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      out_name:
+        description: "Nombre opcional del archivo sin extension"
+        required: false
+        default: ""
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    env:
+      BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+      BACKUP_NAME: ${{ github.event.inputs.out_name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Validate backup source
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${BACKUP_DATABASE_URL:-}" ]; then
+            echo "Falta el secret BACKUP_DATABASE_URL."
+            exit 1
+          fi
+
+      - name: Create backup
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p backups
+          safe_name="$(printf '%s' "${BACKUP_NAME:-}" | tr -cd 'A-Za-z0-9._-')"
+          if [ -n "$safe_name" ]; then
+            out="backups/${safe_name}.dump"
+          else
+            out="backups/inventario_backup_$(date -u +%Y%m%d_%H%M%S).dump"
+          fi
+          node scripts/dbBackup.js --out "$out"
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: inventario-db-backup-${{ github.run_id }}
+          path: backups/*.dump
+          if-no-files-found: error
+          retention-days: 30

@@ -144,7 +144,37 @@ npm run test:smoke-admin
 
 ---
 
-## 8. Riesgos comunes y mitigacion
+## 8. Backup automatizado
+Hay un flujo automatico en GitHub Actions para generar un respaldo descargable sin hacerlo a mano:
+
+- Archivo: `.github/workflows/db-backup.yml`
+- Disparadores:
+  - diario a las `03:00 UTC`,
+  - ejecucion manual con `workflow_dispatch`.
+- Requisito:
+  - crear el secret `BACKUP_DATABASE_URL` en GitHub con la URL externa de la DB que quieras resguardar.
+- Salida:
+  - un artifact `inventario-db-backup-<run_id>` con un archivo `.dump`.
+- Retencion:
+  - 30 dias por defecto.
+
+Restauracion desde ese artifact:
+1. Descargar el `.dump` desde GitHub Actions.
+2. Ejecutar:
+```bash
+npm run db:restore -- --file backups/<archivo>.dump --reset-schema
+```
+3. Validar con:
+```bash
+npm run db:check -- --database-url <url_destino>
+```
+
+Nota:
+- Si quieres retencion mas larga que la de GitHub Actions, copia ese `.dump` a tu almacenamiento externo preferido apenas se genere.
+
+---
+
+## 9. Riesgos comunes y mitigacion
 - Riesgo: backup existe pero no restaura.
   - Mitigacion: restore drill mensual obligatorio.
 - Riesgo: sobrescribir produccion por error.
@@ -156,7 +186,7 @@ npm run test:smoke-admin
 
 ---
 
-## 9. Checklist de cierre de incidente DB
+## 10. Checklist de cierre de incidente DB
 - [ ] Backup confirmado y accesible.
 - [ ] Restore probado en entorno seguro.
 - [ ] Servicio operativo.
