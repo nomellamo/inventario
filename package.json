@@ -33,6 +33,7 @@
     "test:asset-conflict": "node scripts/testAssetCreateConflict.js",
     "db:backup": "node scripts/dbBackup.js",
     "db:restore": "node scripts/dbRestore.js",
+    "db:seed": "node prisma/seed.js",
     "cleanup:qa": "node scripts/cleanupQa.js",
     "purge:inactive": "node scripts/purgeInactiveAdminTree.js"
   },
