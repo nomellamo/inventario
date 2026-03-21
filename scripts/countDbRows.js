@@ -3,6 +3,8 @@
 
 require("dotenv").config({ quiet: true });
 
+const { Pool } = require("pg");
+
 function argValue(name, fallback = undefined) {
   const prefix = `--${name}=`;
   const exact = process.argv.find((arg) => arg.startsWith(prefix));
@@ -21,41 +23,47 @@ function quoteIdent(value) {
   return `"${String(value).replace(/"/g, '""')}"`;
 }
 
-const explicitDatabaseUrl =
-  argValue("database-url") ||
-  process.env.COUNT_DATABASE_URL ||
-  process.env.BACKUP_DATABASE_URL;
-
-if (explicitDatabaseUrl) {
-  process.env.DIRECT_DATABASE_URL = explicitDatabaseUrl;
-  process.env.DATABASE_URL = explicitDatabaseUrl;
-}
-
-const { prisma } = require("../src/prisma");
-
-async function listPublicTables(db) {
-  const rows = await db.$queryRaw`
-    SELECT tablename
-    FROM pg_tables
-    WHERE schemaname = 'public'
-      AND tablename <> '_prisma_migrations'
-    ORDER BY tablename
-  `;
-
-  return rows.map((row) => String(row.tablename));
+function resolveDatabaseUrl() {
+  return (
+    argValue("database-url") ||
+    process.env.COUNT_DATABASE_URL ||
+    process.env.BACKUP_DATABASE_URL ||
+    process.env.DIRECT_DATABASE_URL ||
+    process.env.DATABASE_URL
+  );
 }
 
 async function main() {
+  const databaseUrl = resolveDatabaseUrl();
+  if (!databaseUrl) {
+    throw new Error(
+      "Falta COUNT_DATABASE_URL, BACKUP_DATABASE_URL, DIRECT_DATABASE_URL o DATABASE_URL en .env"
+    );
+  }
+
+  const pool = new Pool({
+    connectionString: databaseUrl,
+    max: 1,
+  });
+
   try {
-    const tables = await listPublicTables(prisma);
+    const tablesResult = await pool.query(`
+      SELECT tablename
+      FROM pg_tables
+      WHERE schemaname = 'public'
+        AND tablename <> '_prisma_migrations'
+      ORDER BY tablename
+    `);
+
+    const tables = tablesResult.rows.map((row) => String(row.tablename));
     const counts = {};
     let totalRows = 0;
 
     for (const table of tables) {
-      const rows = await prisma.$queryRawUnsafe(
+      const result = await pool.query(
         `SELECT COUNT(*)::int AS count FROM "public".${quoteIdent(table)}`
       );
-      const count = Number(rows?.[0]?.count || 0);
+      const count = Number(result.rows?.[0]?.count || 0);
       counts[table] = count;
       totalRows += count;
     }
@@ -84,7 +92,7 @@ async function main() {
     console.table(counts);
     console.log(`Total rows: ${totalRows}`);
   } finally {
-    await prisma.$disconnect();
+    await pool.end();
   }
 }
 
