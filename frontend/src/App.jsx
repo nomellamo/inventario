@@ -1325,6 +1325,9 @@ function App() {
     if (err?.status !== 409) {
       return err?.message || fallback
     }
+    if (err?.code === 'INSTITUTION_SINGLETON_LOCKED') {
+      return 'Este sistema permite mantener solo una institucion.'
+    }
     if (err?.code === 'INSTITUTION_ALREADY_INACTIVE') {
       return 'La institucion ya estaba inactiva.'
     }

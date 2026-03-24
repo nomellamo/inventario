@@ -8,6 +8,7 @@ const {
 } = require("./adminForceDeleteService");
 
 const INSTITUTION_CONFLICT_CODES = {
+  SINGLETON_LOCKED: "INSTITUTION_SINGLETON_LOCKED",
   ALREADY_INACTIVE: "INSTITUTION_ALREADY_INACTIVE",
   ALREADY_ACTIVE: "INSTITUTION_ALREADY_ACTIVE",
   HAS_ACTIVE_ESTABLISHMENTS: "INSTITUTION_HAS_ACTIVE_ESTABLISHMENTS",
@@ -66,6 +67,14 @@ async function getInstitution(id, user) {
 
 async function createInstitution(data, user) {
   requireCentral(user);
+  const institutionCount = await prisma.institution.count();
+  if (institutionCount >= 1) {
+    throw conflict(
+      "Este sistema permite mantener solo una institucion.",
+      INSTITUTION_CONFLICT_CODES.SINGLETON_LOCKED,
+      { institutionCount }
+    );
+  }
   const exists = await prisma.institution.findFirst({
     where: { name: data.name },
   });
