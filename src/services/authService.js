@@ -10,6 +10,14 @@ function toPhotoDataUrl(photo) {
   return `data:${photo.mimeType};base64,${base64}`;
 }
 
+async function safeLogLoginAttempt(payload) {
+  try {
+    await logLoginAttempt(payload);
+  } catch (_err) {
+    // Login must not fail because of audit persistence problems.
+  }
+}
+
 async function login(email, password, ip) {
   const user = await prisma.user.findUnique({
     where: { email },
@@ -17,12 +25,12 @@ async function login(email, password, ip) {
   });
 
   if (!user) {
-    await logLoginAttempt({ email, ip, success: false, reason: "USER_NOT_FOUND" });
+    await safeLogLoginAttempt({ email, ip, success: false, reason: "USER_NOT_FOUND" });
     throw unauthorized("Credenciales invalidas");
   }
 
   if (!user.isActive) {
-    await logLoginAttempt({
+    await safeLogLoginAttempt({
       email,
       ip,
       userId: user.id,
@@ -34,7 +42,7 @@ async function login(email, password, ip) {
 
   const valid = await verifyPassword(password, user.password);
   if (!valid) {
-    await logLoginAttempt({
+    await safeLogLoginAttempt({
       email,
       ip,
       userId: user.id,
@@ -47,7 +55,7 @@ async function login(email, password, ip) {
   const accessToken = signAccessToken(user);
   const refresh = await issueRefreshToken(user.id);
 
-  await logLoginAttempt({
+  await safeLogLoginAttempt({
     email,
     ip,
     userId: user.id,
