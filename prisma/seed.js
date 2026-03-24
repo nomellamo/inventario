@@ -3,14 +3,19 @@ const { prisma } = require("../src/prisma");
 const { hashPassword } = require("../src/utils/password");
 
 async function main() {
+  const institutionName = "Subsecretaría de la Niñez";
+  const mainEstablishmentName = "Casa Central";
+  const mainDependencyName = "Administración y Finanzas";
+  const scopedEstablishmentName = "Mesón N°1";
+  const scopedDependencyName = "Administración y Finanzas";
   const adminCentralPassword = await hashPassword("admin123");
   const adminEstablishmentPassword = await hashPassword("123456789");
 
-  // 1) Institution (Cordillera)
+  // 1) Institución base
   const institution = await prisma.institution.upsert({
     where: { id: 1 },
-    update: {},
-    create: { name: "SLEP Cordillera" },
+    update: { name: institutionName },
+    create: { name: institutionName },
   });
 
   // 2) AssetSequence (ultimo correlativo conocido)
@@ -93,9 +98,13 @@ async function main() {
   // 6) Establishment + Dependency (minimos para probar)
   const establishment = await prisma.establishment.upsert({
     where: { id: 1 },
-    update: {},
+    update: {
+      name: mainEstablishmentName,
+      type: "CENTRAL",
+      institutionId: institution.id,
+    },
     create: {
-      name: "Edificio Central San Carlos",
+      name: mainEstablishmentName,
       type: "CENTRAL",
       institutionId: institution.id,
     },
@@ -103,9 +112,12 @@ async function main() {
 
   await prisma.dependency.upsert({
     where: { id: 1 },
-    update: {},
+    update: {
+      name: mainDependencyName,
+      establishmentId: establishment.id,
+    },
     create: {
-      name: "Bodega Central",
+      name: mainDependencyName,
       establishmentId: establishment.id,
     },
   });
@@ -113,9 +125,13 @@ async function main() {
   // 7) Establishment + Dependency para ADMIN_ESTABLISHMENT (id: 3)
   const establishmentSchool = await prisma.establishment.upsert({
     where: { id: 3 },
-    update: {},
+    update: {
+      name: scopedEstablishmentName,
+      type: "SCHOOL",
+      institutionId: institution.id,
+    },
     create: {
-      name: "Establecimiento 3",
+      name: scopedEstablishmentName,
       type: "SCHOOL",
       institutionId: institution.id,
     },
@@ -123,9 +139,12 @@ async function main() {
 
   await prisma.dependency.upsert({
     where: { id: 3 },
-    update: {},
+    update: {
+      name: scopedDependencyName,
+      establishmentId: establishmentSchool.id,
+    },
     create: {
-      name: "Sala 1",
+      name: scopedDependencyName,
       establishmentId: establishmentSchool.id,
     },
   });

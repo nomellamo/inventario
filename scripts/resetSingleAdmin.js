@@ -120,7 +120,7 @@ async function main() {
   const dryRun = flagPresent("dry-run");
   const email = String(argValue("email", "admin-central@inventacore.cl") || "").trim().toLowerCase();
   const password = String(argValue("password", "admin123") || "");
-  const institutionName = String(argValue("institution-name", "Subsecretaria de la niñez") || "").trim();
+  const institutionName = String(argValue("institution-name", "Subsecretar\u00eda de la Ni\u00f1ez") || "").trim();
   const expectedConfirm = "ELIMINAR TODO";
 
   if (confirm !== expectedConfirm) {
@@ -219,3 +219,5 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
+
+

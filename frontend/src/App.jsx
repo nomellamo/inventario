@@ -2473,7 +2473,7 @@ function App() {
               <img
                 className="hero-logo hero-logo-subsecretaria"
                 src={logoSubsecretaria}
-                alt="Logo Subsecretaria de la Ninez"
+                alt="Logo Subsecretaría de la Niñez"
               />
             </div>
             <div className="hero-heading">

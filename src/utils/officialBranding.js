@@ -1,7 +1,9 @@
 const fs = require("fs");
 const path = require("path");
 
-const BRAND_NAME = String(process.env.PUBLIC_BRAND_NAME || "Subsecretaría de la Niñez").trim();
+const BRAND_NAME = String(
+  process.env.PUBLIC_BRAND_NAME || "Subsecretar\u00eda de la Ni\u00f1ez"
+).trim();
 
 function resolveCandidatePaths() {
   const candidates = [];
@@ -13,9 +15,7 @@ function resolveCandidatePaths() {
 
   candidates.push(
     path.resolve(process.cwd(), "frontend/src/assets/images/logodelgob.png"),
-    path.resolve(__dirname, "../../frontend/src/assets/images/logodelgob.png"),
-    path.resolve(process.cwd(), "frontend/src/assets/images/logo-inventacore.png"),
-    path.resolve(__dirname, "../../frontend/src/assets/images/logo-inventacore.png")
+    path.resolve(__dirname, "../../frontend/src/assets/images/logodelgob.png")
   );
 
   return candidates;
@@ -47,7 +47,7 @@ function getOfficialBrandLogoDataUrl() {
 }
 
 function getOfficialBrandName() {
-  return BRAND_NAME || "Subsecretaría de la Niñez";
+  return BRAND_NAME || "Subsecretar\u00eda de la Ni\u00f1ez";
 }
 
 module.exports = {

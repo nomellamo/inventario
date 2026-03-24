@@ -115,8 +115,8 @@ Response:
       "name": "Notebook",
       "assetType": { "id": 1, "name": "FIXED" },
       "assetState": { "id": 1, "name": "BUENO" },
-      "establishment": { "id": 3, "name": "Establecimiento 3" },
-      "dependency": { "id": 10, "name": "Sala 1" }
+      "establishment": { "id": 3, "name": "Mesón N°1" },
+      "dependency": { "id": 10, "name": "Administración y Finanzas" }
     }
   ]
 }
@@ -309,7 +309,7 @@ Response:
   "skip": 0,
   "take": 20,
   "items": [
-    { "id": 1, "name": "SLEP Cordillera", "createdAt": "2026-02-10T10:00:00.000Z" }
+    { "id": 1, "name": "Subsecretaría de la Niñez", "createdAt": "2026-02-10T10:00:00.000Z" }
   ]
 }
 ```
@@ -322,7 +322,7 @@ Response:
   "skip": 0,
   "take": 20,
   "items": [
-    { "id": 3, "name": "Establecimiento 3", "type": "SCHOOL", "institutionId": 1 }
+    { "id": 3, "name": "Mesón N°1", "type": "SCHOOL", "institutionId": 1 }
   ]
 }
 ```
@@ -335,8 +335,8 @@ Response:
   "skip": 0,
   "take": 20,
   "items": [
-    { "id": 10, "name": "Sala 1", "establishmentId": 3 },
-    { "id": 11, "name": "Sala 2", "establishmentId": 3 }
+    { "id": 10, "name": "Administración y Finanzas", "establishmentId": 3 },
+    { "id": 11, "name": "Gestión Interna", "establishmentId": 3 }
   ]
 }
 ```
@@ -409,8 +409,8 @@ Body:
 ```json
 {
   "items": [
-    { "name": "Sala 1", "establishmentId": 3 },
-    { "name": "Sala 2", "establishmentId": 3 }
+    { "name": "Administración y Finanzas", "establishmentId": 3 },
+    { "name": "Gestión Interna", "establishmentId": 3 }
   ]
 }
 ```
@@ -503,8 +503,8 @@ Response:
   "skippedCount": 0,
   "skipped": [],
   "items": [
-    { "id": 10, "name": "Sala 1", "establishmentId": 3 },
-    { "id": 11, "name": "Sala 2", "establishmentId": 3 }
+    { "id": 10, "name": "Administración y Finanzas", "establishmentId": 3 },
+    { "id": 11, "name": "Gestión Interna", "establishmentId": 3 }
   ]
 }
 ```
