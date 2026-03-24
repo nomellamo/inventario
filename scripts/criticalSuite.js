@@ -144,6 +144,11 @@ async function setupServer() {
 }
 
 async function run() {
+  const now = new Date();
+  const closableFiscalYear = now.getFullYear() - 1;
+  const closableAssetDate = new Date(Date.UTC(closableFiscalYear, 5, 15, 12, 0, 0)).toISOString();
+  const blockedFiscalYear = now.getFullYear();
+
   console.log("[0] Health");
   const health = await request("/health");
   assert(health.res.ok, `Health fallo: ${health.res.status}`);
@@ -283,13 +288,24 @@ async function run() {
       name: `Test Guard Institution ${guardSuffix}`,
     }),
   });
-  assert(
-    guardInstitutionRes.res.status === 201 && guardInstitutionRes.body?.id,
-    `Create institution guard fallo: ${guardInstitutionRes.res.status} ${JSON.stringify(
-      guardInstitutionRes.body
-    )}`
-  );
-  const guardInstitutionId = guardInstitutionRes.body.id;
+  let guardInstitutionId = null;
+  let guardInstitutionOwned = false;
+  if (guardInstitutionRes.res.status === 201 && guardInstitutionRes.body?.id) {
+    guardInstitutionId = guardInstitutionRes.body.id;
+    guardInstitutionOwned = true;
+  } else if (
+    guardInstitutionRes.res.status === 409 &&
+    guardInstitutionRes.body?.code === "INSTITUTION_SINGLETON_LOCKED"
+  ) {
+    guardInstitutionId = sourceEstablishment.institutionId;
+  } else {
+    assert(
+      false,
+      `Create institution guard fallo: ${guardInstitutionRes.res.status} ${JSON.stringify(
+        guardInstitutionRes.body
+      )}`
+    );
+  }
 
   const guardEstablishmentRes = await authRequest("/admin/establishments", centralToken, {
     method: "POST",
@@ -426,19 +442,26 @@ async function run() {
     `Establishment reactivate activo code inesperado: ${estActiveReactivateRes.body?.code}`
   );
 
-  const instActiveReactivateRes = await authRequest(
-    `/admin/institutions/${guardInstitutionId}/reactivate`,
-    centralToken,
-    { method: "PUT" }
-  );
-  assert(
-    instActiveReactivateRes.res.status === 409,
-    `Institution reactivate activo debio ser 409, obtuvo ${instActiveReactivateRes.res.status}`
-  );
-  assert(
-    instActiveReactivateRes.body?.code === "INSTITUTION_ALREADY_ACTIVE",
-    `Institution reactivate activo code inesperado: ${instActiveReactivateRes.body?.code}`
-  );
+  if (guardInstitutionOwned) {
+    const instActiveReactivateRes = await authRequest(
+      `/admin/institutions/${guardInstitutionId}/reactivate`,
+      centralToken,
+      { method: "PUT" }
+    );
+    assert(
+      instActiveReactivateRes.res.status === 409,
+      `Institution reactivate activo debio ser 409, obtuvo ${instActiveReactivateRes.res.status}`
+    );
+    assert(
+      instActiveReactivateRes.body?.code === "INSTITUTION_ALREADY_ACTIVE",
+      `Institution reactivate activo code inesperado: ${instActiveReactivateRes.body?.code}`
+    );
+  } else {
+    assert(
+      guardInstitutionRes.body?.code === "INSTITUTION_SINGLETON_LOCKED",
+      `Institution singleton lock code inesperado: ${guardInstitutionRes.body?.code}`
+    );
+  }
 
   const deleteDependencyGuardRes = await authRequest(
     `/admin/dependencies/${sourceDependencyId}`,
@@ -483,29 +506,31 @@ async function run() {
     );
   }
 
-  const deleteInstitutionGuardRes = await authRequest(
-    `/admin/institutions/${guardInstitutionId}`,
-    centralToken,
-    { method: "DELETE" }
-  );
-  if (deleteInstitutionGuardRes.res.status === 409) {
-    assert(
-      deleteInstitutionGuardRes.body?.code === "INSTITUTION_HAS_ACTIVE_ESTABLISHMENTS",
-      `Delete institution code inesperado: ${deleteInstitutionGuardRes.body?.code}`
+  if (guardInstitutionOwned) {
+    const deleteInstitutionGuardRes = await authRequest(
+      `/admin/institutions/${guardInstitutionId}`,
+      centralToken,
+      { method: "DELETE" }
     );
-    assert(
-      Number(deleteInstitutionGuardRes.body?.details?.activeEstablishments || 0) > 0,
-      "Delete institution no devolvio details.activeEstablishments > 0"
-    );
-  } else {
-    assert(
-      deleteInstitutionGuardRes.res.status === 200,
-      `Delete institution debio ser 200 o 409, obtuvo ${deleteInstitutionGuardRes.res.status}`
-    );
-    assert(
-      deleteInstitutionGuardRes.body?.isActive === false,
-      "Delete institution 200 no devolvio institucion inactiva"
-    );
+    if (deleteInstitutionGuardRes.res.status === 409) {
+      assert(
+        deleteInstitutionGuardRes.body?.code === "INSTITUTION_HAS_ACTIVE_ESTABLISHMENTS",
+        `Delete institution code inesperado: ${deleteInstitutionGuardRes.body?.code}`
+      );
+      assert(
+        Number(deleteInstitutionGuardRes.body?.details?.activeEstablishments || 0) > 0,
+        "Delete institution no devolvio details.activeEstablishments > 0"
+      );
+    } else {
+      assert(
+        deleteInstitutionGuardRes.res.status === 200,
+        `Delete institution debio ser 200 o 409, obtuvo ${deleteInstitutionGuardRes.res.status}`
+      );
+      assert(
+        deleteInstitutionGuardRes.body?.isActive === false,
+        "Delete institution 200 no devolvio institucion inactiva"
+      );
+    }
   }
 
   console.log("[5] Usuarios create/update/list/deactivate/includeInactive");
@@ -636,7 +661,7 @@ async function run() {
       accountingAccount: "ACC-TEST",
       analyticCode: "AN-TEST",
       acquisitionValue: 150000,
-      acquisitionDate: new Date().toISOString(),
+      acquisitionDate: closableAssetDate,
     }),
   });
   assert(
@@ -859,7 +884,7 @@ async function run() {
   );
 
   console.log("[7.1] Cierre anual de depreciacion");
-  const fiscalYear = new Date().getFullYear();
+  const fiscalYear = closableFiscalYear;
   const closeDepRes = await authRequest("/assets/depreciation/runs/close", centralToken, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -886,6 +911,20 @@ async function run() {
       "El ultimo cierre no coincide con el ano fiscal esperado"
     );
   }
+
+  const blockedCloseDepRes = await authRequest("/assets/depreciation/runs/close", centralToken, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fiscalYear: blockedFiscalYear }),
+  });
+  assert(
+    blockedCloseDepRes.res.status === 409,
+    `Cierre depreciacion del ano actual debio ser 409, obtuvo ${blockedCloseDepRes.res.status}`
+  );
+  assert(
+    blockedCloseDepRes.body?.code === "DEPRECIATION_RUN_NOT_AVAILABLE_YET",
+    `Cierre depreciacion del ano actual code inesperado: ${blockedCloseDepRes.body?.code}`
+  );
 
   console.log("[8] Import catalogo (excel)");
   const catalogWb = new ExcelJS.Workbook();

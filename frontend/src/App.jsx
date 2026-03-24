@@ -499,6 +499,9 @@ function App() {
 
   const refreshTokenPromiseRef = useRef(null)
   const assetSearchDebounceRef = useRef(null)
+  const assetsBootstrapPromiseRef = useRef(null)
+  const assetsBootstrapLastRunRef = useRef(0)
+  const ASSETS_BOOTSTRAP_MIN_INTERVAL_MS = 1500
   const {
     loadAssetStates,
     loadMovementReasonCodes,
@@ -2048,22 +2051,31 @@ function App() {
     }
     if (activeTab === 'assistant' && isCentral) {
       loadInstitutionCatalog()
-      loadEstablishmentCatalog(assistantScope.institutionId)
-      if (assistantScope.establishmentId) {
-        loadDependencyCatalog(assistantScope.establishmentId)
-      } else {
-        setDependenciesCatalog([])
-      }
       loadSupportRequests(1)
     }
     if (activeTab === 'imports' && importsView === 'assets') loadImportHistory(1)
     if (activeTab === 'assets') {
-      loadAssetStates()
-      loadMovementReasonCodes()
-      loadAssetTypes()
-      loadCatalogItems()
-      loadAssetsList()
-      if (isCentral) loadDepreciationRuns()
+      const now = Date.now()
+      if (assetsBootstrapPromiseRef.current) return
+      if (now - assetsBootstrapLastRunRef.current < ASSETS_BOOTSTRAP_MIN_INTERVAL_MS) return
+      assetsBootstrapLastRunRef.current = now
+      assetsBootstrapPromiseRef.current = Promise.allSettled([
+        loadAssetStates(),
+        loadMovementReasonCodes(),
+        loadAssetTypes(),
+        loadCatalogItems(),
+        loadAssetsList(),
+        isCentral ? loadDepreciationRuns() : Promise.resolve(),
+      ])
+        .then((results) => {
+          const firstRejected = results.find((result) => result.status === 'rejected')
+          if (firstRejected && firstRejected.reason) {
+            setErr(firstRejected.reason, 'No se pudieron cargar los datos de Activos Fijos.')
+          }
+        })
+        .finally(() => {
+          assetsBootstrapPromiseRef.current = null
+        })
     }
     if (activeTab === 'imports' && importsView === 'catalog') {
       loadCatalogAdminItems(1)
@@ -2204,6 +2216,13 @@ function App() {
   useEffect(() => {
     handleAssetListDependenciesLoad()
   }, [isAuthed, activeTab, assetListFilters.establishmentId])
+
+  useEffect(() => {
+    if (activeTab !== 'assets') {
+      assetsBootstrapPromiseRef.current = null
+      assetsBootstrapLastRunRef.current = 0
+    }
+  }, [activeTab])
 
   useEffect(() => {
     if (!isAuthed) return

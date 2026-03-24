@@ -172,32 +172,31 @@ function useAssistantCentral({
 
   const handleInstitutionScopeChange = useEffectEvent(() => {
     if (!isAuthed || activeTab !== 'assistant' || !isCentral) return
-    loadEstablishmentCatalog(assistantScope.institutionId)
-    setAssistantScope((prev) => ({ ...prev, establishmentId: '', dependencyId: '' }))
-    setDependenciesCatalog([])
+    void loadEstablishmentCatalog(assistantScope.institutionId).catch((err) => {
+      setErr(err)
+    })
   })
 
   const handleEstablishmentScopeChange = useEffectEvent(() => {
     if (!isAuthed || activeTab !== 'assistant' || !isCentral) return
     if (!assistantScope.establishmentId) {
-      setDependenciesCatalog([])
-      setAssistantScope((prev) => ({ ...prev, dependencyId: '' }))
+      setDependenciesCatalog((prev) => (prev.length ? [] : prev))
       return
     }
-    loadDependencyCatalog(assistantScope.establishmentId)
-    setAssistantScope((prev) => ({ ...prev, dependencyId: '' }))
+    void loadDependencyCatalog(assistantScope.establishmentId).catch((err) => {
+      setErr(err)
+    })
   })
 
   useEffect(() => {
     handleInstitutionScopeChange()
-  }, [activeTab, assistantScope.institutionId, handleInstitutionScopeChange, isAuthed, isCentral])
+  }, [activeTab, assistantScope.institutionId, isAuthed, isCentral])
 
   useEffect(() => {
     handleEstablishmentScopeChange()
   }, [
     activeTab,
     assistantScope.establishmentId,
-    handleEstablishmentScopeChange,
     isAuthed,
     isCentral,
   ])

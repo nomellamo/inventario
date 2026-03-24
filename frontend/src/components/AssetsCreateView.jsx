@@ -449,7 +449,7 @@ function AssetCreateFormCard(props) {
         <div className="field">
           <label>Metodo</label>
           <input value={assetForm.depreciationMethod || 'LINEAL'} readOnly disabled />
-          <p className="muted">LINEAL: se reparte la depreciacion en cuotas iguales por anio.</p>
+          <p className="muted">LINEAL: se reparte la depreciación en cuotas iguales por año.</p>
         </div>
         <div className="field">
           <label>Vida util (años)</label>

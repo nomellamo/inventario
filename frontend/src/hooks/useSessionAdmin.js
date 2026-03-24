@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { UI_STATUS } from '../constants/uiMessages'
 
 function useSessionAdmin({
@@ -39,9 +39,9 @@ function useSessionAdmin({
   const dangerZoneLockTimerRef = useRef(null)
   const DANGER_ZONE_UNLOCK_TTL_MS = 10 * 60 * 1000
 
-  const closeIntro = useEffectEvent(() => {
+  const closeIntro = useCallback(() => {
     setShowIntro(false)
-  })
+  }, [])
 
   useEffect(() => {
     if (!showIntro) return

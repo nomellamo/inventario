@@ -35,6 +35,24 @@ function assertCentralUser(user) {
   }
 }
 
+function getFiscalYearCloseAvailableFrom(fiscalYear) {
+  return new Date(fiscalYear + 1, 0, 1, 0, 0, 0, 0);
+}
+
+function assertFiscalYearCloseWindow(fiscalYear, now = new Date()) {
+  const availableFrom = getFiscalYearCloseAvailableFrom(fiscalYear);
+  if (now.getTime() >= availableFrom.getTime()) return;
+
+  throw conflict(
+    `El cierre del año ${fiscalYear} solo se habilita desde el 01-01-${fiscalYear + 1}.`,
+    "DEPRECIATION_RUN_NOT_AVAILABLE_YET",
+    {
+      fiscalYear,
+      availableFrom: availableFrom.toISOString(),
+    }
+  );
+}
+
 function mapRun(run) {
   return {
     id: run.id,
@@ -95,8 +113,9 @@ async function closeAnnualDepreciationRun(input, user) {
 
   const fiscalYear = toInt(input?.fiscalYear);
   if (!fiscalYear || fiscalYear < 2000 || fiscalYear > 2200) {
-    throw badRequest("fiscalYear invalido");
+    throw badRequest("Año inválido");
   }
+  assertFiscalYearCloseWindow(fiscalYear);
 
   const closingDate = new Date(Date.UTC(fiscalYear, 11, 31, 23, 59, 59, 999));
 
@@ -130,7 +149,7 @@ async function closeAnnualDepreciationRun(input, user) {
   ]);
 
   if (!assets.length) {
-    throw badRequest(`No hay activos para cerrar depreciacion en el ano ${fiscalYear}`);
+    throw badRequest(`No hay activos para cerrar depreciación en el año ${fiscalYear}`);
   }
 
   const items = [];
@@ -175,7 +194,7 @@ async function closeAnnualDepreciationRun(input, user) {
         select: { id: true },
       });
       if (existing) {
-        throw conflict(`Ya existe un cierre de depreciacion para el ano ${fiscalYear}`);
+        throw conflict(`Ya existe un cierre de depreciación para el año ${fiscalYear}`);
       }
 
       try {
@@ -207,7 +226,7 @@ async function closeAnnualDepreciationRun(input, user) {
         });
       } catch (err) {
         if (isPrismaUniqueConstraintError(err)) {
-          throw conflict(`Ya existe un cierre de depreciacion para el ano ${fiscalYear}`);
+          throw conflict(`Ya existe un cierre de depreciación para el año ${fiscalYear}`);
         }
         throw err;
       }
