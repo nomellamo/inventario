@@ -48,6 +48,11 @@ async function setupServer() {
 }
 
 async function run() {
+  const now = new Date();
+  const closableFiscalYear = now.getFullYear() - 1;
+  const closableAssetDate = new Date(Date.UTC(closableFiscalYear, 5, 15, 12, 0, 0)).toISOString();
+  const blockedFiscalYear = now.getFullYear();
+
   console.log("[1] Login");
   const login = await request("/auth/login", {
     method: "POST",
@@ -94,8 +99,8 @@ async function run() {
     accountingAccount: "ACC-001",
     analyticCode: "AN-001",
     acquisitionValue: 100000,
-    acquisitionDate: new Date().toISOString(),
-    depreciationStartDate: new Date().toISOString(),
+    acquisitionDate: closableAssetDate,
+    depreciationStartDate: closableAssetDate,
   };
   const created = await request("/assets", {
     method: "POST",
@@ -120,7 +125,7 @@ async function run() {
   );
 
   console.log("[5.2] Cierre anual de depreciacion");
-  const fiscalYear = new Date().getFullYear();
+  const fiscalYear = closableFiscalYear;
   const closeDep = await request("/assets/depreciation/runs/close", {
     method: "POST",
     headers: { ...authHeaders, "Content-Type": "application/json" },
@@ -147,6 +152,20 @@ async function run() {
       "El ultimo cierre no coincide con el ano fiscal esperado"
     );
   }
+
+  const blockedCloseDep = await request("/assets/depreciation/runs/close", {
+    method: "POST",
+    headers: { ...authHeaders, "Content-Type": "application/json" },
+    body: JSON.stringify({ fiscalYear: blockedFiscalYear }),
+  });
+  assert(
+    blockedCloseDep.res.status === 409,
+    `Cierre depreciacion del ano actual debio ser 409, obtuvo ${blockedCloseDep.res.status}`
+  );
+  assert(
+    blockedCloseDep.body?.code === "DEPRECIATION_RUN_NOT_AVAILABLE_YET",
+    `Cierre depreciacion del ano actual code inesperado: ${blockedCloseDep.body?.code}`
+  );
 
   console.log("[6] Planchetas JSON");
   const plancheta = await request(`/planchetas?establishmentId=${establishmentId}`, {

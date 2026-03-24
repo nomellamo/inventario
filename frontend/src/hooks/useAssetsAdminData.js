@@ -358,13 +358,17 @@ function useAssetsAdminData({
   function submitDepreciationClose() {
     const fiscalYear = Number(depreciationCloseForm.fiscalYear)
     if (!Number.isInteger(fiscalYear) || fiscalYear < 2000 || fiscalYear > 2200) {
-      setErr('Ingresa un ano fiscal valido entre 2000 y 2200.')
+      setErr('Ingresa un año válido entre 2000 y 2200.')
+      return
+    }
+    if (fiscalYear >= new Date().getFullYear()) {
+      setErr(`El año ${fiscalYear} solo se puede cerrar desde el 01-01-${fiscalYear + 1}.`)
       return
     }
 
     openConfirm({
       title: 'Cerrar depreciacion anual',
-      message: `Se generara el cierre al 31-12 del ano ${fiscalYear} para la institucion actual. ¿Continuar?`,
+      message: `Se generará el cierre al 31-12 del año seleccionado (${fiscalYear}) para la institución actual. ¿Continuar?`,
       onConfirm: async () => {
         setDepreciationClosing(true)
         try {

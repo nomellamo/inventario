@@ -114,19 +114,22 @@ Generar y guardar el cierre anual de depreciacion al `31-12` por institucion, ma
 - Listado de corridas recientes para consulta operativa
 
 ### Errores esperados
-- `400` ano fiscal invalido o sin activos elegibles
+- `400` año fiscal inválido o sin activos elegibles
 - `403` rol insuficiente
-- `409` ya existe un cierre para el mismo ano fiscal en la misma institucion
+- `409` ya existe un cierre para el mismo año fiscal en la misma institución
+- `409` el año fiscal aún no es cerrable porque no ha comenzado el siguiente año calendario
 
 ### Reglas de negocio
 - Solo `ADMIN_CENTRAL` ejecuta el cierre.
-- El cierre se calcula al `31-12` del ano fiscal pedido.
+- El cierre se calcula al `31-12` del año fiscal pedido.
+- El cierre de un año `Y` solo se habilita desde el `01-01-(Y+1)`.
 - El proceso usa el inventario activo de la institucion y guarda snapshots por asset.
-- Si ya hay una corrida para ese ano fiscal, no se duplica.
+- Si ya hay una corrida para ese año fiscal, no se duplica.
 
 ### Criterios de aceptacion
-- Given un ano fiscal valido y activos elegibles, When cierro, Then recibo `201` con el resumen del cierre.
-- Given un cierre existente para el mismo ano fiscal, When cierro de nuevo, Then recibo `409`.
+- Given un año fiscal válido y activos elegibles, When cierro, Then recibo `201` con el resumen del cierre.
+- Given un cierre existente para el mismo año fiscal, When cierro de nuevo, Then recibo `409`.
+- Given el año fiscal actual aún no terminó, When intento cerrarlo antes del `01-01` siguiente, Then recibo `409`.
 - Given un usuario no central, When intenta cerrar, Then recibe `403`.
 
 ## 4) Importaciones

@@ -18,19 +18,26 @@ function DepreciationCloseView({
 }) {
   const recentRuns = Array.isArray(depreciationRuns) ? depreciationRuns : []
   const latestRun = recentRuns[0] || null
+  const fiscalYear = Number(depreciationCloseForm.fiscalYear)
+  const closeBlockedByCalendar =
+    Number.isInteger(fiscalYear) &&
+    fiscalYear >= 2000 &&
+    fiscalYear <= 2200 &&
+    fiscalYear >= new Date().getFullYear()
+      ? `El a\u00f1o ${fiscalYear} solo se puede cerrar desde el 01-01-${fiscalYear + 1}.`
+      : ""
 
   return (
     <div className="form-card">
       <h4>Cierre anual de depreciacion</h4>
       <p className="muted">
-        Genera el cierre al 31-12 del a\u00f1o fiscal seleccionado y guarda el libro anual en el
-        sistema.
+        {`Genera el cierre al 31-12 del a\u00f1o elegido y registra el libro anual en el sistema.`}
       </p>
 
       {isCentral ? (
         <>
           <div className="field">
-            <label>A\u00f1o fiscal</label>
+            <label>{"A\u00f1o"}</label>
             <input
               type="number"
               min="2000"
@@ -46,13 +53,18 @@ function DepreciationCloseView({
             />
           </div>
           <div className="actions">
-            <button className="primary" onClick={onCloseRun} disabled={depreciationClosing}>
+            <button
+              className="primary"
+              onClick={onCloseRun}
+              disabled={depreciationClosing || Boolean(closeBlockedByCalendar)}
+            >
               {depreciationClosing ? "Cerrando..." : "Cerrar depreciacion"}
             </button>
             <button className="ghost" onClick={onRefreshRuns} disabled={depreciationRunsLoading}>
               {depreciationRunsLoading ? "Actualizando..." : "Refrescar cierres"}
             </button>
           </div>
+          {closeBlockedByCalendar ? <p className="muted">{closeBlockedByCalendar}</p> : null}
         </>
       ) : (
         <p className="muted">
@@ -74,7 +86,9 @@ function DepreciationCloseView({
       <div className="table" style={{ marginTop: 12 }}>
         <div className="table-head">
           <h4>Cierres recientes</h4>
-          <span className="muted">{depreciationRunsLoading ? "Cargando..." : `Mostrando ${recentRuns.length}`}</span>
+          <span className="muted">
+            {depreciationRunsLoading ? "Cargando..." : `Mostrando ${recentRuns.length}`}
+          </span>
         </div>
         {recentRuns.length ? (
           recentRuns.map((run) => (

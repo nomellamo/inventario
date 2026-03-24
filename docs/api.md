@@ -175,8 +175,10 @@ Body:
 { "fiscalYear": 2026 }
 ```
 Notas:
-- El cierre se calcula al `31-12` del ano fiscal recibido.
-- Si ya existe un cierre para el mismo ano e institucion, el sistema responde `409`.
+- El cierre se calcula al `31-12` del año fiscal recibido.
+- Solo se permite cerrar el año fiscal desde el `01-01` del año siguiente.
+- Si ya existe un cierre para el mismo año e institución, el sistema responde `409`.
+- Si se intenta cerrar antes de esa fecha, el sistema responde `409` con `code=DEPRECIATION_RUN_NOT_AVAILABLE_YET`.
 
 ### PUT `/assets/:id/relocate`
 Body:

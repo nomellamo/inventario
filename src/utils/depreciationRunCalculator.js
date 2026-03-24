@@ -151,7 +151,7 @@ function calculateFiscalYearDepreciation(asset, activePolicies, fiscalYear) {
   const setup = buildAssetDepreciationSetup(asset, activePolicies);
   const year = Number(fiscalYear);
   if (!Number.isInteger(year) || year < 2000 || year > 2200) {
-    throw badRequest("fiscalYear invalido");
+    throw badRequest("Año inválido");
   }
 
   const priorAccrued = calculateCumulativeDepreciationForYear({

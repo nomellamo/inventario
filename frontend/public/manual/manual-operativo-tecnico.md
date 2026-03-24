@@ -131,10 +131,12 @@ Responsable:
 Resultado esperado:
 - Cierre creado con resumen por activo.
 - Libro anual guardado en el sistema con corridas recientes visibles.
-- Conflicto `409` si ya existe un cierre para el mismo ano fiscal.
+- Conflicto `409` si ya existe un cierre para el mismo año fiscal.
+- Conflicto `409` si se intenta cerrar el año actual antes del `01-01` del año siguiente.
 
 Buenas practicas:
-- Ejecutar el cierre una sola vez por ano fiscal.
+- Ejecutar el cierre una sola vez por año fiscal.
+- No cerrar el año actual antes de que comience el siguiente año calendario.
 - Revisar antes el estado de `depreciationStartDate`, `usefulLifeYears` y `depreciationAnnualValue`.
 - Usar el resumen de cierres recientes para auditar el ultimo proceso ejecutado.
 
