@@ -173,16 +173,21 @@ function buildPlanchetaExecutivePdf(assets, meta) {
 
   doc.fillColor("#0F172A").font("Helvetica-Bold").fontSize(18).text("PLANCHETA GERENCIAL", left, 34);
   doc.fillColor("#475569").font("Helvetica").fontSize(9).text(
-    `${meta.institution} | ${meta.establishment} | Sector: ${meta.dependency}`,
+    `${meta.institution || ""} | ${meta.establishment || ""} | Sector: ${meta.dependency || "Todos"}`,
     left,
     58,
     { width: pageWidth }
   );
-  doc.text(`Rango: ${meta.dateRange || "Sin filtro"} | Fecha: ${new Date().toLocaleDateString()}`, left, 72, {
-    width: pageWidth,
-  });
+  doc.text(
+    `Rango: ${meta.dateRange || "Sin filtro"} | ${
+      meta.ministryText || "Resumen de bienes verificados en el sector indicado."
+    }`,
+    left,
+    72,
+    { width: pageWidth }
+  );
 
-  const cardY = 100;
+  const cardY = 116;
   const gap = 12;
   const cardW = (pageWidth - gap * 3) / 4;
   drawMetricCard(doc, left, cardY, cardW, 76, "Registros", summary.totalAssets, "Activos listados");

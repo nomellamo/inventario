@@ -1,5 +1,5 @@
 const PDFDocument = require("pdfkit");
-const { getOfficialBrandLogoBuffer } = require("../utils/officialBranding");
+const { getOfficialBrandLogoBuffer, getOfficialBrandName } = require("../utils/officialBranding");
 
 function normalizeStateName(value) {
   return String(value || "")
@@ -197,35 +197,50 @@ function buildPlanchetaPdf(assets, meta) {
     }, new Map())
   ).sort((a, b) => b[1] - a[1]);
 
+  const headerTop = doc.page.margins.top + 2;
+  const logoX = tableLeft;
+  const logoY = headerTop;
+  const logoWidth = 78;
+  const logoGap = 14;
+  const textLeft = tableLeft + logoWidth + logoGap;
+  const textWidth = tableWidth - logoWidth - logoGap;
+  let logoBottom = headerTop;
+
   const logo = getOfficialBrandLogoBuffer();
   if (logo) {
     try {
-      doc.image(logo, 40, 30, { width: 80 });
+      const logoImage = doc.openImage(logo);
+      const logoHeight = (logoImage.height * logoWidth) / Math.max(logoImage.width, 1);
+      doc.image(logoImage, logoX, logoY, { width: logoWidth });
+      logoBottom = logoY + logoHeight;
     } catch {
       // ignore logo errors
     }
   }
 
-  doc
-    .fontSize(14)
-    .text("PLANCHETA DE INVENTARIO", { align: "center", underline: true });
+  doc.font("Helvetica-Bold").fontSize(13.5).text("PLANCHETA DE INVENTARIO", textLeft, headerTop + 2, {
+    width: textWidth,
+    align: "center",
+    underline: true,
+  });
 
-  doc.moveDown();
-  doc.fontSize(10);
+  doc.font("Helvetica").fontSize(9.2);
+  const headerLines = [
+    `${meta.institution || getOfficialBrandName()} | ${meta.establishment || ""} | Sector: ${
+      meta.dependency || "Todos"
+    }`,
+    `Rango: ${meta.dateRange || "Sin filtro"} | ${
+      meta.ministryText || "Resumen de bienes verificados en el sector indicado."
+    }`,
+  ];
+  let headerTextY = doc.y + 6;
+  headerLines.forEach((line) => {
+    doc.text(line, textLeft, headerTextY, { width: textWidth });
+    headerTextY = doc.y + 1;
+  });
 
-  doc.text(`Institucion: ${meta.institution}`);
-  doc.text(`Establecimiento: ${meta.establishment}`);
-  doc.text(`RBD: ${meta.rbd || ""}`);
-  doc.text(`Comuna: ${meta.commune || ""}`);
-  doc.text(`Sector: ${meta.dependency}`);
-  doc.text(`Rango adquisicion: ${meta.dateRange || "Sin filtro"}`);
-  doc.text(`Fecha: ${new Date().toLocaleDateString()}`);
-  doc.moveDown(0.6);
-  doc.font("Helvetica-Oblique").text(
-    meta.ministryText || "Resumen de bienes verificados en el sector indicado."
-  );
-
-  doc.moveDown(1.5);
+  doc.y = Math.max(doc.y + 8, logoBottom + 12);
+  doc.font("Helvetica").fontSize(7.2);
 
   const widths = [54, 188, 124, 82, 90, 104];
   const colX = [];
@@ -244,14 +259,14 @@ function buildPlanchetaPdf(assets, meta) {
   ];
   const printHeader = () => {
     const y = doc.y;
-    const headerPadding = 4;
+    const headerPadding = 3;
     doc.font("Helvetica-Bold");
-    doc.fontSize(8.5);
+    doc.fontSize(8);
     const headerHeights = headers.map((t, i) =>
       doc.heightOfString(String(t), { width: widths[i] - headerPadding * 2 })
     );
     const headerHeight = Math.max(
-      18,
+      15,
       ...headerHeights.map((height) => height + headerPadding * 2)
     );
     doc.rect(tableLeft, y, tableWidth, headerHeight).fill("#E9EFF6");
@@ -263,27 +278,28 @@ function buildPlanchetaPdf(assets, meta) {
       });
     });
     doc.fillColor("black");
-    doc.y = y + headerHeight + 4;
+    doc.y = y + headerHeight + 2;
     doc.font("Helvetica");
-    doc.fontSize(7.8);
+    doc.fontSize(7.2);
   };
 
   printHeader();
 
   normalizedAssets.forEach((a, index) => {
+    const depreciationNote = formatCurrency(a.depreciationAnnualValue);
     const row = [
       `INV-${a.internalCode}`,
-      `${buildAssetDescription(a, 74)}\nDeprec. anual: ${formatCurrency(a.depreciationAnnualValue)}`,
+      `${buildAssetDescription(a, 66)} | Deprec.: ${depreciationNote}`,
       a.responsibleName || "",
       a.responsibleRut || "",
       a.assetState?.name || "",
       a.dependency?.name || "",
     ];
-    const cellPadding = 4;
-    const maxRowHeight = 68;
+    const cellPadding = 2.5;
+    const maxRowHeight = 42;
     const rowHeight = Math.min(
       maxRowHeight,
-      Math.max(18, ...row.map((v, i) => doc.heightOfString(String(v ?? ""), {
+      Math.max(14, ...row.map((v, i) => doc.heightOfString(String(v ?? ""), {
         width: widths[i] - cellPadding * 2,
       }) + cellPadding * 2))
     );
@@ -303,9 +319,10 @@ function buildPlanchetaPdf(assets, meta) {
       doc.text(String(v ?? ""), colX[i] + cellPadding, y + cellPadding, {
         width: widths[i] - cellPadding * 2,
         height: rowHeight - cellPadding * 2,
+        lineGap: 0,
       });
     });
-    doc.y = y + rowHeight + 3;
+    doc.y = y + rowHeight + 1;
   });
 
   const totalLineY = doc.y + 6;

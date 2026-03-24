@@ -147,7 +147,9 @@ function buildPlanchetaCompactPdf(assets, meta) {
     { width: pageWidth, align: "center" }
   );
   doc.text(
-    `Rango: ${meta.dateRange || "Sin filtro"} | ${meta.ministryText || "Formato formal sin graficos."}`,
+    `Rango: ${meta.dateRange || "Sin filtro"} | ${
+      meta.ministryText || "Resumen de bienes verificados en el sector indicado."
+    }`,
     left,
     top + 44,
     { width: pageWidth, align: "center" }

@@ -20,6 +20,9 @@ const { authJwt } = require("../middleware/authJwt");
 
 router.use(authJwt);
 
+const DEFAULT_MINISTRY_TEXT =
+  "Certifico que el presente inventario corresponde a los bienes físicos verificados en el sector indicado, en conformidad con lineamientos ministeriales vigentes.";
+
 function buildDateRangeLabel(filters) {
   if (!filters.fromDate && !filters.toDate) return "Sin filtro";
   if (filters.fromDate && filters.toDate) return `${filters.fromDate} a ${filters.toDate}`;
@@ -241,8 +244,7 @@ router.get("/excel", async (req, res, next) => {
       responsibleName: filters.responsibleName || "Encargado de Sector",
       chiefName: filters.chiefName || "Jefe de Sector",
       ministryText:
-        filters.ministryText ||
-        "Certifico que el presente inventario corresponde a los bienes fisicos verificados en el sector indicado, en conformidad con lineamientos ministeriales vigentes.",
+        filters.ministryText || DEFAULT_MINISTRY_TEXT,
       insights,
     };
 
@@ -293,8 +295,7 @@ router.get("/pdf", async (req, res, next) => {
       responsibleName: filters.responsibleName || "Encargado de Sector",
       chiefName: filters.chiefName || "Jefe de Sector",
       ministryText:
-        filters.ministryText ||
-        "Certifico que el presente inventario corresponde a los bienes fisicos verificados en el sector indicado, en conformidad con lineamientos ministeriales vigentes.",
+        filters.ministryText || DEFAULT_MINISTRY_TEXT,
       insights,
     };
 
@@ -338,8 +339,7 @@ router.get("/compacta/excel", async (req, res, next) => {
       responsibleName: filters.responsibleName || "Encargado de Sector",
       chiefName: filters.chiefName || "Jefe de Sector",
       ministryText:
-        filters.ministryText ||
-        "Certifico que el presente inventario corresponde a los bienes fisicos verificados en el sector indicado, en conformidad con lineamientos ministeriales vigentes.",
+        filters.ministryText || DEFAULT_MINISTRY_TEXT,
     };
 
     const workbook = await buildPlanchetaCompactExcel(assets, meta);
@@ -385,8 +385,7 @@ router.get("/compacta/pdf", async (req, res, next) => {
       responsibleName: filters.responsibleName || "Encargado de Sector",
       chiefName: filters.chiefName || "Jefe de Sector",
       ministryText:
-        filters.ministryText ||
-        "Certifico que el presente inventario corresponde a los bienes fisicos verificados en el sector indicado, en conformidad con lineamientos ministeriales vigentes.",
+        filters.ministryText || DEFAULT_MINISTRY_TEXT,
     };
 
     const doc = buildPlanchetaCompactPdf(assets, meta);
@@ -429,6 +428,7 @@ router.get("/directorio/excel", async (req, res, next) => {
       dependency: filters.dependencyId ? assets[0].dependency.name : "Todos",
       dateRange: buildDateRangeLabel(filters),
       includeHistory: Boolean(filters.includeHistory),
+      ministryText: filters.ministryText || DEFAULT_MINISTRY_TEXT,
       insights,
     };
 
@@ -475,6 +475,7 @@ router.get("/directorio/pdf", async (req, res, next) => {
       dependency: filters.dependencyId ? assets[0].dependency.name : "Todos",
       dateRange: buildDateRangeLabel(filters),
       includeHistory: Boolean(filters.includeHistory),
+      ministryText: filters.ministryText || DEFAULT_MINISTRY_TEXT,
       insights,
     };
 
@@ -514,6 +515,7 @@ router.get("/gerencial/excel", async (req, res, next) => {
       establishment: assets[0].establishment.name,
       dependency: filters.dependencyId ? assets[0].dependency.name : "Todos",
       dateRange: buildDateRangeLabel(filters),
+      ministryText: filters.ministryText || DEFAULT_MINISTRY_TEXT,
       insights,
     };
 
@@ -556,6 +558,7 @@ router.get("/gerencial/pdf", async (req, res, next) => {
       establishment: assets[0].establishment.name,
       dependency: filters.dependencyId ? assets[0].dependency.name : "Todos",
       dateRange: buildDateRangeLabel(filters),
+      ministryText: filters.ministryText || DEFAULT_MINISTRY_TEXT,
       insights,
     };
 
