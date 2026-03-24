@@ -8,6 +8,12 @@ const {
 
 const ALLOWED_DOC_TYPES = new Set(ALLOWED_EVIDENCE_DOC_TYPES);
 const ALLOWED_MIME_TYPES = new Set(ALLOWED_EVIDENCE_MIME_TYPES);
+const ALLOWED_MOVEMENT_TYPES_FOR_EVIDENCE = new Set([
+  "TRANSFER",
+  "RELOCATION",
+  "STATUS_CHANGE",
+  "INVENTORY_CHECK",
+]);
 
 function clampTake(take) {
   return Math.min(Math.max(take || 20, 1), 100);
@@ -58,8 +64,8 @@ async function createAssetEvidence(assetId, payload, file, user) {
     if (!movement || movement.assetId !== assetId) {
       throw badRequest("movementId no pertenece a este asset");
     }
-    if (!["TRANSFER", "STATUS_CHANGE"].includes(movement.type)) {
-      throw badRequest("Solo se permite adjuntar evidencia a movimientos sensibles");
+    if (!ALLOWED_MOVEMENT_TYPES_FOR_EVIDENCE.has(movement.type)) {
+      throw badRequest("No se permite adjuntar evidencia al tipo de movimiento seleccionado");
     }
   }
 

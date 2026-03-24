@@ -132,6 +132,7 @@ function useAssetsAdminActions({
     if (!movement) return 'Movimiento'
     if (movement.type === 'TRANSFER') return 'Transferencia'
     if (movement.type === 'RELOCATION') return 'Reasignacion interna'
+    if (movement.type === 'INVENTORY_CHECK') return 'Registro inicial'
     if (movement.type === 'STATUS_CHANGE') {
       const restoreCodes = movementReasonCodes.restore || []
       if (restoreCodes.some((item) => item.code === movement.reasonCode)) {
@@ -146,6 +147,7 @@ function useAssetsAdminActions({
     if (!movement) return 'Acta de movimiento'
     if (movement.type === 'TRANSFER') return 'Acta de entrega'
     if (movement.type === 'RELOCATION') return 'Acta de reasignacion interna'
+    if (movement.type === 'INVENTORY_CHECK') return 'Acta de verificacion inicial'
     if (movement.type === 'STATUS_CHANGE') {
       const restoreCodes = movementReasonCodes.restore || []
       if (restoreCodes.some((item) => item.code === movement.reasonCode)) {
@@ -165,6 +167,7 @@ function useAssetsAdminActions({
   function isActaEligibleMovement(movement) {
     if (!movement) return false
     if (movement.type === 'TRANSFER' || movement.type === 'RELOCATION') return true
+    if (movement.type === 'INVENTORY_CHECK') return true
     if (movement.type === 'STATUS_CHANGE') return true
     return false
   }
