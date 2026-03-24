@@ -2043,8 +2043,6 @@ function App() {
       }
     }
     if (activeTab === 'users' && isCentral) {
-      loadInstitutionCatalog()
-      loadEstablishmentCatalog()
       loadUsersAdmin(1)
       loadUserAssignmentOptions()
     }
@@ -2083,10 +2081,13 @@ function App() {
 
   const handleInstitutionCatalogTabLoad = useEffectEvent(() => {
     if (!isAuthed) return
-    if (activeTab !== 'institutions' && activeTab !== 'assets' && activeTab !== 'planchetas') {
+    if (activeTab === 'assets') {
+      loadInstitutionCatalog()
       return
     }
-    loadInstitutionCatalog()
+    if (activeTab === 'institutions' && !isCentral) {
+      loadInstitutionCatalog()
+    }
   })
 
   const handleEstablishmentCatalogLoad = useEffectEvent(() => {
@@ -2178,7 +2179,7 @@ function App() {
 
   useEffect(() => {
     handleInstitutionCatalogTabLoad()
-  }, [isAuthed, activeTab])
+  }, [isAuthed, activeTab, isCentral])
 
   useEffect(() => {
     handleEstablishmentCatalogLoad()

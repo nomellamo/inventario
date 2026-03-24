@@ -86,14 +86,30 @@ app.use((req, res, next) => {
   }
   next();
 });
-app.use(
-  rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: env.NODE_ENV === "production" ? 300 : 1200,
-    standardHeaders: true,
-    legacyHeaders: false,
-  })
-);
+
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: env.NODE_ENV === "production" ? 1500 : 1200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip(req) {
+    return (
+      req.method === "OPTIONS" ||
+      req.path === "/" ||
+      req.path === "/health" ||
+      req.path === "/ready" ||
+      req.path === "/metrics" ||
+      req.path === "/metrics/prometheus" ||
+      req.path === "/api/health" ||
+      req.path === "/api/ready" ||
+      req.path === "/api/metrics" ||
+      req.path === "/api/metrics/prometheus"
+    );
+  },
+  message: { error: "Demasiadas solicitudes. Intenta de nuevo en unos minutos." },
+});
+
+app.use(globalLimiter);
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
 
@@ -369,7 +385,7 @@ app.use(
   "/admin",
   rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: env.NODE_ENV === "production" ? 120 : 600,
+    max: env.NODE_ENV === "production" ? 300 : 600,
     standardHeaders: true,
     legacyHeaders: false,
   })
@@ -378,7 +394,7 @@ app.use(
   "/api/admin",
   rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: env.NODE_ENV === "production" ? 120 : 600,
+    max: env.NODE_ENV === "production" ? 300 : 600,
     standardHeaders: true,
     legacyHeaders: false,
   })

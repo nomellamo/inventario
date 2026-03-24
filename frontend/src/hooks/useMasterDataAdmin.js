@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { UI_ERROR, UI_STATUS, UI_SUCCESS } from '../constants/uiMessages'
 
 function uniqueById(items) {
@@ -72,6 +72,8 @@ function useMasterDataAdmin({
   const [depOriginal, setDepOriginal] = useState({})
   const [depSort, setDepSort] = useState({ key: 'name', order: 'asc' })
   const [depIncludeInactive, setDepIncludeInactive] = useState(true)
+  const institutionCatalogPromiseRef = useRef(null)
+  const institutionCatalogLoadedRef = useRef(false)
 
   async function loadInstitutions(page = instPage) {
     const take = 10
@@ -91,29 +93,41 @@ function useMasterDataAdmin({
     setInstOriginal(snapshot)
   }
 
-  async function loadInstitutionCatalog() {
+  async function loadInstitutionCatalog(options = {}) {
+    const { force = false } = options
+    if (!force && institutionCatalogLoadedRef.current) return institutionsCatalog
+    if (!force && institutionCatalogPromiseRef.current) return institutionCatalogPromiseRef.current
+
     setLoadingInstitutions(true)
-    try {
-      const take = 100
-      let skip = 0
-      let total = 0
-      const collected = []
-      do {
-        const params = new URLSearchParams()
-        params.set('take', String(take))
-        params.set('skip', String(skip))
-        params.set('includeInactive', 'true')
-        const data = await api(`/catalog/institutions?${params.toString()}`)
-        const items = data.items || []
-        total = Number(data.total || 0)
-        collected.push(...items)
-        skip += take
-        if (!items.length) break
-      } while (skip < total && collected.length < 10000)
-      setInstitutionsCatalog(uniqueById(collected))
-    } finally {
-      setLoadingInstitutions(false)
-    }
+    institutionCatalogPromiseRef.current = (async () => {
+      try {
+        const take = 100
+        let skip = 0
+        let total = 0
+        const collected = []
+        do {
+          const params = new URLSearchParams()
+          params.set('take', String(take))
+          params.set('skip', String(skip))
+          params.set('includeInactive', 'true')
+          const data = await api(`/catalog/institutions?${params.toString()}`)
+          const items = data.items || []
+          total = Number(data.total || 0)
+          collected.push(...items)
+          skip += take
+          if (!items.length) break
+        } while (skip < total && collected.length < 10000)
+        const nextCatalog = uniqueById(collected)
+        setInstitutionsCatalog(nextCatalog)
+        institutionCatalogLoadedRef.current = true
+        return nextCatalog
+      } finally {
+        institutionCatalogPromiseRef.current = null
+        setLoadingInstitutions(false)
+      }
+    })()
+
+    return institutionCatalogPromiseRef.current
   }
 
   async function loadEstablishments(page = estPage) {
@@ -233,7 +247,7 @@ function useMasterDataAdmin({
         body: { name: instForm.name.trim() },
       })
       setInstForm({ name: '' })
-      await Promise.all([loadInstitutions(), loadInstitutionCatalog()])
+      await Promise.all([loadInstitutions(), loadInstitutionCatalog({ force: true })])
       setOk(UI_SUCCESS.institutionCreated(created.name))
     } catch (err) {
       if (err?.status === 403) {
@@ -286,7 +300,7 @@ function useMasterDataAdmin({
   async function reactivateInstitution(id) {
     try {
       await api(`/admin/institutions/${id}/reactivate`, { method: 'PUT' })
-      await Promise.all([loadInstitutions(), loadInstitutionCatalog()])
+      await Promise.all([loadInstitutions(), loadInstitutionCatalog({ force: true })])
       setOk(UI_STATUS.institutionReactivated)
     } catch (err) {
       const message = getInstitutionConflictMessage(

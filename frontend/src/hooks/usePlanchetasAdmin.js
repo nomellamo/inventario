@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 function getPlanchetaErrorMessage(err, fallback) {
   if (err?.code === 'PLANCHETA_INVALID_DATE_FORMAT') {
@@ -44,6 +44,8 @@ function usePlanchetasAdmin({
   const [planchetaPreviewLoading, setPlanchetaPreviewLoading] = useState(false)
   const [loadingPlancheta, setLoadingPlancheta] = useState(false)
   const [planchetaMessage, setPlanchetaMessage] = useState('')
+  const planchetaInstitutionsPromiseRef = useRef(null)
+  const planchetaInstitutionsLoadedRef = useRef(false)
 
   const planchetaQuery = useMemo(() => {
     const params = new URLSearchParams()
@@ -64,37 +66,51 @@ function usePlanchetasAdmin({
   const canPreviewPlancheta = Boolean(planchetaQuery) && !planchetaPreviewLoading
   const canExportPlancheta = canPreviewPlancheta && planchetaPreview.length > 0
 
-  async function loadPlanchetaInstitutions() {
-    setLoadingPlancheta(true)
-    try {
-      const data = await api('/catalog/institutions?take=100&includeInactive=true')
-      const institutions = data.items || []
-      setPlanchetaInstitutions(institutions)
-      if (!institutions.length) {
-        setPlanchetaMessage(
-          'No hay instituciones disponibles. Crea estructura base antes de usar planchetas.'
-        )
-      } else {
-        setPlanchetaMessage('')
-        setPlanchetaFilters((prev) => {
-          if (prev.institutionId) return prev
-          const preferredInstitutionId =
-            (currentUser?.institutionId && String(currentUser.institutionId)) ||
-            (tokenClaims?.institutionId && String(tokenClaims.institutionId)) ||
-            String(institutions[0].id || '')
-          if (!preferredInstitutionId) return prev
-          return {
-            ...prev,
-            institutionId: preferredInstitutionId,
-          }
-        })
-      }
-    } catch (err) {
-      setPlanchetaMessage(err?.message || 'No se pudieron cargar instituciones.')
-      setErr(err)
-    } finally {
-      setLoadingPlancheta(false)
+  async function loadPlanchetaInstitutions(options = {}) {
+    const { force = false } = options
+    if (!force && planchetaInstitutionsLoadedRef.current) return planchetaInstitutions
+    if (!force && planchetaInstitutionsPromiseRef.current) {
+      return planchetaInstitutionsPromiseRef.current
     }
+
+    setLoadingPlancheta(true)
+    planchetaInstitutionsPromiseRef.current = (async () => {
+      try {
+        const data = await api('/catalog/institutions?take=100&includeInactive=true')
+        const institutions = data.items || []
+        setPlanchetaInstitutions(institutions)
+        planchetaInstitutionsLoadedRef.current = true
+        if (!institutions.length) {
+          setPlanchetaMessage(
+            'No hay instituciones disponibles. Crea estructura base antes de usar planchetas.'
+          )
+        } else {
+          setPlanchetaMessage('')
+          setPlanchetaFilters((prev) => {
+            if (prev.institutionId) return prev
+            const preferredInstitutionId =
+              (currentUser?.institutionId && String(currentUser.institutionId)) ||
+              (tokenClaims?.institutionId && String(tokenClaims.institutionId)) ||
+              String(institutions[0].id || '')
+            if (!preferredInstitutionId) return prev
+            return {
+              ...prev,
+              institutionId: preferredInstitutionId,
+            }
+          })
+        }
+        return institutions
+      } catch (err) {
+        setPlanchetaMessage(err?.message || 'No se pudieron cargar instituciones.')
+        setErr(err)
+        throw err
+      } finally {
+        planchetaInstitutionsPromiseRef.current = null
+        setLoadingPlancheta(false)
+      }
+    })()
+
+    return planchetaInstitutionsPromiseRef.current
   }
 
   async function loadPlanchetaEstablishments(institutionId) {

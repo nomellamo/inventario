@@ -45,6 +45,8 @@ function useUsersAdmin({
   const [userFormWithoutPhoto, setUserFormWithoutPhoto] = useState(false)
   const [userPhotoFiles, setUserPhotoFiles] = useState({})
   const usersSearchDebounceRef = useRef(null)
+  const userAssignmentsPromiseRef = useRef(null)
+  const userAssignmentsLoadedRef = useRef(false)
 
   async function loadUsersAdmin(page = usersPage) {
     setUsersLoading(true)
@@ -140,31 +142,54 @@ function useUsersAdmin({
     setOk('Usuario marcado sin foto.')
   }
 
-  async function loadUserAssignmentOptions() {
-    try {
-      const institutionsRes = await api('/catalog/institutions?take=100')
-      setUserInstitutionOptions(institutionsRes.items || [])
-
-      const take = 100
-      let skip = 0
-      let total = 0
-      const allEstablishments = []
-      do {
-        const params = new URLSearchParams()
-        params.set('take', String(take))
-        params.set('skip', String(skip))
-        const page = await api(`/catalog/establishments?${params.toString()}`)
-        const items = page.items || []
-        total = Number(page.total || 0)
-        allEstablishments.push(...items)
-        skip += take
-        if (!items.length) break
-      } while (skip < total && allEstablishments.length < 10000)
-
-      setUserEstablishmentOptions(uniqueById(allEstablishments))
-    } catch (err) {
-      setErr(err)
+  async function loadUserAssignmentOptions(options = {}) {
+    const { force = false } = options
+    if (!force && userAssignmentsLoadedRef.current) {
+      return {
+        institutions: userInstitutionOptions,
+        establishments: userEstablishmentOptions,
+      }
     }
+    if (!force && userAssignmentsPromiseRef.current) return userAssignmentsPromiseRef.current
+
+    userAssignmentsPromiseRef.current = (async () => {
+      try {
+        const institutionsRes = await api('/catalog/institutions?take=100')
+        const nextInstitutions = institutionsRes.items || []
+        setUserInstitutionOptions(nextInstitutions)
+
+        const take = 100
+        let skip = 0
+        let total = 0
+        const allEstablishments = []
+        do {
+          const params = new URLSearchParams()
+          params.set('take', String(take))
+          params.set('skip', String(skip))
+          const page = await api(`/catalog/establishments?${params.toString()}`)
+          const items = page.items || []
+          total = Number(page.total || 0)
+          allEstablishments.push(...items)
+          skip += take
+          if (!items.length) break
+        } while (skip < total && allEstablishments.length < 10000)
+
+        const nextEstablishments = uniqueById(allEstablishments)
+        setUserEstablishmentOptions(nextEstablishments)
+        userAssignmentsLoadedRef.current = true
+        return {
+          institutions: nextInstitutions,
+          establishments: nextEstablishments,
+        }
+      } catch (err) {
+        setErr(err)
+        throw err
+      } finally {
+        userAssignmentsPromiseRef.current = null
+      }
+    })()
+
+    return userAssignmentsPromiseRef.current
   }
 
   async function createUserAdmin() {
