@@ -197,35 +197,48 @@ function buildPlanchetaPdf(assets, meta) {
     }, new Map())
   ).sort((a, b) => b[1] - a[1]);
 
+  const headerTop = doc.page.margins.top + 2;
+  const logoX = tableLeft;
+  const logoY = headerTop;
+  const logoWidth = 78;
+  let logoBottom = headerTop;
+  let titleBottom = headerTop;
   const logo = getOfficialBrandLogoBuffer();
   if (logo) {
     try {
-      doc.image(logo, 40, 30, { width: 80 });
+      const logoImage = doc.openImage(logo);
+      const logoHeight = (logoImage.height * logoWidth) / Math.max(logoImage.width, 1);
+      doc.image(logoImage, logoX, logoY, { width: logoWidth });
+      logoBottom = logoY + logoHeight;
     } catch {
       // ignore logo errors
     }
   }
 
-  doc
-    .fontSize(14)
-    .text("PLANCHETA DE INVENTARIO", { align: "center", underline: true });
+  doc.font("Helvetica-Bold").fontSize(13.5).text("PLANCHETA DE INVENTARIO", tableLeft, headerTop + 2, {
+    width: tableWidth,
+    align: "center",
+    underline: true,
+  });
+  titleBottom = doc.y;
 
-  doc.moveDown();
-  doc.fontSize(10);
+  doc.font("Helvetica").fontSize(9.2);
+  const headerLines = [
+    `${meta.institution || getOfficialBrandName()} | ${meta.establishment || ""} | Sector: ${
+      meta.dependency || "Todos"
+    }`,
+    `Rango: ${meta.dateRange || "Sin filtro"} | ${
+      meta.ministryText || "Resumen de bienes verificados en el sector indicado."
+    }`,
+  ];
+  let headerTextY = Math.max(titleBottom + 4, logoBottom + 10);
+  headerLines.forEach((line) => {
+    doc.text(line, tableLeft, headerTextY, { width: tableWidth, align: "left" });
+    headerTextY = doc.y + 1;
+  });
 
-  doc.text(`Institucion: ${meta.institution}`);
-  doc.text(`Establecimiento: ${meta.establishment}`);
-  doc.text(`RBD: ${meta.rbd || ""}`);
-  doc.text(`Comuna: ${meta.commune || ""}`);
-  doc.text(`Sector: ${meta.dependency}`);
-  doc.text(`Rango adquisicion: ${meta.dateRange || "Sin filtro"}`);
-  doc.text(`Fecha: ${new Date().toLocaleDateString()}`);
-  doc.moveDown(0.6);
-  doc.font("Helvetica-Oblique").text(
-    meta.ministryText || "Resumen de bienes verificados en el sector indicado."
-  );
-
-  doc.moveDown(1.5);
+  doc.y += 8;
+  doc.font("Helvetica").fontSize(7.2);
 
   const widths = [54, 188, 124, 82, 90, 104];
   const colX = [];

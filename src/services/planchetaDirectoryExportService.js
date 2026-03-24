@@ -538,11 +538,17 @@ function buildPlanchetaDirectoryPdf(directory, meta) {
   const doc = new PDFDocument({ margin: 28, size: "A4", layout: "landscape" });
   const left = doc.page.margins.left;
   const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const headerTop = 24;
+  const logoWidth = 82;
+  let logoBottom = headerTop;
 
   const logo = getOfficialBrandLogoBuffer();
   if (logo) {
     try {
-      doc.image(logo, left, 24, { width: 82 });
+      const logoImage = doc.openImage(logo);
+      const logoHeight = (logoImage.height * logoWidth) / Math.max(logoImage.width, 1);
+      doc.image(logoImage, left, headerTop, { width: logoWidth });
+      logoBottom = headerTop + logoHeight;
     } catch {
       // ignore logo errors
     }
@@ -551,13 +557,16 @@ function buildPlanchetaDirectoryPdf(directory, meta) {
   doc.fillColor("#0F172A").font("Helvetica-Bold").fontSize(18).text(
     "DIRECTORIO POR FUNCIONARIO",
     left,
-    34,
+    headerTop + 10,
     { width: pageWidth, align: "center" }
   );
+  const titleBottom = doc.y;
+  const metadataStartY = Math.max(titleBottom + 6, logoBottom + 8);
+
   doc.fillColor("#475569").font("Helvetica").fontSize(9).text(
     `${meta.institution || ""} | ${meta.establishment || ""} | Sector: ${meta.dependency || "Todos"}`,
     left,
-    58,
+    metadataStartY,
     { width: pageWidth, align: "center" }
   );
   doc.text(
@@ -565,11 +574,10 @@ function buildPlanchetaDirectoryPdf(directory, meta) {
       meta.includeHistory ? "Incluido" : "Desactivado"
     } | Fecha: ${new Date().toLocaleDateString("es-CL")}`,
     left,
-    72,
+    doc.y + 2,
     { width: pageWidth, align: "center" }
   );
-
-  const cardY = 102;
+  const cardY = doc.y + 16;
   const gap = 12;
   const cardW = (pageWidth - gap * 3) / 4;
   drawMetricCard(doc, left, cardY, cardW, 76, "Funcionarios", summary.responsibles, "Agrupados por responsable");
