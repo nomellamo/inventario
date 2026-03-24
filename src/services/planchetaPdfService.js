@@ -201,10 +201,8 @@ function buildPlanchetaPdf(assets, meta) {
   const logoX = tableLeft;
   const logoY = headerTop;
   const logoWidth = 78;
-  const logoGap = 14;
-  const textLeft = tableLeft + logoWidth + logoGap;
-  const textWidth = tableWidth - logoWidth - logoGap;
   let logoBottom = headerTop;
+  let titleBottom = headerTop;
 
   const logo = getOfficialBrandLogoBuffer();
   if (logo) {
@@ -218,11 +216,12 @@ function buildPlanchetaPdf(assets, meta) {
     }
   }
 
-  doc.font("Helvetica-Bold").fontSize(13.5).text("PLANCHETA DE INVENTARIO", textLeft, headerTop + 2, {
-    width: textWidth,
+  doc.font("Helvetica-Bold").fontSize(13.5).text("PLANCHETA DE INVENTARIO", tableLeft, headerTop + 2, {
+    width: tableWidth,
     align: "center",
     underline: true,
   });
+  titleBottom = doc.y;
 
   doc.font("Helvetica").fontSize(9.2);
   const headerLines = [
@@ -233,13 +232,13 @@ function buildPlanchetaPdf(assets, meta) {
       meta.ministryText || "Resumen de bienes verificados en el sector indicado."
     }`,
   ];
-  let headerTextY = doc.y + 6;
+  let headerTextY = Math.max(titleBottom + 4, logoBottom + 10);
   headerLines.forEach((line) => {
-    doc.text(line, textLeft, headerTextY, { width: textWidth });
+    doc.text(line, tableLeft, headerTextY, { width: tableWidth, align: "left" });
     headerTextY = doc.y + 1;
   });
 
-  doc.y = Math.max(doc.y + 8, logoBottom + 12);
+  doc.y += 8;
   doc.font("Helvetica").fontSize(7.2);
 
   const widths = [54, 188, 124, 82, 90, 104];

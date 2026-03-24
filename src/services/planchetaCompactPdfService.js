@@ -122,11 +122,18 @@ function buildPlanchetaCompactPdf(assets, meta) {
   const left = doc.page.margins.left;
   const top = doc.page.margins.top;
   const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const logoX = left;
+  const logoY = top - 2;
+  const logoWidth = 70;
+  let logoBottom = top;
 
   const logo = getOfficialBrandLogoBuffer();
   if (logo) {
     try {
-      doc.image(logo, left, top - 2, { width: 70 });
+      const logoImage = doc.openImage(logo);
+      const logoHeight = (logoImage.height * logoWidth) / Math.max(logoImage.width, 1);
+      doc.image(logoImage, logoX, logoY, { width: logoWidth });
+      logoBottom = logoY + logoHeight;
     } catch {
       // ignore logo errors
     }
@@ -138,12 +145,15 @@ function buildPlanchetaCompactPdf(assets, meta) {
     top + 8,
     { width: pageWidth, align: "center" }
   );
+  const titleBottom = doc.y;
+  const metadataStartY = Math.max(titleBottom + 6, logoBottom + 8);
+
   doc.fillColor("#475569").font("Helvetica").fontSize(9).text(
     `${meta.institution || getOfficialBrandName()} | ${meta.establishment || ""} | Sector: ${
       meta.dependency || "Todos"
     }`,
     left,
-    top + 30,
+    metadataStartY,
     { width: pageWidth, align: "center" }
   );
   doc.text(
@@ -151,11 +161,11 @@ function buildPlanchetaCompactPdf(assets, meta) {
       meta.ministryText || "Resumen de bienes verificados en el sector indicado."
     }`,
     left,
-    top + 44,
+    doc.y + 2,
     { width: pageWidth, align: "center" }
   );
 
-  const cardY = top + 64;
+  const cardY = doc.y + 12;
   const gap = 10;
   const cardW = (pageWidth - gap * 3) / 4;
   drawMetricCard(doc, left, cardY, cardW, 66, "Registros", summary.totalAssets, "Activos listados");
