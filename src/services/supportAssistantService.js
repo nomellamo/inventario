@@ -82,7 +82,7 @@ function buildHeuristicAnswer(question, context) {
 
   if (q.includes("transfer") || q.includes("traspas")) {
     suggestions.push("Revisar que el activo no este dado de baja y exigir reasonCode + evidencia.");
-    suggestions.push("Confirmar dependencia destino antes de ejecutar la transferencia.");
+    suggestions.push("Confirmar sector destino antes de ejecutar la transferencia.");
   }
   if (q.includes("baja") || q.includes("restaur")) {
     suggestions.push("Validar motivo estructurado y evidencia obligatoria para baja/restauracion.");

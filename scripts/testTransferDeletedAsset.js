@@ -7,7 +7,7 @@ if (typeof fetch !== "function") {
 }
 
 const BASE_URL = process.env.API_BASE_URL || "http://localhost:3000";
-const EMAIL = process.env.TEST_CENTRAL_EMAIL || "admin@cordillera.local";
+const EMAIL = process.env.TEST_CENTRAL_EMAIL || "admin-central@inventacore.cl";
 const PASSWORD = process.env.TEST_CENTRAL_PASSWORD || "admin123";
 const SOURCE_ESTABLISHMENT_ID = Number(process.env.TEST_SOURCE_ESTABLISHMENT_ID || 1);
 const TARGET_ESTABLISHMENT_ID = Number(process.env.TEST_TARGET_ESTABLISHMENT_ID || 3);

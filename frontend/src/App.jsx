@@ -1,12 +1,6 @@
-﻿import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
-import logoInventacore from './assets/images/logo-inventacore.png'
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import logoSubsecretaria from './assets/images/logodelgob.png'
 import {
-  InstitutionsTabPanel,
-  EstablishmentsTabPanel,
-  DependenciesTabPanel,
-  UsersTabPanel,
-  AssistantTabPanel,
   AssetsTabPanel,
   TrashTabPanel,
   ImportsTabPanel,
@@ -22,8 +16,26 @@ import ImportsSnView from './components/ImportsSnView'
 import AssetsSection from './components/AssetsSection'
 import AssetsCreateView from './components/AssetsCreateView'
 import AssetsListView from './components/AssetsListView'
+import AssetCatalogModal from './components/AssetCatalogModal'
+import InstitutionsAdminSection from './components/InstitutionsAdminSection'
+import EstablishmentsAdminSection from './components/EstablishmentsAdminSection'
+import DependenciesAdminSection from './components/DependenciesAdminSection'
+import UsersAdminSection from './components/UsersAdminSection'
+import AssistantCentralSection from './components/AssistantCentralSection'
+import DepreciationCloseView from './components/DepreciationCloseView'
+import useMasterDataAdmin from './hooks/useMasterDataAdmin'
+import useUsersAdmin from './hooks/useUsersAdmin'
+import useAssistantCentral from './hooks/useAssistantCentral'
+import useSessionAdmin from './hooks/useSessionAdmin'
+import useAssetsDomainState from './hooks/useAssetsDomainState'
+import useAssetsAdminData from './hooks/useAssetsAdminData'
+import useAssetsAdminActions from './hooks/useAssetsAdminActions'
+import useAssetLabelsAndScan from './hooks/useAssetLabelsAndScan'
+import useImportsAdmin from './hooks/useImportsAdmin'
+import usePlanchetasAdmin from './hooks/usePlanchetasAdmin'
+import useAuditAdmin from './hooks/useAuditAdmin'
 import { UI_TEXT } from './constants/uiText'
-import { UI_ERROR, UI_STATUS, UI_SUCCESS } from './constants/uiMessages'
+import { UI_ERROR, UI_STATUS } from './constants/uiMessages'
 import './App.css'
 
 let xlsxLibPromise
@@ -66,7 +78,7 @@ function App() {
   const MAX_TAKE = 100
   const IMPORT_REQUIRED_GROUPS = [
     { label: 'Establecimiento', keys: ['establishmentId', 'Establecimiento'] },
-    { label: 'Dependencia', keys: ['dependencyId', 'Dependencia'] },
+    { label: 'Sector', keys: ['dependencyId', 'Sector'] },
     { label: 'Estado', keys: ['assetStateId', 'Estado'] },
     { label: 'Tipo', keys: ['assetTypeId', 'Tipo'] },
     { label: 'Nombre', keys: ['Nombre'] },
@@ -97,11 +109,6 @@ function App() {
       return null
     }
   })
-  const [login, setLogin] = useState({
-    email: '',
-    password: '',
-  })
-  const [showIntro, setShowIntro] = useState(false)
   const [status, setStatus] = useState({
     type: 'idle',
     message: '',
@@ -110,31 +117,11 @@ function App() {
     details: null,
   })
   const [statusCopyFeedback, setStatusCopyFeedback] = useState('')
-  const [isLoginLoading, setIsLoginLoading] = useState(false)
-  const [loginErrorModal, setLoginErrorModal] = useState({
-    open: false,
-    title: 'No se pudo iniciar sesion',
-    message: '',
-  })
-  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
-  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false)
-  const [isChangingPassword, setIsChangingPassword] = useState(false)
-  const [dangerZoneUnlocked, setDangerZoneUnlocked] = useState(false)
-  const [dangerZoneUnlocking, setDangerZoneUnlocking] = useState(false)
-  const [dangerZoneUnlockModalOpen, setDangerZoneUnlockModalOpen] = useState(false)
-  const [dangerZoneUnlockInput, setDangerZoneUnlockInput] = useState('')
-  const [dangerZoneUnlockError, setDangerZoneUnlockError] = useState('')
-  const DANGER_ZONE_UNLOCK_TTL_MS = 10 * 60 * 1000
   const DANGER_ZONE_UNLOCK_PASSWORD = String(
     import.meta.env.VITE_DANGER_ZONE_UNLOCK_PASSWORD || ''
   ).trim()
-  const dangerZoneLockTimerRef = useRef(null)
   const introVideoRef = useRef(null)
-  const [changePasswordForm, setChangePasswordForm] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: '',
-  })
+  const userMenuRef = useRef(null)
   const [formErrors, setFormErrors] = useState({})
   const [confirmState, setConfirmState] = useState({
     open: false,
@@ -163,383 +150,47 @@ function App() {
   const [activeTab, setActiveTab] = useState('institutions')
   const [importsView, setImportsView] = useState('assets')
 
-  const [institutions, setInstitutions] = useState([])
-  const [institutionsCatalog, setInstitutionsCatalog] = useState([])
-  const [loadingInstitutions, setLoadingInstitutions] = useState(false)
-  const [instQuery, setInstQuery] = useState('')
-  const [instForm, setInstForm] = useState({ name: '' })
-  const [instPage, setInstPage] = useState(1)
-  const [instTotal, setInstTotal] = useState(0)
-  const [instOriginal, setInstOriginal] = useState({})
-  const [instSort, setInstSort] = useState({ key: 'name', order: 'asc' })
-  const [instIncludeInactive, setInstIncludeInactive] = useState(true)
-
-  const [establishments, setEstablishments] = useState([])
-  const [establishmentsCatalog, setEstablishmentsCatalog] = useState([])
-  const [loadingEstablishments, setLoadingEstablishments] = useState(false)
-  const [estFilters, setEstFilters] = useState({ q: '', institutionId: '', institutionSearch: '' })
-  const [estForm, setEstForm] = useState({ name: '', type: '', rbd: '', commune: '', institutionId: '' })
-  const [estPage, setEstPage] = useState(1)
-  const [estTotal, setEstTotal] = useState(0)
-  const [estOriginal, setEstOriginal] = useState({})
-  const [estSort, setEstSort] = useState({ key: 'name', order: 'asc' })
-  const [estIncludeInactive, setEstIncludeInactive] = useState(true)
-
-  const [dependencies, setDependencies] = useState([])
-  const [dependenciesCatalog, setDependenciesCatalog] = useState([])
-  const [, setLoadingDependencies] = useState(false)
-  const [depFilters, setDepFilters] = useState({
-    q: '',
-    establishmentId: '',
-    establishmentSearch: '',
+  const {
+    login,
+    setLogin,
+    showIntro,
+    closeIntro,
+    isLoginLoading,
+    loginErrorModal,
+    setLoginErrorModal,
+    isUserMenuOpen,
+    isChangePasswordOpen,
+    isChangingPassword,
+    dangerZoneUnlocked,
+    dangerZoneUnlocking,
+    dangerZoneUnlockModalOpen,
+    dangerZoneUnlockInput,
+    setDangerZoneUnlockInput,
+    dangerZoneUnlockError,
+    setDangerZoneUnlockError,
+    changePasswordForm,
+    setChangePasswordForm,
+    handleLogin,
+    handleLogout,
+    openChangePassword,
+    closeChangePassword,
+    toggleUserMenu,
+    handleChangePassword,
+    unlockDangerZoneButtons,
+    closeDangerZoneUnlockModal,
+    submitDangerZoneUnlock,
+    lockDangerZoneButtons,
+  } = useSessionAdmin({
+    api,
+    setToken,
+    setCurrentUser,
+    setOk,
+    setErr,
+    getLoginErrorMessage,
+    introVideoRef,
+    userMenuRef,
+    dangerZoneUnlockPassword: DANGER_ZONE_UNLOCK_PASSWORD,
   })
-  const [depForm, setDepForm] = useState({ name: '', establishmentId: '' })
-  const [depReplicateForm, setDepReplicateForm] = useState({
-    sourceEstablishmentId: '',
-    targetEstablishmentId: '',
-    includeInactive: false,
-  })
-  const [depReplicateResult, setDepReplicateResult] = useState(null)
-  const [depPage, setDepPage] = useState(1)
-  const [depTotal, setDepTotal] = useState(0)
-  const [depOriginal, setDepOriginal] = useState({})
-  const [depSort, setDepSort] = useState({ key: 'name', order: 'asc' })
-  const [depIncludeInactive, setDepIncludeInactive] = useState(true)
-
-  const [users, setUsers] = useState([])
-  const [usersLoading, setUsersLoading] = useState(false)
-  const [userInstitutionOptions, setUserInstitutionOptions] = useState([])
-  const [userEstablishmentOptions, setUserEstablishmentOptions] = useState([])
-  const [usersPage, setUsersPage] = useState(1)
-  const [usersTotal, setUsersTotal] = useState(0)
-  const [usersOriginal, setUsersOriginal] = useState({})
-  const [userFilters, setUserFilters] = useState({
-    q: '',
-    roleType: '',
-    institutionId: '',
-    establishmentId: '',
-    includeInactive: false,
-  })
-  const [userForm, setUserForm] = useState({
-    name: '',
-    email: '',
-    password: '',
-    roleType: 'ADMIN_ESTABLISHMENT',
-    institutionId: '',
-    establishmentId: '',
-  })
-  const [userFormPhotoFile, setUserFormPhotoFile] = useState(null)
-  const [userFormWithoutPhoto, setUserFormWithoutPhoto] = useState(false)
-  const [userPhotoFiles, setUserPhotoFiles] = useState({})
-  const [assistantQuestion, setAssistantQuestion] = useState('')
-  const [assistantNotifyEmail, setAssistantNotifyEmail] = useState('a.nunezu.n@gmail.com')
-  const [assistantScope, setAssistantScope] = useState({
-    institutionId: '',
-    establishmentId: '',
-    dependencyId: '',
-  })
-  const [assistantLoading, setAssistantLoading] = useState(false)
-  const [assistantSmtpLoading, setAssistantSmtpLoading] = useState(false)
-  const [assistantAnswer, setAssistantAnswer] = useState(null)
-  const [supportRequests, setSupportRequests] = useState([])
-  const [supportLoading, setSupportLoading] = useState(false)
-  const [supportPage, setSupportPage] = useState(1)
-  const [supportTotal, setSupportTotal] = useState(0)
-  const [supportFilters, setSupportFilters] = useState({
-    q: '',
-    status: '',
-    priority: '',
-  })
-  const [supportCommentDraft, setSupportCommentDraft] = useState({})
-
-  const [assetForm, setAssetForm] = useState({
-    catalogItemId: '',
-    name: '',
-    quantity: '1',
-    brand: '',
-    modelName: '',
-    serialNumber: '',
-    accountingAccount: '',
-    analyticCode: '',
-    responsibleName: '',
-    responsibleRut: '',
-    responsibleRole: '',
-    costCenter: '',
-    acquisitionValue: '',
-    acquisitionDate: '',
-    depreciationMethod: 'LINEAL',
-    usefulLifeYears: '',
-    residualValue: '',
-    depreciationStartDate: '',
-    establishmentId: '',
-    dependencyId: '',
-    assetStateId: '',
-    assetTypeId: '',
-  })
-  const [assetCatalogItems, setAssetCatalogItems] = useState([])
-  const [showAssetCatalogList, setShowAssetCatalogList] = useState(false)
-  const [assetStates, setAssetStates] = useState([])
-  const [assetTypes, setAssetTypes] = useState([])
-  const [assetEstablishments, setAssetEstablishments] = useState([])
-  const [assetDependencies, setAssetDependencies] = useState([])
-  const [assetListEstablishments, setAssetListEstablishments] = useState([])
-  const [assetListDependencies, setAssetListDependencies] = useState([])
-  const [assetInstitutionId, setAssetInstitutionId] = useState('')
-  const [catalogFilters] = useState({
-    q: '',
-    category: '',
-    subcategory: '',
-    brand: '',
-    modelName: '',
-  })
-  const [assetCreating, setAssetCreating] = useState(false)
-  const [assetHasResponsible, setAssetHasResponsible] = useState(true)
-  const [createdAsset, setCreatedAsset] = useState(null)
-  const [createdAssetBatch, setCreatedAssetBatch] = useState([])
-  const [assetMultiProductEnabled, setAssetMultiProductEnabled] = useState(false)
-  const [assetMultiProductCount, setAssetMultiProductCount] = useState('2')
-  const [assetMultiProducts, setAssetMultiProducts] = useState([
-    { catalogItemId: '', quantity: '1', acquisitionValue: '' },
-    { catalogItemId: '', quantity: '1', acquisitionValue: '' },
-  ])
-  const [qrCodeUrl, setQrCodeUrl] = useState('')
-  const [assetErrors, setAssetErrors] = useState({})
-  const [selectedCatalogItem, setSelectedCatalogItem] = useState(null)
-  const [catalogModalOpen, setCatalogModalOpen] = useState(false)
-  const [catalogAction, setCatalogAction] = useState(null)
-  const [editAssetHasResponsible, setEditAssetHasResponsible] = useState(true)
-  const [editAssetForm, setEditAssetForm] = useState({
-    name: '',
-    quantity: '',
-    brand: '',
-    modelName: '',
-    serialNumber: '',
-    accountingAccount: '',
-    analyticCode: '',
-    responsibleName: '',
-    responsibleRut: '',
-    responsibleRole: '',
-    costCenter: '',
-    acquisitionValue: '',
-    acquisitionDate: '',
-  })
-  const [moveAssetForm, setMoveAssetForm] = useState({ toDependencyId: '' })
-  const [transferAssetForm, setTransferAssetForm] = useState({
-    toEstablishmentId: '',
-    toDependencyId: '',
-    reasonCode: '',
-    docType: 'ACTA',
-    note: '',
-    file: null,
-  })
-  const [transferEstablishments, setTransferEstablishments] = useState([])
-  const [transferDependencies, setTransferDependencies] = useState([])
-  const [statusAssetForm, setStatusAssetForm] = useState({
-    assetStateId: '',
-    reasonCode: '',
-    docType: 'ACTA',
-    note: '',
-    file: null,
-  })
-  const [movementReasonCodes, setMovementReasonCodes] = useState({
-    transfer: [],
-    statusChange: [],
-    restore: [],
-  })
-  const [assetMovements, setAssetMovements] = useState([])
-  const [assetEvidence, setAssetEvidence] = useState([])
-  const [assetEvidenceLoading, setAssetEvidenceLoading] = useState(false)
-  const [evidenceForm, setEvidenceForm] = useState({
-    movementId: '',
-    docType: 'ACTA',
-    note: '',
-    file: null,
-  })
-  const [assetsList, setAssetsList] = useState([])
-  const [assetsLoading, setAssetsLoading] = useState(false)
-  const [labelAssetId, setLabelAssetId] = useState('')
-  const [scanInput, setScanInput] = useState('')
-  const [scanResult, setScanResult] = useState(null)
-  const [assetListFilters, setAssetListFilters] = useState({
-    id: '',
-    internalCode: '',
-    q: '',
-    responsibleName: '',
-    costCenter: '',
-    institutionId: '',
-    establishmentId: '',
-    dependencyId: '',
-    assetStateId: '',
-    includeDeleted: false,
-    fromDate: '',
-    toDate: '',
-  })
-  const [assetListPage, setAssetListPage] = useState(1)
-  const [assetListTotal, setAssetListTotal] = useState(0)
-  const [selectedAssetIds, setSelectedAssetIds] = useState([])
-  const [trashFilters, setTrashFilters] = useState({
-    q: '',
-    internalCode: '',
-    deletedFrom: '',
-    deletedTo: '',
-  })
-  const [trashAssets, setTrashAssets] = useState([])
-  const [trashLoading, setTrashLoading] = useState(false)
-  const [restoreModal, setRestoreModal] = useState({
-    open: false,
-    asset: null,
-    reasonCode: '',
-    docType: 'ACTA',
-    note: '',
-    file: null,
-  })
-
-  const [importFile, setImportFile] = useState(null)
-  const [importLoading, setImportLoading] = useState(false)
-  const [importResult, setImportResult] = useState(null)
-  const [importErrors, setImportErrors] = useState([])
-  const importJobPollRef = useRef(null)
-  const refreshTokenPromiseRef = useRef(null)
-  const [importSchemaDetails, setImportSchemaDetails] = useState(null)
-  const [previewHeaders, setPreviewHeaders] = useState([])
-  const [previewRows, setPreviewRows] = useState([])
-  const [previewMissing, setPreviewMissing] = useState([])
-  const [previewInvalidCells, setPreviewInvalidCells] = useState({})
-  const [catalogImportFile, setCatalogImportFile] = useState(null)
-  const [catalogImportLoading, setCatalogImportLoading] = useState(false)
-  const [catalogImportResult, setCatalogImportResult] = useState(null)
-  const [catalogImportErrors, setCatalogImportErrors] = useState([])
-  const [snBaseFile, setSnBaseFile] = useState(null)
-  const [snBaseLoading, setSnBaseLoading] = useState(false)
-  const [snBaseParsed, setSnBaseParsed] = useState(null)
-  const [snBaseImporting, setSnBaseImporting] = useState(false)
-  const [snBaseImportResult, setSnBaseImportResult] = useState(null)
-  const [catalogManualForm, setCatalogManualForm] = useState({
-    officialKey: '',
-    name: '',
-    category: '',
-    subcategory: '',
-    brand: '',
-    modelName: '',
-    description: '',
-    unit: 'unidad',
-  })
-  const [catalogAdminItems, setCatalogAdminItems] = useState([])
-  const [catalogAdminOriginal, setCatalogAdminOriginal] = useState({})
-  const [catalogAdminLoading, setCatalogAdminLoading] = useState(false)
-  const [catalogAdminQuery, setCatalogAdminQuery] = useState('')
-  const [catalogAdminPage, setCatalogAdminPage] = useState(1)
-  const [catalogAdminTotal, setCatalogAdminTotal] = useState(0)
-  const [catalogAdminRowStatus, setCatalogAdminRowStatus] = useState({})
-  const [catalogAdminKeyStatus, setCatalogAdminKeyStatus] = useState({})
-  const [manualOfficialKeyCheck, setManualOfficialKeyCheck] = useState(null)
-  const catalogKeyCheckTimers = useRef({})
-  const assetSearchDebounceRef = useRef(null)
-  const usersSearchDebounceRef = useRef(null)
-  const userMenuRef = useRef(null)
-
-  const [importHistory, setImportHistory] = useState([])
-  const [importHistoryPage, setImportHistoryPage] = useState(1)
-  const [importHistoryTotal, setImportHistoryTotal] = useState(0)
-  const [importHistoryLoading, setImportHistoryLoading] = useState(false)
-  const [importHistoryOpen, setImportHistoryOpen] = useState(null)
-  const [importHistoryFilters, setImportHistoryFilters] = useState({
-    fromDate: '',
-    toDate: '',
-    userId: '',
-  })
-
-  function stopImportJobPolling() {
-    if (importJobPollRef.current) {
-      clearTimeout(importJobPollRef.current)
-      importJobPollRef.current = null
-    }
-  }
-
-  function normalizeImportJobPayload(data) {
-    if (!data) return null
-    return {
-      ...data,
-      metrics: data.metrics || data.errors?.metrics || null,
-      errorItems: data.errorItems || data.errors?.items || [],
-    }
-  }
-
-  function scheduleImportJobPoll(batchId) {
-    stopImportJobPolling()
-    const pollDelayMs = document.visibilityState === 'visible' ? 5000 : 15000
-    importJobPollRef.current = setTimeout(() => {
-      loadImportJobStatus(batchId, { silent: true }).catch((err) => {
-        if (err?.status === 429) {
-          scheduleImportJobPoll(batchId)
-        }
-      })
-    }, pollDelayMs)
-  }
-
-  const [planchetaFilters, setPlanchetaFilters] = useState({
-    institutionId: '',
-    establishmentId: '',
-    dependencyId: '',
-    fromDate: '',
-    toDate: '',
-    responsibleName: 'Encargado de Dependencia',
-    chiefName: 'Jefe de Dependencia',
-    ministryText:
-      'Certifico que el presente inventario corresponde a los bienes fisicos verificados en la dependencia indicada, en conformidad con lineamientos ministeriales vigentes.',
-    includeHistory: true,
-  })
-  const [planchetaInstitutions, setPlanchetaInstitutions] = useState([])
-  const [planchetaEstablishments, setPlanchetaEstablishments] = useState([])
-  const [planchetaDependencies, setPlanchetaDependencies] = useState([])
-  const [planchetaPreview, setPlanchetaPreview] = useState([])
-  const [planchetaSummary, setPlanchetaSummary] = useState([])
-  const [planchetaInsights, setPlanchetaInsights] = useState(null)
-  const [planchetaPreviewLoading, setPlanchetaPreviewLoading] = useState(false)
-  const [loadingPlancheta, setLoadingPlancheta] = useState(false)
-  const [planchetaMessage, setPlanchetaMessage] = useState('')
-
-  const [adminAudits, setAdminAudits] = useState([])
-  const [adminAuditLoading, setAdminAuditLoading] = useState(false)
-  const [adminAuditPage, setAdminAuditPage] = useState(1)
-  const [adminAuditTotal, setAdminAuditTotal] = useState(0)
-  const [loginAudits, setLoginAudits] = useState([])
-  const [loginAuditLoading, setLoginAuditLoading] = useState(false)
-  const [loginAuditPage, setLoginAuditPage] = useState(1)
-  const [loginAuditTotal, setLoginAuditTotal] = useState(0)
-  const [loginMetrics, setLoginMetrics] = useState([])
-  const [loginMetricsHourly, setLoginMetricsHourly] = useState([])
-  const [loginMetricsByIp, setLoginMetricsByIp] = useState([])
-  const [loginMetricsByUser, setLoginMetricsByUser] = useState([])
-  const [metricsTop, setMetricsTop] = useState(10)
-  const [hourlySort, setHourlySort] = useState({ key: 'hour', order: 'asc' })
-  const [ipSort, setIpSort] = useState({ key: 'failed', order: 'desc' })
-  const [userSort, setUserSort] = useState({ key: 'failed', order: 'desc' })
-  const [metricsFilters, setMetricsFilters] = useState({
-    fromDate: '',
-    toDate: '',
-    hourFrom: '',
-    hourTo: '',
-  })
-  const [auditFilters, setAuditFilters] = useState({
-    entityType: '',
-    action: '',
-    fromDate: '',
-    toDate: '',
-  })
-  const [loginAuditFilters, setLoginAuditFilters] = useState({
-    email: '',
-    success: '',
-    fromDate: '',
-    toDate: '',
-  })
-  const [auditCleanupForm, setAuditCleanupForm] = useState({
-    scope: 'ALL',
-    mode: 'KEEP_DAYS',
-    beforeDate: '',
-    keepDays: 90,
-  })
-  const [showHeroNotice, setShowHeroNotice] = useState(true)
 
   const tokenClaims = useMemo(() => {
     if (!token) return null
@@ -555,31 +206,631 @@ function App() {
     }
   }, [token])
   const isAuthed = useMemo(() => Boolean(token), [token])
-  const closeIntro = useEffectEvent(() => {
-    setShowIntro(false)
-  })
   const roleType = useMemo(
-    () => currentUser?.role?.type || currentUser?.role || currentUser?.roleType || tokenClaims?.role || '',
+    () =>
+      currentUser?.role?.type ||
+      currentUser?.role ||
+      currentUser?.roleType ||
+      tokenClaims?.role ||
+      '',
     [currentUser, tokenClaims]
   )
   const isCentral = useMemo(() => roleType === 'ADMIN_CENTRAL', [roleType])
-  const planchetaQuery = useMemo(() => {
-    const params = new URLSearchParams()
-    if (!planchetaFilters.establishmentId) return ''
-    params.set('establishmentId', planchetaFilters.establishmentId)
-    if (planchetaFilters.dependencyId) params.set('dependencyId', planchetaFilters.dependencyId)
-    if (planchetaFilters.fromDate) params.set('fromDate', planchetaFilters.fromDate)
-    if (planchetaFilters.toDate) params.set('toDate', planchetaFilters.toDate)
-    if (planchetaFilters.responsibleName) {
-      params.set('responsibleName', planchetaFilters.responsibleName)
-    }
-    if (planchetaFilters.chiefName) params.set('chiefName', planchetaFilters.chiefName)
-    if (planchetaFilters.ministryText) params.set('ministryText', planchetaFilters.ministryText)
-    params.set('includeHistory', planchetaFilters.includeHistory ? 'true' : 'false')
-    return params.toString()
-  }, [planchetaFilters])
-  const canPreviewPlancheta = Boolean(planchetaQuery) && !planchetaPreviewLoading
-  const canExportPlancheta = canPreviewPlancheta && planchetaPreview.length > 0
+
+  const {
+    institutions,
+    setInstitutions,
+    institutionsCatalog,
+    loadingInstitutions,
+    instQuery,
+    setInstQuery,
+    instForm,
+    setInstForm,
+    instPage,
+    setInstPage,
+    instTotal,
+    instOriginal,
+    instSort,
+    setInstSort,
+    instIncludeInactive,
+    setInstIncludeInactive,
+    establishments,
+    setEstablishments,
+    establishmentsCatalog,
+    loadingEstablishments,
+    estFilters,
+    setEstFilters,
+    estForm,
+    setEstForm,
+    estPage,
+    setEstPage,
+    estTotal,
+    estOriginal,
+    estSort,
+    setEstSort,
+    estIncludeInactive,
+    setEstIncludeInactive,
+    dependencies,
+    setDependencies,
+    dependenciesCatalog,
+    setDependenciesCatalog,
+    depFilters,
+    setDepFilters,
+    depForm,
+    setDepForm,
+    depReplicateForm,
+    setDepReplicateForm,
+    depReplicateResult,
+    depPage,
+    setDepPage,
+    depTotal,
+    depOriginal,
+    depSort,
+    setDepSort,
+    depIncludeInactive,
+    setDepIncludeInactive,
+    loadInstitutions,
+    loadInstitutionCatalog,
+    loadEstablishments,
+    loadEstablishmentCatalog,
+    loadDependencies,
+    loadDependencyCatalog,
+    createInstitution,
+    updateInstitution,
+    deleteInstitution,
+    reactivateInstitution,
+    hardDeleteInstitution,
+    createEstablishment,
+    updateEstablishment,
+    deleteEstablishment,
+    reactivateEstablishment,
+    hardDeleteEstablishment,
+    createDependency,
+    updateDependency,
+    deleteDependency,
+    replicateDependenciesFromBase,
+    reactivateDependency,
+    hardDeleteDependency,
+  } = useMasterDataAdmin({
+    api,
+    setErr,
+    setOk,
+    setFormErrors,
+    openConfirm,
+    closeConfirm,
+    openDeleteBlockModal,
+    openForceDelete,
+    dangerZoneUnlocked,
+    withMappedError,
+    getInstitutionConflictMessage,
+    getEstablishmentConflictMessage,
+    getDependencyConflictMessage,
+  })
+
+  const {
+    users,
+    setUsers,
+    usersLoading,
+    userInstitutionOptions,
+    userEstablishmentOptions,
+    usersPage,
+    setUsersPage,
+    usersTotal,
+    usersOriginal,
+    userFilters,
+    setUserFilters,
+    userForm,
+    setUserForm,
+    userFormPhotoFile,
+    setUserFormPhotoFile,
+    userFormWithoutPhoto,
+    setUserFormWithoutPhoto,
+    userPhotoFiles,
+    setUserPhotoFiles,
+    loadUsersAdmin,
+    loadUserAssignmentOptions,
+    createUserAdmin,
+    saveUserPhotoAdmin,
+    clearUserPhotoAdmin,
+    updateUserAdmin,
+    deactivateUserAdmin,
+    reactivateUserAdmin,
+    resetUserPasswordAdmin,
+  } = useUsersAdmin({
+    api,
+    apiMultipart,
+    setErr,
+    setOk,
+    openConfirm,
+    closeConfirm,
+    currentUser,
+    setCurrentUser,
+    isAuthed,
+    isCentral,
+    activeTab,
+    toPositiveIntOrNull,
+  })
+
+  const {
+    assistantQuestion,
+    setAssistantQuestion,
+    assistantNotifyEmail,
+    setAssistantNotifyEmail,
+    assistantScope,
+    setAssistantScope,
+    assistantLoading,
+    assistantSmtpLoading,
+    assistantAnswer,
+    supportRequests,
+    supportLoading,
+    supportPage,
+    setSupportPage,
+    supportTotal,
+    supportFilters,
+    setSupportFilters,
+    supportCommentDraft,
+    setSupportCommentDraft,
+    askCentralAssistant,
+    createSupportRequestFromAssistant,
+    testAssistantSmtp,
+    loadSupportRequests,
+    updateSupportStatus,
+    sendSupportComment,
+  } = useAssistantCentral({
+    api,
+    setErr,
+    setOk,
+    loadEstablishmentCatalog,
+    loadDependencyCatalog,
+    setDependenciesCatalog,
+    isAuthed,
+    isCentral,
+    activeTab,
+    toPositiveIntOrNull,
+  })
+
+  const {
+    assetForm,
+    setAssetForm,
+    assetCatalogItems,
+    setAssetCatalogItems,
+    showAssetCatalogList,
+    setShowAssetCatalogList,
+    assetStates,
+    setAssetStates,
+    assetTypes,
+    setAssetTypes,
+    assetEstablishments,
+    setAssetEstablishments,
+    assetDependencies,
+    setAssetDependencies,
+    assetListEstablishments,
+    setAssetListEstablishments,
+    assetListDependencies,
+    setAssetListDependencies,
+    assetInstitutionId,
+    setAssetInstitutionId,
+    catalogFilters,
+    assetCreating,
+    setAssetCreating,
+    assetHasResponsible,
+    setAssetHasResponsible,
+    createdAsset,
+    setCreatedAsset,
+    createdAssetBatch,
+    setCreatedAssetBatch,
+    assetMultiProductEnabled,
+    setAssetMultiProductEnabled,
+    assetMultiProductCount,
+    setAssetMultiProductCount,
+    assetMultiProducts,
+    setAssetMultiProducts,
+    qrCodeUrl,
+    setQrCodeUrl,
+    assetErrors,
+    setAssetErrors,
+    selectedCatalogItem,
+    setSelectedCatalogItem,
+    catalogModalOpen,
+    setCatalogModalOpen,
+    catalogAction,
+    setCatalogAction,
+    editAssetHasResponsible,
+    setEditAssetHasResponsible,
+    editAssetForm,
+    setEditAssetForm,
+    moveAssetForm,
+    setMoveAssetForm,
+    transferAssetForm,
+    setTransferAssetForm,
+    transferEstablishments,
+    setTransferEstablishments,
+    transferDependencies,
+    setTransferDependencies,
+    statusAssetForm,
+    setStatusAssetForm,
+    movementReasonCodes,
+    setMovementReasonCodes,
+    assetMovements,
+    setAssetMovements,
+    assetHistoryLoading,
+    setAssetHistoryLoading,
+    assetEvidence,
+    setAssetEvidence,
+    assetEvidenceLoading,
+    setAssetEvidenceLoading,
+    depreciationCloseForm,
+    setDepreciationCloseForm,
+    depreciationRuns,
+    setDepreciationRuns,
+    depreciationRunsLoading,
+    setDepreciationRunsLoading,
+    depreciationClosing,
+    setDepreciationClosing,
+    evidenceForm,
+    setEvidenceForm,
+    assetsList,
+    setAssetsList,
+    assetsLoading,
+    setAssetsLoading,
+    labelAssetId,
+    setLabelAssetId,
+    scanInput,
+    setScanInput,
+    scanResult,
+    setScanResult,
+    assetListFilters,
+    setAssetListFilters,
+    assetListPage,
+    setAssetListPage,
+    assetListTotal,
+    setAssetListTotal,
+    selectedAssetIds,
+    setSelectedAssetIds,
+    trashFilters,
+    setTrashFilters,
+    trashAssets,
+    setTrashAssets,
+    trashLoading,
+    setTrashLoading,
+    restoreModal,
+    setRestoreModal,
+  } = useAssetsDomainState()
+
+  const refreshTokenPromiseRef = useRef(null)
+  const assetSearchDebounceRef = useRef(null)
+  const {
+    loadAssetStates,
+    loadMovementReasonCodes,
+    loadAssetTypes,
+    loadAssetEstablishments,
+    loadAssetListEstablishments,
+    loadAssetDependencies,
+    loadAssetListDependencies,
+    loadTransferEstablishmentsForAsset,
+    loadTransferDependenciesForEstablishment,
+    loadCatalogItems,
+    loadAssetsList,
+    loadDepreciationRuns,
+    loadTrash,
+    loadAssetMovements,
+    loadAssetEvidence,
+    submitDepreciationClose,
+    applyCatalogItem,
+    handleSelectCatalogItem,
+  } = useAssetsAdminData({
+    api,
+    setErr,
+    setOk,
+    openConfirm,
+    closeConfirm,
+    isCentral,
+    toPositiveIntOrNull,
+    formatCatalogItemDisplay,
+    suggestAssetDepreciation,
+    assetListPage,
+    assetListFilters,
+    assetCatalogItems,
+    depreciationCloseForm,
+    trashFilters,
+    catalogFilters,
+    setAssetStates,
+    setMovementReasonCodes,
+    setAssetTypes,
+    setAssetEstablishments,
+    setAssetListEstablishments,
+    setAssetDependencies,
+    setAssetListDependencies,
+    setTransferEstablishments,
+    setTransferDependencies,
+    setAssetCatalogItems,
+    setAssetsLoading,
+    setAssetsList,
+    setSelectedAssetIds,
+    setAssetListTotal,
+    setAssetListPage,
+    setDepreciationRuns,
+    setDepreciationRunsLoading,
+    setDepreciationClosing,
+    setTrashLoading,
+    setTrashAssets,
+    setAssetMovements,
+    setAssetHistoryLoading,
+    setEvidenceForm,
+    setAssetEvidence,
+    setAssetEvidenceLoading,
+    setSelectedCatalogItem,
+    setCatalogModalOpen,
+    setAssetForm,
+  })
+  const {
+    submitEvidenceUpload,
+    prepareEvidenceDocType,
+    downloadEvidence,
+    getMovementReasonLabel,
+    getMovementTitle,
+    getMovementRouteLabel,
+    isActaEligibleMovement,
+    prepareEvidenceForMovement,
+    openMovementActa,
+    restoreFromTrash,
+    confirmRestoreFromTrash,
+    handleCreateAsset,
+    openCatalogAction,
+    selectAssetForModal,
+    submitEditAsset,
+    submitMoveAsset,
+    submitTransferAsset,
+    submitStatusAsset,
+  } = useAssetsAdminActions({
+    api,
+    apiMultipart,
+    apiText,
+    downloadFile,
+    setErr,
+    setOk,
+    isCentral,
+    withMappedError,
+    getAssetCreateConflictMessage,
+    getMoveConflictMessage,
+    toPositiveIntOrNull,
+    getSafeAssetId,
+    validateAssetForm,
+    normalizeRutValue,
+    normalizeCostCenterValue,
+    calculateStraightLineDepreciation,
+    loadAssetDependencies,
+    loadTransferEstablishmentsForAsset,
+    loadAssetStates,
+    loadMovementReasonCodes,
+    loadAssetsList,
+    loadAssetEvidence,
+    loadTrash,
+    assetForm,
+    assetHasResponsible,
+    assetMultiProductEnabled,
+    assetMultiProducts,
+    createdAsset,
+    editAssetForm,
+    editAssetHasResponsible,
+    moveAssetForm,
+    transferAssetForm,
+    statusAssetForm,
+    evidenceForm,
+    movementReasonCodes,
+    restoreModal,
+    assetStates,
+    setAssetCreating,
+    setAssetErrors,
+    setCreatedAsset,
+    setCreatedAssetBatch,
+    setEditAssetForm,
+    setMoveAssetForm,
+    setTransferAssetForm,
+    setTransferDependencies,
+    setStatusAssetForm,
+    setEditAssetHasResponsible,
+    setEvidenceForm,
+    setRestoreModal,
+    setSelectedCatalogItem,
+    setCatalogModalOpen,
+    setCatalogAction,
+    setAssetDependencies,
+  })
+
+  const {
+    importFile,
+    setImportFile,
+    importLoading,
+    setImportLoading,
+    importResult,
+    setImportResult,
+    importErrors,
+    setImportErrors,
+    importSchemaDetails,
+    previewHeaders,
+    previewRows,
+    previewMissing,
+    previewInvalidCells,
+    catalogImportFile,
+    setCatalogImportFile,
+    catalogImportLoading,
+    catalogImportResult,
+    catalogImportErrors,
+    snBaseFile,
+    snBaseLoading,
+    snBaseParsed,
+    snBaseImporting,
+    snBaseImportResult,
+    catalogManualForm,
+    setCatalogManualForm,
+    catalogAdminItems,
+    setCatalogAdminItems,
+    catalogAdminOriginal,
+    catalogAdminLoading,
+    catalogAdminQuery,
+    setCatalogAdminQuery,
+    catalogAdminPage,
+    catalogAdminTotal,
+    catalogAdminRowStatus,
+    catalogAdminKeyStatus,
+    manualOfficialKeyCheck,
+    setManualOfficialKeyCheck,
+    importHistory,
+    importHistoryPage,
+    importHistoryTotal,
+    importHistoryLoading,
+    importHistoryOpen,
+    setImportHistoryOpen,
+    importHistoryFilters,
+    setImportHistoryFilters,
+    handleSnBaseFileChange,
+    handleSnBaseImportToCatalog,
+    handlePreviewFile,
+    handleImportUpload,
+    handleCatalogImportUpload,
+    handleCatalogManualCreate,
+    checkManualOfficialKeyAvailability,
+    loadCatalogAdminItems,
+    updateCatalogAdminItem,
+    scheduleCatalogAdminOfficialKeyValidation,
+    discardCatalogAdminItem,
+    loadImportHistory,
+    loadImportJobStatus,
+    resumeImportJob,
+  } = useImportsAdmin({
+    api,
+    setErr,
+    setOk,
+    activeTab,
+    importsView,
+    loadXlsxLib,
+    apiBase: API_BASE,
+    token,
+    getCatalogConflictMessage,
+    withMappedError,
+    catalogAdminTake: CATALOG_ADMIN_TAKE,
+    importRequiredGroups: IMPORT_REQUIRED_GROUPS,
+    importPlaceholderValues: IMPORT_PLACEHOLDER_VALUES,
+  })
+
+  const {
+    planchetaFilters,
+    setPlanchetaFilters,
+    planchetaInstitutions,
+    planchetaEstablishments,
+    setPlanchetaEstablishments,
+    planchetaDependencies,
+    setPlanchetaDependencies,
+    planchetaPreview,
+    planchetaSummary,
+    planchetaDirectory,
+    planchetaInsights,
+    planchetaPreviewLoading,
+    loadingPlancheta,
+    planchetaMessage,
+    planchetaQuery,
+    canPreviewPlancheta,
+    canExportPlancheta,
+    loadPlanchetaEstablishments,
+    loadPlanchetaDependencies,
+    loadPlanchetaPreview,
+    downloadPlancheta,
+    formatPlanchetaMovement,
+  } = usePlanchetasAdmin({
+    api,
+    downloadFile,
+    setErr,
+    currentUser,
+    tokenClaims,
+    isAuthed,
+    activeTab,
+  })
+  const {
+    labelData,
+    createdLabel,
+    downloadLabelPdf,
+    openPrintLabel,
+    openPrintBatchLabels,
+    openPrintAssetListLabels,
+    toggleSelectedAsset,
+    toggleSelectAllVisibleAssets,
+    clearSelectedAssets,
+    openPrintSelectedAssetLabels,
+    openPrintPlanchetaLabels,
+    resolveScannedAsset,
+    copyTechnicalSheetLink,
+  } = useAssetLabelsAndScan({
+    api,
+    setErr,
+    setOk,
+    apiBase: API_BASE,
+    publicSheetBase: PUBLIC_SHEET_BASE,
+    loadQrCodeLib,
+    loadJsBarcodeLib,
+    loadJsPdfLib,
+    loadHtml2CanvasLib,
+    toPositiveIntOrNull,
+    createdAsset,
+    createdAssetBatch,
+    qrCodeUrl,
+    setQrCodeUrl,
+    assetListTotal,
+    assetsList,
+    assetListFilters,
+    selectedAssetIds,
+    setSelectedAssetIds,
+    planchetaPreview,
+    scanInput,
+    setScanResult,
+    selectAssetForModal,
+  })
+  const {
+    adminAudits,
+    adminAuditLoading,
+    adminAuditPage,
+    adminAuditTotal,
+    loginAudits,
+    loginAuditLoading,
+    loginAuditPage,
+    loginAuditTotal,
+    loginMetrics,
+    loginMetricsHourly,
+    loginMetricsByIp,
+    loginMetricsByUser,
+    metricsTop,
+    setMetricsTop,
+    hourlySort,
+    setHourlySort,
+    ipSort,
+    setIpSort,
+    userSort,
+    setUserSort,
+    metricsFilters,
+    setMetricsFilters,
+    auditFilters,
+    setAuditFilters,
+    loginAuditFilters,
+    setLoginAuditFilters,
+    auditCleanupForm,
+    setAuditCleanupForm,
+    applyAuditRangePreset,
+    buildAdminAuditParams,
+    buildLoginAuditParams,
+    resetAdminAuditFilters,
+    resetLoginAuditFilters,
+    loadAdminAudits,
+    loadLoginAudits,
+    loadLoginMetrics,
+    runAuditCleanup,
+  } = useAuditAdmin({
+    api,
+    setErr,
+    setOk,
+    openConfirm,
+    closeConfirm,
+  })
+  const [showHeroNotice, setShowHeroNotice] = useState(true)
 
   useEffect(() => {
     if (!isAuthed) {
@@ -981,6 +1232,54 @@ function App() {
     window.URL.revokeObjectURL(url)
   }
 
+  async function apiText(path, { method = 'GET', retry = true, overrideToken = '' } = {}) {
+    const normalizedPath = sanitizeTakeInPath(path)
+    const authToken = resolveAuthToken(overrideToken)
+    const res = await fetch(`${API_BASE}${normalizedPath}`, {
+      method,
+      headers: {
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+      },
+      credentials: 'include',
+    })
+
+    if (res.status === 401 && retry) {
+      const nextToken = await refreshSessionToken()
+      if (nextToken) {
+        return apiText(normalizedPath, {
+          method,
+          retry: false,
+          overrideToken: nextToken,
+        })
+      }
+    }
+
+    const text = await res.text()
+    if (!res.ok) {
+      let json = null
+      try {
+        json = text ? JSON.parse(text) : null
+      } catch {
+        json = null
+      }
+      const requestId = json?.requestId || res.headers.get('x-request-id') || null
+      const code = json?.code || getFallbackCodeByStatus(res.status)
+      const msg = resolveApiErrorMessage({
+        status: res.status,
+        code,
+        serverMessage: json?.error || text || `HTTP ${res.status}`,
+        requestId,
+      })
+      const err = new Error(msg)
+      err.status = res.status
+      err.code = code
+      err.requestId = requestId
+      err.details = json?.details || null
+      throw err
+    }
+    return text
+  }
+
   function csvEscape(value) {
     const text = String(value ?? '')
     if (text.includes('"') || text.includes(',') || text.includes('\n')) {
@@ -1061,7 +1360,7 @@ function App() {
       return 'El establecimiento ya estaba activo.'
     }
     if (err?.code === 'ESTABLISHMENT_HAS_ACTIVE_DEPENDENCIES') {
-      return 'No se puede dar de baja: tiene dependencias activas.'
+      return 'No se puede dar de baja: tiene sectores activos.'
     }
     if (err?.code === 'ESTABLISHMENT_HAS_ACTIVE_USERS') {
       return 'No se puede dar de baja: tiene usuarios activos.'
@@ -1083,32 +1382,19 @@ function App() {
       return err?.message || fallback
     }
     if (err?.code === 'DEPENDENCY_ALREADY_INACTIVE') {
-      return 'La dependencia ya estaba inactiva.'
+      return 'El sector ya estaba inactivo.'
     }
     if (err?.code === 'DEPENDENCY_ALREADY_ACTIVE') {
-      return 'La dependencia ya estaba activa.'
+      return 'El sector ya estaba activo.'
     }
     if (err?.code === 'DEPENDENCY_HAS_ACTIVE_ASSETS') {
       return 'No se puede dar de baja: tiene activos vigentes.'
     }
     if (err?.code === 'DEPENDENCY_HARD_DELETE_REQUIRES_INACTIVE') {
-      return 'Para eliminar definitivamente, primero debes dar de baja la dependencia.'
+      return 'Para eliminar definitivamente, primero debes dar de baja el sector.'
     }
     if (err?.code === 'DEPENDENCY_HARD_DELETE_HAS_RELATIONS') {
       return 'No se puede eliminar definitivamente: todavia tiene registros relacionados.'
-    }
-    return err?.message || fallback
-  }
-
-  function getPlanchetaErrorMessage(err, fallback) {
-    if (err?.code === 'PLANCHETA_INVALID_DATE_FORMAT') {
-      const field = err?.details?.field
-      if (field === 'fromDate') return 'Fecha "desde" invalida. Usa formato YYYY-MM-DD.'
-      if (field === 'toDate') return 'Fecha "hasta" invalida. Usa formato YYYY-MM-DD.'
-      return 'Formato de fecha invalido. Usa YYYY-MM-DD.'
-    }
-    if (err?.code === 'PLANCHETA_INVALID_DATE_RANGE') {
-      return 'Rango de fechas invalido: "desde" no puede ser mayor que "hasta".'
     }
     return err?.message || fallback
   }
@@ -1121,13 +1407,13 @@ function App() {
       return 'No se puede mover: el activo fijo esta dado de baja.'
     }
     if (err?.code === 'ASSET_RELOCATE_SAME_DEPENDENCY') {
-      return 'El activo fijo ya esta en esa dependencia.'
+      return 'El activo fijo ya esta en ese sector.'
     }
     if (err?.code === 'ASSET_RELOCATE_TARGET_DEPENDENCY_INACTIVE') {
-      return 'No se puede mover: la dependencia destino esta inactiva.'
+      return 'No se puede mover: el sector destino esta inactivo.'
     }
     if (err?.code === 'ASSET_RELOCATE_CROSS_ESTABLISHMENT_FORBIDDEN') {
-      return 'No se puede mover a una dependencia de otro establecimiento.'
+      return 'No se puede mover a un sector de otro establecimiento.'
     }
     return err?.message || fallback
   }
@@ -1186,423 +1472,6 @@ function App() {
     }
   }
 
-  async function fetchCatalogIds() {
-    const [establishments, dependencies, assetStates, assetTypes] = await Promise.all([
-      api('/catalog/establishments?take=100'),
-      api('/catalog/dependencies?take=100'),
-      api('/catalog/asset-states?take=100'),
-      api('/catalog/asset-types?take=100'),
-    ])
-    return {
-      establishments: new Set((establishments.items || []).map((i) => i.id)),
-      dependencies: new Set((dependencies.items || []).map((i) => i.id)),
-      assetStates: new Set((assetStates.items || []).map((i) => i.id)),
-      assetTypes: new Set((assetTypes.items || []).map((i) => i.id)),
-    }
-  }
-
-  function normalizePreviewHeader(value) {
-    return String(value || '')
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .trim()
-      .replace(/\s+/g, '')
-      .replace(/_/g, '')
-      .toLowerCase()
-  }
-
-  function isImportPlaceholderValue(value) {
-    const normalized = String(value || '')
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .trim()
-      .replace(/\s+/g, ' ')
-      .toLowerCase()
-    return IMPORT_PLACEHOLDER_VALUES.has(normalized)
-  }
-
-  function normalizeSnCell(value) {
-    return String(value || '')
-      .replace(/\s+/g, ' ')
-      .trim()
-  }
-
-  function parseSnInventoryRows(rows) {
-    if (!Array.isArray(rows) || !rows.length) {
-      return {
-        rowsRead: 0,
-        blockCount: 0,
-        items: [],
-        catalogItems: [],
-      }
-    }
-
-    const headerRowIndex = rows.findIndex((row) => {
-      const values = (row || []).map((cell) => normalizeSnCell(cell).toLowerCase())
-      return values.includes('insumo') && values.includes('cantidad')
-    })
-
-    if (headerRowIndex < 0) {
-      throw new Error(
-        'Formato SN no detectado: debe incluir una fila con columnas Insumo y Cantidad.'
-      )
-    }
-
-    const headerRow = rows[headerRowIndex] || []
-    const categoryRow = rows[headerRowIndex + 1] || []
-    const dataRows = rows.slice(headerRowIndex + 2)
-
-    const insumoCols = []
-    const cantidadCols = []
-    headerRow.forEach((cell, idx) => {
-      const key = normalizeSnCell(cell).toLowerCase()
-      if (key === 'insumo') insumoCols.push(idx)
-      if (key === 'cantidad') cantidadCols.push(idx)
-    })
-
-    const blocks = insumoCols
-      .map((nameCol) => {
-        const qtyCol = cantidadCols.find((c) => c > nameCol && c <= nameCol + 2)
-        return qtyCol !== undefined ? { nameCol, qtyCol } : null
-      })
-      .filter(Boolean)
-
-    const categoryByCol = {}
-    let currentCategory = 'SIN_CATEGORIA'
-    for (let col = 0; col < categoryRow.length; col += 1) {
-      const value = normalizeSnCell(categoryRow[col])
-      if (value) currentCategory = value
-      categoryByCol[col] = currentCategory
-    }
-
-    const grouped = new Map()
-    dataRows.forEach((row) => {
-      blocks.forEach(({ nameCol, qtyCol }) => {
-        const name = normalizeSnCell(row?.[nameCol])
-        if (!name) return
-        const rawQty = normalizeSnCell(row?.[qtyCol]).replace(',', '.')
-        const quantity = Number(rawQty)
-        if (!Number.isFinite(quantity) || quantity <= 0) return
-
-        const category = normalizeSnCell(categoryByCol[nameCol] || categoryByCol[qtyCol]) || 'SIN_CATEGORIA'
-        const key = `${category.toUpperCase()}::${name.toUpperCase()}`
-        const current = grouped.get(key) || { category, name, quantity: 0, rows: 0 }
-        current.quantity += quantity
-        current.rows += 1
-        grouped.set(key, current)
-      })
-    })
-
-    const items = Array.from(grouped.values()).sort((a, b) => {
-      const cat = a.category.localeCompare(b.category, 'es')
-      if (cat !== 0) return cat
-      return a.name.localeCompare(b.name, 'es')
-    })
-
-    const catalogItems = items.map((item) => ({
-      name: item.name,
-      category: item.category,
-      subcategory: 'BASE_SN',
-      description: `Base SN | Cantidad referencial: ${item.quantity}`,
-      unit: 'unidad',
-    }))
-
-    return {
-      rowsRead: dataRows.length,
-      blockCount: blocks.length,
-      items,
-      catalogItems,
-    }
-  }
-
-  async function handleSnBaseFileChange(file) {
-    setSnBaseFile(file || null)
-    setSnBaseImportResult(null)
-    if (!file) {
-      setSnBaseParsed(null)
-      return
-    }
-    setSnBaseLoading(true)
-    try {
-      const buffer = await file.arrayBuffer()
-      const XLSX = await loadXlsxLib()
-      const workbook = XLSX.read(buffer, { type: 'array' })
-      const firstSheetName = workbook.SheetNames[0]
-      if (!firstSheetName) {
-        throw new Error('El archivo no contiene hojas para procesar.')
-      }
-      const sheet = workbook.Sheets[firstSheetName]
-      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
-      const parsed = parseSnInventoryRows(rows)
-      setSnBaseParsed(parsed)
-    } catch (err) {
-      setSnBaseParsed(null)
-      setErr(err, 'No se pudo leer el formato Base Inventario SN.')
-    } finally {
-      setSnBaseLoading(false)
-    }
-  }
-
-  async function handleSnBaseImportToCatalog() {
-    if (!snBaseParsed?.catalogItems?.length) {
-      setErr('Primero carga y analiza un archivo Base SN valido.')
-      return
-    }
-    setSnBaseImporting(true)
-    setSnBaseImportResult(null)
-    try {
-      const result = await api('/admin/catalog-items/bulk', {
-        method: 'POST',
-        body: { items: snBaseParsed.catalogItems },
-      })
-      setSnBaseImportResult(result)
-      setOk('Base SN convertida e importada a catalogo.')
-      if (activeTab === 'imports' && importsView === 'catalog') {
-        await loadCatalogAdminItems(1)
-      }
-    } catch (err) {
-      setErr(err, 'No se pudo importar Base SN al catalogo.')
-    } finally {
-      setSnBaseImporting(false)
-    }
-  }
-
-  async function handlePreviewFile(file) {
-    if (!file) {
-      setPreviewHeaders([])
-      setPreviewRows([])
-      setPreviewMissing([])
-      setPreviewInvalidCells({})
-      return
-    }
-    try {
-      const buffer = await file.arrayBuffer()
-      const XLSX = await loadXlsxLib()
-      const workbook = XLSX.read(buffer, { type: 'array' })
-      const sheetName = workbook.SheetNames[0]
-      if (!sheetName) {
-        setPreviewHeaders([])
-        setPreviewRows([])
-        setPreviewMissing([])
-        setPreviewInvalidCells({})
-        return
-      }
-      const sheet = workbook.Sheets[sheetName]
-      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
-      const headers = Array.isArray(rows[0]) ? rows[0] : []
-      const normalized = headers.map((h) => normalizePreviewHeader(h))
-      const missing = []
-
-      const preview = rows.slice(1, 11)
-      const invalidMap = {}
-      const columnIndexByKey = {}
-      normalized.forEach((key, idx) => {
-        columnIndexByKey[key] = idx
-      })
-
-      let catalogSets = null
-      if (token) {
-        try {
-          catalogSets = await fetchCatalogIds()
-        } catch {
-          catalogSets = null
-        }
-      }
-
-      preview.forEach((row, rowIdx) => {
-        const base = rowIdx + 1
-        const invalidCols = []
-        IMPORT_REQUIRED_GROUPS.forEach((group) => {
-          const normalizedKeys = group.keys.map((key) => normalizePreviewHeader(key))
-          const colIdx = normalizedKeys
-            .map((key) => columnIndexByKey[key])
-            .find((idx) => idx !== undefined)
-          if (colIdx === undefined) return
-          const value = row[colIdx]
-          const str = String(value || '').trim()
-          if (!str) return
-          if (group.label === 'Valor Adquisicion') {
-            if (isImportPlaceholderValue(value)) return
-            const num = Number(value)
-            if (!Number.isFinite(num) || num <= 0) invalidCols.push(colIdx)
-          }
-          if (group.label === 'Fecha Adquisicion' && isImportPlaceholderValue(value)) {
-            return
-          }
-        })
-
-        if (catalogSets) {
-          const idChecks = [
-            { key: 'establishmentid', set: catalogSets.establishments },
-            { key: 'dependencyid', set: catalogSets.dependencies },
-            { key: 'assetstateid', set: catalogSets.assetStates },
-            { key: 'assettypeid', set: catalogSets.assetTypes },
-          ]
-          idChecks.forEach((check) => {
-            const colIdx = columnIndexByKey[check.key]
-            if (colIdx === undefined) return
-            const raw = String(row[colIdx] || '').trim()
-            if (!raw) return
-            const value = Number(row[colIdx])
-            if (!Number.isFinite(value) || !check.set.has(value)) {
-              invalidCols.push(colIdx)
-            }
-          })
-        }
-
-        if (invalidCols.length) {
-          invalidMap[base] = Array.from(new Set(invalidCols))
-        }
-      })
-
-      setPreviewHeaders(headers)
-      setPreviewRows(preview)
-      setPreviewMissing(missing)
-      setPreviewInvalidCells(invalidMap)
-    } catch {
-      setPreviewHeaders([])
-      setPreviewRows([])
-      setPreviewMissing([])
-      setPreviewInvalidCells({})
-    }
-  }
-
-  async function handleImportUpload() {
-    if (!importFile) {
-      setErr('Selecciona un archivo .xlsx antes de importar.')
-      return
-    }
-
-    setImportLoading(true)
-    setImportResult(null)
-    setImportSchemaDetails(null)
-    setImportErrors([])
-    stopImportJobPolling()
-
-    try {
-      const formData = new FormData()
-      formData.append('file', importFile)
-
-      const res = await fetch(`${API_BASE}/assets/import/excel`, {
-        method: 'POST',
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: formData,
-      })
-
-      const text = await res.text()
-      let json = null
-      try {
-        json = text ? JSON.parse(text) : null
-      } catch {
-        json = null
-      }
-
-      if (!res.ok) {
-        if (json?.code === 'IMPORT_SCHEMA') {
-          setImportSchemaDetails(json?.details || json)
-        }
-        const msg = json?.error || text || `HTTP ${res.status}`
-        throw new Error(msg)
-      }
-
-      const normalized = normalizeImportJobPayload(json)
-      setImportResult(normalized)
-      setImportErrors(normalized?.errorItems || [])
-      if (normalized?.status === 'PROCESSING' && normalized?.id) {
-        loadImportHistory(1)
-        scheduleImportJobPoll(normalized.id)
-        setOk('Importacion en proceso por bloques.')
-      } else {
-        setImportLoading(false)
-        setOk(UI_STATUS.importCompleted)
-      }
-    } catch (err) {
-      stopImportJobPolling()
-      setImportLoading(false)
-      setErr(err, 'Error al importar Excel.')
-    }
-  }
-
-  async function handleCatalogImportUpload() {
-    if (!catalogImportFile) {
-      setErr('Selecciona un archivo de catalogo (.xlsx) antes de importar.')
-      return
-    }
-
-    setCatalogImportLoading(true)
-    setCatalogImportResult(null)
-    setCatalogImportErrors([])
-
-    try {
-      const formData = new FormData()
-      formData.append('file', catalogImportFile)
-
-      const res = await fetch(`${API_BASE}/admin/catalog-items/import/excel`, {
-        method: 'POST',
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: formData,
-      })
-
-      const text = await res.text()
-      let json = null
-      try {
-        json = text ? JSON.parse(text) : null
-      } catch {
-        json = null
-      }
-
-      if (!res.ok) {
-        const msg = json?.error || text || `HTTP ${res.status}`
-        throw new Error(msg)
-      }
-
-      setCatalogImportResult(json)
-      setCatalogImportErrors(json?.errors || [])
-      setOk(UI_STATUS.catalogBulkImportCompleted)
-    } catch (err) {
-      setErr(err, 'Error al importar catalogo por Excel.')
-    } finally {
-      setCatalogImportLoading(false)
-    }
-  }
-
-  async function handleCatalogManualCreate() {
-    try {
-      const payload = {
-        officialKey: catalogManualForm.officialKey.trim() || undefined,
-        name: catalogManualForm.name.trim(),
-        category: catalogManualForm.category.trim(),
-        subcategory: catalogManualForm.subcategory.trim() || undefined,
-        brand: catalogManualForm.brand.trim() || undefined,
-        modelName: catalogManualForm.modelName.trim() || undefined,
-        description: catalogManualForm.description.trim() || undefined,
-        unit: catalogManualForm.unit.trim() || undefined,
-      }
-
-      await api('/admin/catalog-items', { method: 'POST', body: payload })
-      setCatalogManualForm({
-        officialKey: '',
-        name: '',
-        category: '',
-        subcategory: '',
-        brand: '',
-        modelName: '',
-        description: '',
-        unit: 'unidad',
-      })
-      await loadCatalogAdminItems(catalogAdminPage)
-      setManualOfficialKeyCheck(null)
-      setOk('Item de catalogo creado manualmente.')
-    } catch (err) {
-      const message = getCatalogConflictMessage(err, 'No se pudo crear el item de catalogo.')
-      setErr(withMappedError(err, message, 'No se pudo crear el item de catalogo.'))
-    }
-  }
-
   async function purgeCatalogAllWithReset() {
     openConfirm({
       title: 'Vaciar catalogo',
@@ -1633,207 +1502,6 @@ function App() {
     return purgeCatalogAllWithReset()
   }
 
-  async function checkManualOfficialKeyAvailability() {
-    const raw = catalogManualForm.officialKey?.trim()
-    if (!raw) {
-      setManualOfficialKeyCheck({
-        type: 'info',
-        message: 'No hay officialKey para validar.',
-      })
-      return
-    }
-    try {
-      const params = new URLSearchParams()
-      params.set('officialKey', raw)
-      const data = await api(`/admin/catalog-items/official-key-availability?${params.toString()}`)
-      if (data.available) {
-        setManualOfficialKeyCheck({
-          type: 'ok',
-          message: `Disponible (${data.normalizedOfficialKey}).`,
-        })
-      } else {
-        setManualOfficialKeyCheck({
-          type: 'error',
-          message: `En uso por #${data.conflictItem?.id} (${data.conflictItem?.name || 'sin nombre'}).`,
-        })
-      }
-    } catch (err) {
-      setManualOfficialKeyCheck({
-        type: 'error',
-        message: err?.message || 'No se pudo validar officialKey.',
-      })
-    }
-  }
-
-  async function loadCatalogAdminItems(page = catalogAdminPage) {
-    setCatalogAdminLoading(true)
-    try {
-      const safePage = Number(page)
-      const normalizedPage = Number.isFinite(safePage) && safePage > 0 ? safePage : 1
-      const skip = (normalizedPage - 1) * CATALOG_ADMIN_TAKE
-      const params = new URLSearchParams()
-      params.set('take', String(CATALOG_ADMIN_TAKE))
-      params.set('skip', String(skip))
-      if (catalogAdminQuery.trim()) params.set('q', catalogAdminQuery.trim())
-      const data = await api(`/admin/catalog-items?${params.toString()}`)
-      const items = data.items || []
-      setCatalogAdminItems(items)
-      setCatalogAdminTotal(data.total || 0)
-      setCatalogAdminPage(normalizedPage)
-
-      const snapshot = {}
-      items.forEach((item) => {
-        snapshot[item.id] = {
-          officialKey: item.officialKey || '',
-          name: item.name || '',
-          category: item.category || '',
-          subcategory: item.subcategory || '',
-          brand: item.brand || '',
-          modelName: item.modelName || '',
-          unit: item.unit || '',
-        }
-      })
-      setCatalogAdminOriginal(snapshot)
-      setCatalogAdminRowStatus({})
-      setCatalogAdminKeyStatus({})
-    } catch (err) {
-      setErr(err, UI_ERROR.couldNotLoad('items de catalogo'))
-    } finally {
-      setCatalogAdminLoading(false)
-    }
-  }
-
-  async function updateCatalogAdminItem(item) {
-    try {
-      setCatalogAdminRowStatus((prev) => ({
-        ...prev,
-        [item.id]: { type: 'info', message: UI_TEXT.saving },
-      }))
-      const body = {
-        officialKey: item.officialKey?.trim() || undefined,
-        name: item.name?.trim() || undefined,
-        category: item.category?.trim() || undefined,
-        subcategory: item.subcategory?.trim() || undefined,
-        brand: item.brand?.trim() || undefined,
-        modelName: item.modelName?.trim() || undefined,
-        unit: item.unit?.trim() || undefined,
-      }
-      const updated = await api(`/admin/catalog-items/${item.id}`, { method: 'PUT', body })
-      setCatalogAdminItems((prev) =>
-        prev.map((x) => (x.id === item.id ? { ...x, ...updated } : x))
-      )
-      setCatalogAdminOriginal((prev) => ({
-        ...prev,
-        [item.id]: {
-          officialKey: updated.officialKey || '',
-          name: updated.name || '',
-          category: updated.category || '',
-          subcategory: updated.subcategory || '',
-          brand: updated.brand || '',
-          modelName: updated.modelName || '',
-          unit: updated.unit || '',
-        },
-      }))
-      setCatalogAdminRowStatus((prev) => ({
-        ...prev,
-        [item.id]: { type: 'ok', message: 'Guardado' },
-      }))
-      setOk(UI_SUCCESS.catalogItemUpdated(item.id))
-    } catch (err) {
-      const message = getCatalogConflictMessage(err, 'Error al guardar')
-      setCatalogAdminRowStatus((prev) => ({
-        ...prev,
-        [item.id]: { type: 'error', message },
-      }))
-      setErr(withMappedError(err, message, 'Error al guardar'))
-    }
-  }
-
-  async function validateCatalogAdminOfficialKey(itemId, rawOfficialKey) {
-    const officialKey = String(rawOfficialKey || '').trim()
-    if (!officialKey) {
-      setCatalogAdminKeyStatus((prev) => ({
-        ...prev,
-        [itemId]: { type: 'info', message: '' },
-      }))
-      return
-    }
-
-    try {
-      setCatalogAdminKeyStatus((prev) => ({
-        ...prev,
-        [itemId]: { type: 'info', message: 'Validando officialKey...' },
-      }))
-      const params = new URLSearchParams()
-      params.set('officialKey', officialKey)
-      params.set('excludeId', String(itemId))
-      const data = await api(`/admin/catalog-items/official-key-availability?${params.toString()}`)
-      if (data.available) {
-        setCatalogAdminKeyStatus((prev) => ({
-          ...prev,
-          [itemId]: { type: 'ok', message: 'officialKey disponible' },
-        }))
-      } else {
-        setCatalogAdminKeyStatus((prev) => ({
-          ...prev,
-          [itemId]: {
-            type: 'error',
-            message: `officialKey en uso por #${data.conflictItem?.id || '?'}`,
-          },
-        }))
-      }
-    } catch (err) {
-      setCatalogAdminKeyStatus((prev) => ({
-        ...prev,
-        [itemId]: {
-          type: 'error',
-          message: err?.message || 'No se pudo validar officialKey',
-        },
-      }))
-    }
-  }
-
-  function scheduleCatalogAdminOfficialKeyValidation(itemId, officialKey) {
-    if (catalogKeyCheckTimers.current[itemId]) {
-      clearTimeout(catalogKeyCheckTimers.current[itemId])
-    }
-    catalogKeyCheckTimers.current[itemId] = setTimeout(() => {
-      validateCatalogAdminOfficialKey(itemId, officialKey)
-    }, 300)
-  }
-
-  function discardCatalogAdminItem(itemId) {
-    const original = catalogAdminOriginal[itemId]
-    if (!original) return
-    if (catalogKeyCheckTimers.current[itemId]) {
-      clearTimeout(catalogKeyCheckTimers.current[itemId])
-      delete catalogKeyCheckTimers.current[itemId]
-    }
-    setCatalogAdminItems((prev) =>
-      prev.map((x) =>
-        x.id === itemId
-          ? {
-              ...x,
-              officialKey: original.officialKey,
-              name: original.name,
-              category: original.category,
-              subcategory: original.subcategory,
-              brand: original.brand,
-              modelName: original.modelName,
-              unit: original.unit,
-            }
-          : x
-      )
-    )
-    setCatalogAdminRowStatus((prev) => ({
-      ...prev,
-      [itemId]: { type: 'info', message: 'Cambios descartados' },
-    }))
-    setCatalogAdminKeyStatus((prev) => ({
-      ...prev,
-      [itemId]: { type: 'info', message: '' },
-    }))
-  }
   function setOk(message) {
     setStatus({ type: 'ok', message, code: null, requestId: null, details: null })
     setStatusCopyFeedback('')
@@ -2071,1185 +1739,6 @@ function App() {
     }
   }
 
-  async function handleLogin(e) {
-    e.preventDefault()
-    const sanitizedLogin = {
-      email: String(login.email || '').trim(),
-      password: String(login.password || ''),
-    }
-    if (!sanitizedLogin.email || !sanitizedLogin.password.trim()) {
-      const message = getLoginErrorMessage({ code: 'VALIDATION_ERROR' })
-      setErr(message)
-      setLoginErrorModal({
-        open: true,
-        title: 'Datos invalidos',
-        message,
-      })
-      return
-    }
-    setIsLoginLoading(true)
-    const startedAt = Date.now()
-    const waitAtLeastOneSecond = async () => {
-      const elapsed = Date.now() - startedAt
-      const remaining = 1000 - elapsed
-      if (remaining > 0) {
-        await new Promise((resolve) => setTimeout(resolve, remaining))
-      }
-    }
-    try {
-      const result = await api('/auth/login', { method: 'POST', body: sanitizedLogin })
-      await waitAtLeastOneSecond()
-      localStorage.setItem('admin_token', result.token)
-      setToken(result.token)
-      if (result.user) {
-        localStorage.setItem('admin_user', JSON.stringify(result.user))
-        setCurrentUser(result.user)
-      }
-      setShowIntro(true)
-      setLoginErrorModal((prev) => ({ ...prev, open: false, message: '' }))
-      setOk(UI_STATUS.sessionStarted)
-    } catch (err) {
-      await waitAtLeastOneSecond()
-      const message = getLoginErrorMessage(err)
-      setErr({
-        ...err,
-        message,
-        requestId: null,
-        details: null,
-      })
-      setLoginErrorModal({
-        open: true,
-        title: 'Acceso denegado',
-        message,
-      })
-    } finally {
-      setIsLoginLoading(false)
-    }
-  }
-
-  async function handleLogout() {
-    try {
-      await api('/auth/logout', { method: 'POST' })
-    } catch {
-      // ignore
-    } finally {
-      localStorage.removeItem('admin_token')
-      localStorage.removeItem('admin_user')
-      if (dangerZoneLockTimerRef.current) {
-        clearTimeout(dangerZoneLockTimerRef.current)
-        dangerZoneLockTimerRef.current = null
-      }
-      setDangerZoneUnlockModalOpen(false)
-      setDangerZoneUnlockInput('')
-      setDangerZoneUnlockError('')
-      setDangerZoneUnlocked(false)
-      setToken('')
-      setCurrentUser(null)
-      setIsUserMenuOpen(false)
-      setIsChangePasswordOpen(false)
-      setOk(UI_STATUS.sessionClosed)
-    }
-  }
-
-  async function loadInstitutions(page = instPage) {
-    const take = 10
-    const skip = (page - 1) * take
-    const params = new URLSearchParams()
-    if (instQuery) params.set('q', instQuery)
-    if (instIncludeInactive) params.set('includeInactive', 'true')
-    params.set('take', String(take))
-    params.set('skip', String(skip))
-    const data = await api(`/admin/institutions?${params.toString()}`)
-    setInstitutions(data.items || [])
-    setInstTotal(data.total || 0)
-    const snapshot = {}
-    ;(data.items || []).forEach((i) => {
-      snapshot[i.id] = { name: i.name }
-    })
-    setInstOriginal(snapshot)
-  }
-
-  async function loadInstitutionCatalog() {
-    setLoadingInstitutions(true)
-    try {
-      const take = 100
-      let skip = 0
-      let total = 0
-      const collected = []
-      do {
-        const params = new URLSearchParams()
-        params.set('take', String(take))
-        params.set('skip', String(skip))
-        params.set('includeInactive', 'true')
-        const data = await api(`/catalog/institutions?${params.toString()}`)
-        const items = data.items || []
-        total = Number(data.total || 0)
-        collected.push(...items)
-        skip += take
-        if (!items.length) break
-      } while (skip < total && collected.length < 10000)
-      setInstitutionsCatalog(uniqueById(collected))
-    } finally {
-      setLoadingInstitutions(false)
-    }
-  }
-
-  function openChangePassword() {
-    setIsUserMenuOpen(true)
-    setIsChangePasswordOpen(true)
-    setChangePasswordForm({
-      currentPassword: '',
-      newPassword: '',
-      confirmPassword: '',
-    })
-  }
-
-  function closeChangePassword() {
-    setIsChangePasswordOpen(false)
-    setIsChangingPassword(false)
-    setChangePasswordForm({
-      currentPassword: '',
-      newPassword: '',
-      confirmPassword: '',
-    })
-  }
-
-  function toggleUserMenu() {
-    if (isUserMenuOpen) {
-      if (isChangePasswordOpen) closeChangePassword()
-      setIsUserMenuOpen(false)
-      return
-    }
-    setIsUserMenuOpen(true)
-  }
-
-  async function handleChangePassword(e) {
-    e.preventDefault()
-    if (!changePasswordForm.currentPassword || !changePasswordForm.newPassword) {
-      setErr('Completa clave actual y nueva clave.')
-      return
-    }
-    if (changePasswordForm.newPassword.length < 8) {
-      setErr('La nueva clave debe tener al menos 8 caracteres.')
-      return
-    }
-    if (changePasswordForm.newPassword !== changePasswordForm.confirmPassword) {
-      setErr('La confirmacion de clave no coincide.')
-      return
-    }
-
-    setIsChangingPassword(true)
-    try {
-      await api('/auth/change-password', {
-        method: 'POST',
-        body: {
-          currentPassword: changePasswordForm.currentPassword,
-          newPassword: changePasswordForm.newPassword,
-        },
-      })
-      setOk('Clave actualizada correctamente.')
-      closeChangePassword()
-    } catch (err) {
-      setErr(err, 'No se pudo actualizar la clave.')
-      setIsChangingPassword(false)
-    }
-  }
-
-  function armDangerZoneAutoLock() {
-    if (dangerZoneLockTimerRef.current) {
-      clearTimeout(dangerZoneLockTimerRef.current)
-      dangerZoneLockTimerRef.current = null
-    }
-    dangerZoneLockTimerRef.current = setTimeout(() => {
-      setDangerZoneUnlocked(false)
-      dangerZoneLockTimerRef.current = null
-    }, DANGER_ZONE_UNLOCK_TTL_MS)
-  }
-
-  async function unlockDangerZoneButtons() {
-    if (dangerZoneUnlocking) return
-    if (!DANGER_ZONE_UNLOCK_PASSWORD) {
-      setErr('Falta configurar VITE_DANGER_ZONE_UNLOCK_PASSWORD en frontend.')
-      return
-    }
-    setDangerZoneUnlockInput('')
-    setDangerZoneUnlockError('')
-    setDangerZoneUnlockModalOpen(true)
-  }
-
-  function closeDangerZoneUnlockModal() {
-    if (dangerZoneUnlocking) return
-    setDangerZoneUnlockModalOpen(false)
-    setDangerZoneUnlockInput('')
-    setDangerZoneUnlockError('')
-  }
-
-  async function submitDangerZoneUnlock(e) {
-    e?.preventDefault?.()
-    if (dangerZoneUnlocking) return
-    const secret = String(dangerZoneUnlockInput || '').trim()
-    if (!secret) {
-      setDangerZoneUnlockError('Debes ingresar la contrasena.')
-      return
-    }
-
-    setDangerZoneUnlocking(true)
-    setDangerZoneUnlockError('')
-    try {
-      if (secret !== DANGER_ZONE_UNLOCK_PASSWORD) throw new Error('Contrasena incorrecta.')
-      setDangerZoneUnlocked(true)
-      armDangerZoneAutoLock()
-      setDangerZoneUnlockModalOpen(false)
-      setDangerZoneUnlockInput('')
-      setDangerZoneUnlockError('')
-      setOk('Botones criticos desbloqueados por 10 minutos.')
-    } catch {
-      setDangerZoneUnlocked(false)
-      setDangerZoneUnlockError('Contrasena incorrecta.')
-    } finally {
-      setDangerZoneUnlocking(false)
-    }
-  }
-
-  function lockDangerZoneButtons() {
-    if (dangerZoneLockTimerRef.current) {
-      clearTimeout(dangerZoneLockTimerRef.current)
-      dangerZoneLockTimerRef.current = null
-    }
-    setDangerZoneUnlocked(false)
-    setOk('Botones criticos bloqueados.')
-  }
-
-  async function loadEstablishments(page = estPage) {
-    const take = 10
-    const skip = (page - 1) * take
-    const params = new URLSearchParams()
-    if (estFilters.q) params.set('q', estFilters.q)
-    if (estFilters.institutionId) params.set('institutionId', estFilters.institutionId)
-    if (estIncludeInactive) params.set('includeInactive', 'true')
-    params.set('take', String(take))
-    params.set('skip', String(skip))
-    const data = await api(`/admin/establishments?${params.toString()}`)
-    setEstablishments(data.items || [])
-    setEstTotal(data.total || 0)
-    const snapshot = {}
-    ;(data.items || []).forEach((e) => {
-      snapshot[e.id] = { name: e.name, type: e.type, rbd: e.rbd || '', commune: e.commune || '', institutionId: e.institutionId }
-    })
-    setEstOriginal(snapshot)
-  }
-
-  async function loadEstablishmentCatalog(institutionId) {
-    setLoadingEstablishments(true)
-    try {
-      const take = 100
-      let skip = 0
-      let total = 0
-      const collected = []
-      do {
-        const params = new URLSearchParams()
-        if (institutionId) {
-          const instId = Number(institutionId)
-          if (!Number.isNaN(instId)) params.set('institutionId', String(instId))
-        }
-        params.set('take', String(take))
-        params.set('skip', String(skip))
-        if (estIncludeInactive) params.set('includeInactive', 'true')
-        const data = await api(`/catalog/establishments?${params.toString()}`)
-        const items = data.items || []
-        total = Number(data.total || 0)
-        collected.push(...items)
-        skip += take
-        if (!items.length) break
-      } while (skip < total && collected.length < 10000)
-      setEstablishmentsCatalog(uniqueById(collected))
-    } finally {
-      setLoadingEstablishments(false)
-    }
-  }
-
-  async function loadDependencies(page = depPage) {
-    const take = 10
-    const skip = (page - 1) * take
-    const params = new URLSearchParams()
-    if (depFilters.q) params.set('q', depFilters.q)
-    if (depFilters.establishmentId) params.set('establishmentId', depFilters.establishmentId)
-    if (depIncludeInactive) params.set('includeInactive', 'true')
-    params.set('take', String(take))
-    params.set('skip', String(skip))
-    const data = await api(`/admin/dependencies?${params.toString()}`)
-    setDependencies(data.items || [])
-    setDepTotal(data.total || 0)
-    const snapshot = {}
-    ;(data.items || []).forEach((d) => {
-      snapshot[d.id] = { name: d.name, establishmentId: d.establishmentId }
-    })
-    setDepOriginal(snapshot)
-  }
-
-  async function loadDependencyCatalog(establishmentId) {
-    setLoadingDependencies(true)
-    try {
-      const take = 100
-      let skip = 0
-      let total = 0
-      const collected = []
-      do {
-        const params = new URLSearchParams()
-        if (establishmentId) {
-          const estId = Number(establishmentId)
-          if (!Number.isNaN(estId)) params.set('establishmentId', String(estId))
-        }
-        params.set('take', String(take))
-        params.set('skip', String(skip))
-        if (depIncludeInactive) params.set('includeInactive', 'true')
-        const data = await api(`/catalog/dependencies?${params.toString()}`)
-        const items = data.items || []
-        total = Number(data.total || 0)
-        collected.push(...items)
-        skip += take
-        if (!items.length) break
-      } while (skip < total && collected.length < 10000)
-      setDependenciesCatalog(uniqueById(collected))
-    } finally {
-      setLoadingDependencies(false)
-    }
-  }
-
-  async function loadImportHistory(page = importHistoryPage) {
-    setImportHistoryLoading(true)
-    try {
-      const take = 10
-      const skip = (page - 1) * take
-      const params = new URLSearchParams()
-      if (importHistoryFilters.fromDate) params.set('fromDate', importHistoryFilters.fromDate)
-      if (importHistoryFilters.toDate) params.set('toDate', importHistoryFilters.toDate)
-      if (importHistoryFilters.userId) params.set('userId', importHistoryFilters.userId)
-      params.set('take', String(take))
-      params.set('skip', String(skip))
-
-      const data = await api(`/assets/imports?${params.toString()}`)
-      setImportHistory(data.items || [])
-      setImportHistoryTotal(data.total || 0)
-      setImportHistoryPage(page)
-      setImportHistoryOpen(null)
-    } catch (err) {
-      setErr(err)
-    } finally {
-      setImportHistoryLoading(false)
-    }
-  }
-
-  async function loadAssetStates() {
-    const data = await api('/catalog/asset-states?take=100')
-    setAssetStates(data.items || [])
-  }
-
-  async function loadMovementReasonCodes() {
-    const data = await api('/assets/reason-codes')
-    setMovementReasonCodes({
-      transfer: data.transfer || [],
-      statusChange: data.statusChange || [],
-      restore: data.restore || [],
-    })
-  }
-
-  async function loadAssetTypes() {
-    const data = await api('/catalog/asset-types?take=100')
-    setAssetTypes(data.items || [])
-  }
-
-  async function loadAssetEstablishments(institutionId) {
-    try {
-      const take = 100
-      let skip = 0
-      let total = 0
-      const collected = []
-
-      do {
-        const params = new URLSearchParams()
-        if (institutionId) {
-          const instId = Number(institutionId)
-          if (!Number.isNaN(instId)) params.set('institutionId', String(instId))
-        }
-        params.set('take', String(take))
-        params.set('skip', String(skip))
-        params.set('includeInactive', 'true')
-        const data = await api(`/catalog/establishments?${params.toString()}`)
-        const items = data.items || []
-        total = Number(data.total || 0)
-        collected.push(...items)
-        skip += take
-        if (!items.length) break
-      } while (skip < total && collected.length < 10000)
-
-      setAssetEstablishments(uniqueById(collected))
-    } catch (err) {
-      setAssetEstablishments([])
-      setErr(err.message || 'No se pudieron cargar establecimientos.')
-    }
-  }
-
-  async function loadAssetListEstablishments(institutionId) {
-    try {
-      const take = 100
-      let skip = 0
-      let total = 0
-      const collected = []
-
-      do {
-        const params = new URLSearchParams()
-        if (institutionId) {
-          const instId = Number(institutionId)
-          if (!Number.isNaN(instId)) params.set('institutionId', String(instId))
-        }
-        params.set('take', String(take))
-        params.set('skip', String(skip))
-        params.set('includeInactive', 'true')
-        const data = await api(`/catalog/establishments?${params.toString()}`)
-        const items = data.items || []
-        total = Number(data.total || 0)
-        collected.push(...items)
-        skip += take
-        if (!items.length) break
-      } while (skip < total && collected.length < 10000)
-
-      setAssetListEstablishments(uniqueById(collected))
-    } catch (err) {
-      setAssetListEstablishments([])
-      setErr(err.message || 'No se pudieron cargar establecimientos.')
-    }
-  }
-
-  async function loadAssetDependencies(establishmentId) {
-    if (!establishmentId) {
-      setAssetDependencies([])
-      return
-    }
-    try {
-      const take = 100
-      let skip = 0
-      let total = 0
-      const collected = []
-
-      do {
-        const params = new URLSearchParams()
-        const estId = Number(establishmentId)
-        if (!Number.isNaN(estId)) params.set('establishmentId', String(estId))
-        params.set('take', String(take))
-        params.set('skip', String(skip))
-        params.set('includeInactive', 'true')
-        const data = await api(`/catalog/dependencies?${params.toString()}`)
-        const items = data.items || []
-        total = Number(data.total || 0)
-        collected.push(...items)
-        skip += take
-        if (!items.length) break
-      } while (skip < total && collected.length < 10000)
-
-      setAssetDependencies(uniqueById(collected))
-    } catch (err) {
-      setAssetDependencies([])
-      setErr(err.message || 'No se pudieron cargar dependencias.')
-    }
-  }
-
-  async function loadAssetListDependencies(establishmentId) {
-    if (!establishmentId) {
-      setAssetListDependencies([])
-      return
-    }
-    try {
-      const take = 100
-      let skip = 0
-      let total = 0
-      const collected = []
-
-      do {
-        const params = new URLSearchParams()
-        const estId = Number(establishmentId)
-        if (!Number.isNaN(estId)) params.set('establishmentId', String(estId))
-        params.set('take', String(take))
-        params.set('skip', String(skip))
-        params.set('includeInactive', 'true')
-        const data = await api(`/catalog/dependencies?${params.toString()}`)
-        const items = data.items || []
-        total = Number(data.total || 0)
-        collected.push(...items)
-        skip += take
-        if (!items.length) break
-      } while (skip < total && collected.length < 10000)
-
-      setAssetListDependencies(uniqueById(collected))
-    } catch (err) {
-      setAssetListDependencies([])
-      setErr(err.message || 'No se pudieron cargar dependencias.')
-    }
-  }
-
-  async function loadTransferEstablishmentsForAsset(asset) {
-    if (!asset) {
-      setTransferEstablishments([])
-      return
-    }
-    const params = new URLSearchParams()
-    const institutionId = asset?.establishment?.institutionId
-    if (institutionId) params.set('institutionId', String(institutionId))
-    params.set('take', '100')
-    const data = await api(`/catalog/establishments?${params.toString()}`)
-    const options = (data.items || []).filter(
-      (est) => String(est.id) !== String(asset.establishmentId)
-    )
-    setTransferEstablishments(options)
-  }
-
-  async function loadTransferDependenciesForEstablishment(establishmentId) {
-    if (!establishmentId) {
-      setTransferDependencies([])
-      return
-    }
-    const params = new URLSearchParams()
-    params.set('establishmentId', String(establishmentId))
-    params.set('take', '100')
-    const data = await api(`/catalog/dependencies?${params.toString()}`)
-    setTransferDependencies(data.items || [])
-  }
-
-  async function loadCatalogItems() {
-    const baseParams = new URLSearchParams()
-    if (catalogFilters.q) baseParams.set('q', catalogFilters.q)
-    if (catalogFilters.category) baseParams.set('category', catalogFilters.category)
-    if (catalogFilters.subcategory) baseParams.set('subcategory', catalogFilters.subcategory)
-    if (catalogFilters.brand) baseParams.set('brand', catalogFilters.brand)
-    if (catalogFilters.modelName) baseParams.set('modelName', catalogFilters.modelName)
-
-    const take = 100
-    let skip = 0
-    let total = 0
-    const collected = []
-
-    do {
-      const params = new URLSearchParams(baseParams)
-      params.set('take', String(take))
-      params.set('skip', String(skip))
-      const data = await api(`/catalog/items?${params.toString()}`)
-      const items = data.items || []
-      total = Number(data.total || 0)
-      collected.push(...items)
-      skip += take
-      if (!items.length) break
-    } while (skip < total && collected.length < 10000)
-
-    setAssetCatalogItems(collected)
-  }
-
-  async function loadAssetsList(page = assetListPage) {
-    setAssetsLoading(true)
-    try {
-      const safePage = Number(page)
-      const normalizedPage = Number.isFinite(safePage) && safePage > 0 ? safePage : 1
-      const take = 20
-      const skip = (normalizedPage - 1) * take
-      const params = new URLSearchParams()
-      const safeId = toPositiveIntOrNull(assetListFilters.id)
-      if (assetListFilters.id && !safeId) {
-        throw new Error('Filtro ID invalido. Usa solo numeros positivos.')
-      }
-      if (safeId) params.set('id', String(safeId))
-      if (assetListFilters.internalCode)
-        params.set('internalCode', assetListFilters.internalCode)
-      if (assetListFilters.q) params.set('q', assetListFilters.q)
-      if (assetListFilters.responsibleName)
-        params.set('responsibleName', assetListFilters.responsibleName)
-      if (assetListFilters.costCenter) params.set('costCenter', assetListFilters.costCenter)
-      if (assetListFilters.institutionId)
-        params.set('institutionId', assetListFilters.institutionId)
-      if (assetListFilters.establishmentId)
-        params.set('establishmentId', assetListFilters.establishmentId)
-      if (assetListFilters.dependencyId)
-        params.set('dependencyId', assetListFilters.dependencyId)
-      if (assetListFilters.assetStateId)
-        params.set('assetStateId', assetListFilters.assetStateId)
-      if (assetListFilters.includeDeleted) params.set('includeDeleted', 'true')
-      if (assetListFilters.fromDate) params.set('fromDate', assetListFilters.fromDate)
-      if (assetListFilters.toDate) params.set('toDate', assetListFilters.toDate)
-      params.set('take', String(take))
-      params.set('skip', String(skip))
-      params.set('withCount', 'true')
-      const data = await api(`/assets?${params.toString()}`)
-      const nextItems = data.items || []
-      setAssetsList(nextItems)
-      setSelectedAssetIds((prev) =>
-        prev.filter((id) => nextItems.some((item) => String(item.id) === String(id)))
-      )
-      setAssetListTotal(data.total || 0)
-      setAssetListPage(normalizedPage)
-    } catch (err) {
-      setAssetsList([])
-      setSelectedAssetIds([])
-      setAssetListTotal(0)
-      setErr(err)
-    } finally {
-      setAssetsLoading(false)
-    }
-  }
-
-  async function loadTrash() {
-    setTrashLoading(true)
-    try {
-      const params = new URLSearchParams()
-      if (trashFilters.q) params.set('q', trashFilters.q)
-      if (trashFilters.internalCode) params.set('internalCode', trashFilters.internalCode)
-      if (trashFilters.deletedFrom) params.set('deletedFrom', trashFilters.deletedFrom)
-      if (trashFilters.deletedTo) params.set('deletedTo', trashFilters.deletedTo)
-      params.set('includeDeleted', 'true')
-      params.set('onlyDeleted', 'true')
-      params.set('take', '50')
-      params.set('withCount', 'false')
-      const data = await api(`/assets?${params.toString()}`)
-      setTrashAssets(data.items || [])
-    } finally {
-      setTrashLoading(false)
-    }
-  }
-
-  async function loadAssetMovements(assetId) {
-    const safeAssetId = toPositiveIntOrNull(assetId)
-    if (!safeAssetId) {
-      setAssetMovements([])
-      return
-    }
-    try {
-      const data = await api(`/assets/${safeAssetId}/history`)
-      const movements = (data.movements || []).filter(
-        (m) => m.type === 'TRANSFER' || m.type === 'STATUS_CHANGE'
-      )
-      setAssetMovements(movements)
-      setEvidenceForm((prev) => ({
-        ...prev,
-        movementId:
-          prev.movementId ||
-          (movements[0]?.id ? String(movements[0].id) : ''),
-      }))
-    } catch {
-      setAssetMovements([])
-    }
-  }
-
-  async function loadAssetEvidence(assetId) {
-    const safeAssetId = toPositiveIntOrNull(assetId)
-    if (!safeAssetId) {
-      setAssetEvidence([])
-      return
-    }
-    setAssetEvidenceLoading(true)
-    try {
-      const data = await api(`/assets/${safeAssetId}/evidence?take=100&skip=0`)
-      setAssetEvidence(data.items || [])
-    } catch (err) {
-      setErr(err)
-    } finally {
-      setAssetEvidenceLoading(false)
-    }
-  }
-
-  async function submitEvidenceUpload() {
-    const assetId = getSafeAssetId(createdAsset)
-    if (!assetId) {
-      setErr('Activo fijo invalido para subir evidencia.')
-      return
-    }
-    if (!evidenceForm.file) {
-      setErr('Selecciona un archivo de evidencia.')
-      return
-    }
-    if (!evidenceForm.docType) {
-      setErr('Selecciona tipo de documento.')
-      return
-    }
-
-    try {
-      const formData = new FormData()
-      formData.append('docType', evidenceForm.docType)
-      if (evidenceForm.note?.trim()) formData.append('note', evidenceForm.note.trim())
-      if (evidenceForm.movementId) formData.append('movementId', evidenceForm.movementId)
-      formData.append('file', evidenceForm.file)
-
-      await apiMultipart(`/assets/${assetId}/evidence`, {
-        method: 'POST',
-        formData,
-      })
-      setEvidenceForm((prev) => ({
-        ...prev,
-        note: '',
-        file: null,
-      }))
-      const fileInput = document.getElementById('evidence-file-input')
-      if (fileInput) fileInput.value = ''
-      await loadAssetEvidence(assetId)
-      setOk('Evidencia subida correctamente.')
-    } catch (err) {
-      setErr(err)
-    }
-  }
-
-  async function downloadEvidence(item) {
-    const assetId = getSafeAssetId(createdAsset)
-    const evidenceId = toPositiveIntOrNull(item?.id)
-    if (!assetId || !evidenceId) return
-    try {
-      await downloadFile(
-        `/assets/${assetId}/evidence/${evidenceId}/download`,
-        item.fileName || `evidence_${item.id}`
-      )
-    } catch (err) {
-      setErr(err)
-    }
-  }
-
-  function restoreFromTrash(asset) {
-    const restoreCodes = movementReasonCodes.restore || []
-    if (!restoreCodes.length) {
-      setErr('No hay catalogo de motivos de restauracion disponible.')
-      return
-    }
-    setRestoreModal({
-      open: true,
-      asset,
-      reasonCode: restoreCodes[0]?.code || '',
-      docType: 'ACTA',
-      note: '',
-      file: null,
-    })
-  }
-
-  async function confirmRestoreFromTrash() {
-    const restoreAssetId = getSafeAssetId(restoreModal.asset)
-    if (!restoreAssetId) {
-      setErr('Activo fijo invalido para restaurar.')
-      return
-    }
-    if (!restoreModal.reasonCode) {
-      setErr('Selecciona un motivo de restauracion.')
-      return
-    }
-    if (!restoreModal.file) {
-      setErr('Adjunta evidencia (PDF/JPG/PNG) para restaurar.')
-      return
-    }
-    try {
-      const formData = new FormData()
-      formData.append('reasonCode', restoreModal.reasonCode)
-      formData.append('docType', restoreModal.docType)
-      if (restoreModal.note) formData.append('note', restoreModal.note)
-      formData.append('file', restoreModal.file)
-      await apiMultipart(`/assets/${restoreAssetId}/restore`, {
-        method: 'PUT',
-        formData,
-      })
-      setOk(UI_SUCCESS.assetRestored(restoreModal.asset.name))
-      setRestoreModal({
-        open: false,
-        asset: null,
-        reasonCode: '',
-        docType: 'ACTA',
-        note: '',
-        file: null,
-      })
-      await loadTrash()
-      await loadAssetsList()
-    } catch (err) {
-      if (err?.status === 409) {
-        await loadTrash()
-        await loadAssetsList()
-      }
-      setErr(err)
-    }
-  }
-
-  async function loadUsersAdmin(page = usersPage) {
-    setUsersLoading(true)
-    try {
-      const take = 10
-      const skip = (page - 1) * take
-      const params = new URLSearchParams()
-      if (userFilters.q) params.set('q', userFilters.q)
-      if (userFilters.roleType) params.set('roleType', userFilters.roleType)
-      if (userFilters.institutionId) params.set('institutionId', userFilters.institutionId)
-      if (userFilters.establishmentId)
-        params.set('establishmentId', userFilters.establishmentId)
-      if (userFilters.includeInactive) params.set('includeInactive', 'true')
-      params.set('take', String(take))
-      params.set('skip', String(skip))
-
-      const data = await api(`/admin/users?${params.toString()}`)
-      const mapped = (data.items || []).map((u) => ({
-        ...u,
-        roleType: u.role?.type || '',
-      }))
-      setUsers(mapped)
-      setUsersTotal(data.total || 0)
-      setUsersPage(page)
-
-      const snapshot = {}
-      mapped.forEach((u) => {
-        snapshot[u.id] = {
-          name: u.name || '',
-          roleType: u.roleType || '',
-          institutionId: u.institutionId || '',
-          establishmentId: u.establishmentId || '',
-        }
-      })
-      setUsersOriginal(snapshot)
-    } catch (err) {
-      setErr(err)
-    } finally {
-      setUsersLoading(false)
-    }
-  }
-
-  function applyUpdatedUserInList(updatedUser) {
-    if (!updatedUser?.id) return
-    setUsers((prev) =>
-      prev.map((item) =>
-        Number(item.id) === Number(updatedUser.id)
-          ? { ...item, ...updatedUser, roleType: updatedUser.role?.type || updatedUser.roleType || item.roleType }
-          : item
-      )
-    )
-  }
-
-  function syncCurrentUserPhotoIfNeeded(updatedUser) {
-    if (!updatedUser?.id) return
-    if (Number(currentUser?.id) !== Number(updatedUser.id)) return
-    const next = {
-      ...currentUser,
-      hasPhoto: Boolean(updatedUser.hasPhoto),
-      photoDataUrl: updatedUser.photoDataUrl || null,
-    }
-    setCurrentUser(next)
-    localStorage.setItem('admin_user', JSON.stringify(next))
-  }
-
-  async function saveUserPhotoAdmin(userId, file) {
-    if (!file) {
-      setErr('Selecciona una foto JPG/PNG antes de guardar.')
-      return
-    }
-    const formData = new FormData()
-    formData.append('file', file)
-    const updated = await apiMultipart(`/admin/users/${userId}/photo`, {
-      method: 'PUT',
-      formData,
-    })
-    applyUpdatedUserInList(updated)
-    syncCurrentUserPhotoIfNeeded(updated)
-    setUserPhotoFiles((prev) => ({ ...prev, [userId]: null }))
-    setOk(UI_STATUS.photoUpdated)
-  }
-
-  async function clearUserPhotoAdmin(userId) {
-    const updated = await api(`/admin/users/${userId}/photo`, { method: 'DELETE' })
-    applyUpdatedUserInList(updated)
-    syncCurrentUserPhotoIfNeeded(updated)
-    setUserPhotoFiles((prev) => ({ ...prev, [userId]: null }))
-    setOk('Usuario marcado sin foto.')
-  }
-
-  async function loadUserAssignmentOptions() {
-    try {
-      const institutionsRes = await api('/catalog/institutions?take=100')
-      setUserInstitutionOptions(institutionsRes.items || [])
-
-      const take = 100
-      let skip = 0
-      let total = 0
-      const allEstablishments = []
-      do {
-        const params = new URLSearchParams()
-        params.set('take', String(take))
-        params.set('skip', String(skip))
-        const page = await api(`/catalog/establishments?${params.toString()}`)
-        const items = page.items || []
-        total = Number(page.total || 0)
-        allEstablishments.push(...items)
-        skip += take
-        if (!items.length) break
-      } while (skip < total && allEstablishments.length < 10000)
-
-      setUserEstablishmentOptions(uniqueById(allEstablishments))
-    } catch (err) {
-      setErr(err)
-    }
-  }
-
-  async function createUserAdmin() {
-    try {
-      if (!userForm.name.trim() || !userForm.email.trim() || !userForm.password.trim()) {
-        setErr('Nombre, email y password son requeridos.')
-        return
-      }
-      const institutionId = toPositiveIntOrNull(userForm.institutionId)
-      const establishmentId = toPositiveIntOrNull(userForm.establishmentId)
-      if (userForm.roleType === 'ADMIN_CENTRAL') {
-        if (userForm.institutionId && !institutionId) {
-          setErr('Institution ID invalido. Debe ser un numero mayor a 0.')
-          return
-        }
-      } else {
-        if (!establishmentId) {
-          setErr('Establishment ID requerido para este rol (numero mayor a 0).')
-          return
-        }
-      }
-      const payload = {
-        name: userForm.name.trim(),
-        email: userForm.email.trim().toLowerCase(),
-        password: userForm.password,
-        roleType: userForm.roleType,
-      }
-      if (userForm.roleType === 'ADMIN_CENTRAL') {
-        if (institutionId) payload.institutionId = institutionId
-      } else if (establishmentId) {
-        payload.establishmentId = establishmentId
-      }
-
-      const created = await api('/admin/users', { method: 'POST', body: payload })
-      if (userFormPhotoFile && !userFormWithoutPhoto) {
-        await saveUserPhotoAdmin(created.id, userFormPhotoFile)
-      }
-      setUserForm({
-        name: '',
-        email: '',
-        password: '',
-        roleType: 'ADMIN_ESTABLISHMENT',
-        institutionId: '',
-        establishmentId: '',
-      })
-      setUserFormPhotoFile(null)
-      setUserFormWithoutPhoto(false)
-      await loadUsersAdmin(1)
-      setOk(UI_SUCCESS.userCreated(created.email))
-    } catch (err) {
-      setErr(err)
-    }
-  }
-
-  async function updateUserAdmin(user) {
-    try {
-      const institutionId = toPositiveIntOrNull(user.institutionId)
-      const establishmentId = toPositiveIntOrNull(user.establishmentId)
-      const payload = {
-        name: user.name,
-        roleType: user.roleType,
-      }
-      if (user.roleType === 'ADMIN_CENTRAL') {
-        if (user.institutionId && !institutionId) {
-          setErr('Institution ID invalido. Debe ser un numero mayor a 0.')
-          return
-        }
-        if (institutionId) payload.institutionId = institutionId
-      } else {
-        if (!establishmentId) {
-          setErr('Establishment ID requerido para este rol (numero mayor a 0).')
-          return
-        }
-        payload.establishmentId = establishmentId
-      }
-      const updated = await api(`/admin/users/${user.id}`, {
-        method: 'PUT',
-        body: payload,
-      })
-      setOk(UI_SUCCESS.userUpdated(updated.email))
-      await loadUsersAdmin(usersPage)
-    } catch (err) {
-      setErr(err)
-    }
-  }
-
-  async function deactivateUserAdmin(userId, email) {
-    openConfirm({
-      title: 'Desactivar usuario',
-      message: `Se desactivara ${email}. Podra quedar visible con "inactivos".`,
-      onConfirm: async () => {
-        try {
-          await api(`/admin/users/${userId}`, { method: 'DELETE' })
-          await loadUsersAdmin(usersPage)
-          setOk(UI_SUCCESS.userDeactivated(email))
-        } catch (err) {
-          setErr(err)
-        } finally {
-          closeConfirm()
-        }
-      },
-    })
-  }
-
-  async function reactivateUserAdmin(userId, email) {
-    try {
-      await api(`/admin/users/${userId}/reactivate`, { method: 'PUT' })
-      await loadUsersAdmin(usersPage)
-      setOk(UI_SUCCESS.userReactivated(email))
-    } catch (err) {
-      setErr(err)
-    }
-  }
-
-  async function resetUserPasswordAdmin(user) {
-    try {
-      const suggestedPassword = 'Temporal2026!'
-      const rawPassword = window.prompt(
-        `Nueva clave temporal para ${user.email}`,
-        suggestedPassword
-      )
-      if (rawPassword === null) return
-      const password = String(rawPassword).trim()
-      if (password.length < 8) {
-        setErr('La clave temporal debe tener al menos 8 caracteres.')
-        return
-      }
-      const result = await api(`/admin/users/${user.id}/reset-password`, {
-        method: 'POST',
-        body: { password },
-      })
-      setOk(`Clave restablecida para ${result.email}. Temporal: ${password}`)
-    } catch (err) {
-      setErr(err)
-    }
-  }
-
-  async function askCentralAssistant() {
-    try {
-      const question = String(assistantQuestion || '').trim()
-      if (question.length < 5) {
-        setErr('Escribe una consulta mas detallada (minimo 5 caracteres).')
-        return
-      }
-      setAssistantLoading(true)
-      const body = { question }
-      const institutionId = toPositiveIntOrNull(assistantScope.institutionId)
-      const establishmentId = toPositiveIntOrNull(assistantScope.establishmentId)
-      const dependencyId = toPositiveIntOrNull(assistantScope.dependencyId)
-      if (institutionId) body.institutionId = institutionId
-      if (establishmentId) body.establishmentId = establishmentId
-      if (dependencyId) body.dependencyId = dependencyId
-      const result = await api('/admin/assistant/ask', { method: 'POST', body })
-      setAssistantAnswer(result)
-      setOk('Asistente central respondio correctamente.')
-    } catch (err) {
-      setErr(err)
-    } finally {
-      setAssistantLoading(false)
-    }
-  }
-
-  async function createSupportRequestFromAssistant() {
-    if (!assistantAnswer?.question) {
-      setErr('Primero consulta al asistente para generar una solicitud.')
-      return
-    }
-    try {
-      const body = {
-        subject: assistantAnswer.suggestedSubject || `Solicitud central ${Date.now()}`,
-        question: assistantAnswer.question,
-        responseDraft: assistantAnswer.answer || '',
-        priority: assistantAnswer.suggestedPriority || 'MEDIUM',
-        dueHours: 72,
-        source: 'ASSISTANT_UI',
-      }
-      const notifyEmail = String(assistantNotifyEmail || '').trim()
-      if (notifyEmail) body.contactEmail = notifyEmail
-      const scope = assistantAnswer.scope || {}
-      if (scope.institutionId) body.institutionId = Number(scope.institutionId)
-      if (scope.establishmentId) body.establishmentId = Number(scope.establishmentId)
-      if (scope.dependencyId) body.dependencyId = Number(scope.dependencyId)
-      const created = await api('/admin/support-requests', { method: 'POST', body })
-      setOk(`Solicitud creada #${created.id}. SLA objetivo: 72 horas.`)
-      setSupportPage(1)
-      await loadSupportRequests(1)
-    } catch (err) {
-      setErr(err)
-    }
-  }
-
-  async function testAssistantSmtp() {
-    try {
-      setAssistantSmtpLoading(true)
-      const email = String(assistantNotifyEmail || '').trim()
-      const body = email ? { email } : {}
-      const result = await api('/admin/support-requests/test-email', { method: 'POST', body })
-      const status = result?.delivery?.status || 'unknown'
-      if (status === 'sent') {
-        setOk(`SMTP OK. Correo de prueba enviado a ${result.email}.`)
-      } else {
-        const reason = result?.delivery?.reason || 'SMTP_TEST_FAILED'
-        setErr({
-          message: `No se pudo enviar correo SMTP de prueba (${reason}).`,
-          code: reason,
-          details: result?.delivery || null,
-        })
-      }
-    } catch (err) {
-      setErr(err)
-    } finally {
-      setAssistantSmtpLoading(false)
-    }
-  }
-
-  async function loadSupportRequests(page = supportPage) {
-    try {
-      setSupportLoading(true)
-      const take = 10
-      const skip = (page - 1) * take
-      const params = new URLSearchParams()
-      if (supportFilters.q) params.set('q', supportFilters.q)
-      if (supportFilters.status) params.set('status', supportFilters.status)
-      if (supportFilters.priority) params.set('priority', supportFilters.priority)
-      params.set('take', String(take))
-      params.set('skip', String(skip))
-      const data = await api(`/admin/support-requests?${params.toString()}`)
-      setSupportRequests(data.items || [])
-      setSupportTotal(data.total || 0)
-      setSupportPage(page)
-    } catch (err) {
-      setErr(err)
-    } finally {
-      setSupportLoading(false)
-    }
-  }
-
-  async function updateSupportStatus(item, status) {
-    try {
-      await api(`/admin/support-requests/${item.id}/status`, {
-        method: 'PUT',
-        body: { status },
-      })
-      await loadSupportRequests(supportPage)
-      setOk(`Solicitud #${item.id} actualizada a ${status}.`)
-    } catch (err) {
-      setErr(err)
-    }
-  }
-
-  async function sendSupportComment(item) {
-    try {
-      const text = String(supportCommentDraft[item.id] || '').trim()
-      if (!text) {
-        setErr('Escribe un comentario antes de enviar.')
-        return
-      }
-      await api(`/admin/support-requests/${item.id}/comments`, {
-        method: 'POST',
-        body: { message: text },
-      })
-      setSupportCommentDraft((prev) => ({ ...prev, [item.id]: '' }))
-      await loadSupportRequests(supportPage)
-      setOk(`Comentario agregado en solicitud #${item.id}.`)
-    } catch (err) {
-      setErr(err)
-    }
-  }
-
   function validateAssetForm() {
     const errors = {}
     const useMultiProduct = assetMultiProductEnabled
@@ -3301,6 +1790,14 @@ function App() {
       const residual = Number(assetForm.residualValue)
       if (!Number.isFinite(residual) || residual < 0 || residual >= 100) {
         errors.residualValue = 'Debe ser un porcentaje entre 0 y menor a 100'
+      }
+    }
+    if (assetForm.depreciationStartDate) {
+      const startDate = new Date(assetForm.depreciationStartDate)
+      if (Number.isNaN(startDate.getTime())) {
+        errors.depreciationStartDate = 'Fecha invalida'
+      } else if (startDate.getTime() > Date.now()) {
+        errors.depreciationStartDate = 'No puede ser futura'
       }
     }
     if (!useMultiProduct && assetForm.usefulLifeYears !== '') {
@@ -3364,325 +1861,39 @@ function App() {
     }
   }
 
-  async function buildBarcodeDataUrl(value) {
-    const { default: JsBarcode } = await loadJsBarcodeLib()
-    const canvas = document.createElement('canvas')
-    JsBarcode(canvas, value, {
-      format: 'CODE39',
-      displayValue: false,
-      height: 40,
-      margin: 0,
-    })
-    return canvas.toDataURL('image/png')
-  }
-
-  const LABEL = {
-    widthMm: 40,
-    heightMm: 30,
-    marginMm: 1,
-    offsetX: 0,
-    offsetY: 0,
-    qrSizeMm: 25.8,
-    barcodeWidthMm: 12,
-    barcodeHeightMm: 2.2,
-  }
-  const LABEL_SHOW_BARCODE = false
-  const LABEL_QR_LEFT_MM = 0.2
-  const LABEL_QR_TOP_MM = 1.1
-  const LABEL_TEXT_RIGHT_MM = 0.6
-  const LABEL_TEXT_GAP_FROM_QR_MM = 0.6
-  const LABEL_CODE_TOP_MM = 1.8
-  const LABEL_BODY_TOP_MM = 7.2
-  const QR_PRINT_WIDTH_PX = 2200
-
-  async function buildQrLabelDataUrl(qrValue, qrCodeLib) {
-    if (!qrValue) return ''
-    return qrCodeLib.toDataURL(qrValue, {
-      margin: 1,
-      width: QR_PRINT_WIDTH_PX,
-      errorCorrectionLevel: 'M',
-      color: {
-        dark: '#000000',
-        light: '#FFFFFF',
-      },
-    })
-  }
-
-  function getLabelData(asset) {
-    const code = asset?.internalCode ? `INV-${asset.internalCode}` : ''
-    const name = asset?.name || asset?.catalogItem?.name || UI_TEXT.assetSingular
-    const responsibleName = asset?.responsibleName || ''
-    const assetId = getSafeAssetId(asset)
-    const technicalSheetUrl = buildAssetTechnicalSheetUrl(asset)
-    return {
-      code,
-      name,
-      responsibleName,
-      assetId,
-      technicalSheetUrl,
-    }
-  }
-
-  function truncateLabelText(value, maxLength = 26) {
-    const normalized = String(value || '').replace(/\s+/g, ' ').trim()
-    if (!normalized) return ''
-    if (normalized.length <= maxLength) return normalized
-    return `${normalized.slice(0, Math.max(0, maxLength - 1)).trimEnd()}...`
-  }
-
-  function splitLabelText(value, maxCharsPerLine = 12, maxLines = 2) {
-    const normalized = truncateLabelText(value, maxCharsPerLine * maxLines + 4)
-    if (!normalized) return []
-    const words = normalized.split(/\s+/).filter(Boolean)
-    const lines = []
-    let current = ''
-    for (const word of words) {
-      const candidate = current ? `${current} ${word}` : word
-      if (candidate.length <= maxCharsPerLine || !current) {
-        current = candidate
-        continue
-      }
-      lines.push(current)
-      current = word
-      if (lines.length >= maxLines - 1) break
-    }
-    if (lines.length < maxLines && current) lines.push(current)
-    const remainingWords = words.slice(lines.join(' ').split(/\s+/).filter(Boolean).length)
-    if (remainingWords.length && lines.length) {
-      const lastIndex = Math.min(lines.length - 1, maxLines - 1)
-      lines[lastIndex] = truncateLabelText(
-        `${lines[lastIndex]} ${remainingWords.join(' ')}`.trim(),
-        maxCharsPerLine
-      )
-    }
-    return lines.slice(0, maxLines)
-  }
-
-  function getLabelBodyLines(label) {
-    const lines = []
-    if (label?.responsibleName) {
-      lines.push(...splitLabelText(label.responsibleName, 12, 2))
-    }
-    if (label?.name) lines.push(...splitLabelText(label.name, 12, 2))
-    return lines.filter(Boolean)
-  }
-
-  function getLabelLayoutMetrics() {
-    const baseX = LABEL.marginMm + LABEL.offsetX
-    const baseY = LABEL.marginMm + LABEL.offsetY
-    const contentWidth = LABEL.widthMm - 2 * LABEL.marginMm
-    const qrX = baseX + LABEL_QR_LEFT_MM
-    const qrY = baseY + LABEL_QR_TOP_MM
-    const qrSize = LABEL.qrSizeMm
-    const textLeftX = qrX + qrSize + LABEL_TEXT_GAP_FROM_QR_MM
-    const textTopY = baseY + LABEL_BODY_TOP_MM
-    const codeTopY = baseY + LABEL_CODE_TOP_MM
-    const textWidth = Math.max(4, LABEL.widthMm - LABEL.marginMm - LABEL_TEXT_RIGHT_MM - textLeftX)
-    return { baseX, baseY, contentWidth, qrX, qrY, qrSize, textLeftX, textTopY, codeTopY, textWidth }
-  }
-
-  function getLabelBodyHtml(label) {
-    return getLabelBodyLines(label)
-      .map((line) => `<div class="line">${escapeHtml(line)}</div>`)
-      .join('')
-  }
-
-  function getSingleLabelSheetStyles() {
-    const { textLeftX, textTopY, textWidth } = getLabelLayoutMetrics()
-    return `
-      * { box-sizing: border-box; }
-      .label-pdf-root {
-        margin: 0;
-        padding: ${LABEL.marginMm}mm;
-        width: ${LABEL.widthMm}mm;
-        height: ${LABEL.heightMm}mm;
-        font-family: Arial, "Helvetica Neue", sans-serif;
-        color: #0f172a;
-        background: #fff;
-      }
-      .sheet {
-        width: ${LABEL.widthMm - 2 * LABEL.marginMm}mm;
-        height: ${LABEL.heightMm - 2 * LABEL.marginMm}mm;
-        transform: translate(${LABEL.offsetX}mm, ${LABEL.offsetY}mm);
-        position: relative;
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-start;
-        align-items: center;
-        text-align: center;
-        overflow: hidden;
-        background: #fff;
-      }
-      .code-top {
-        position: absolute;
-        top: ${LABEL_CODE_TOP_MM}mm;
-        left: ${textLeftX}mm;
-        width: ${textWidth}mm;
-        text-align: left;
-        font-weight: 800;
-        font-size: 8.6px;
-        line-height: 1.1;
-        color: #020617;
-        letter-spacing: 0;
-        white-space: normal;
-        word-break: break-word;
-      }
-      .side-right {
-        position: absolute;
-        left: ${textLeftX}mm;
-        top: ${textTopY}mm;
-        width: ${textWidth}mm;
-        display: grid;
-        gap: 0.5mm;
-        text-align: left;
-      }
-      .line {
-        font-size: 7.6px;
-        line-height: 1.12;
-        font-weight: 700;
-        white-space: normal;
-        word-break: break-word;
-        overflow: visible;
-        color: #111827;
-      }
-      .media {
-        width: 100%;
-        position: absolute;
-        left: ${LABEL_QR_LEFT_MM}mm;
-        top: ${LABEL_QR_TOP_MM}mm;
-        display: flex;
-        flex-direction: column;
-        align-items: flex-start;
-        justify-content: center;
-        gap: 0.4mm;
-      }
-      .qr {
-        width: ${LABEL.qrSizeMm}mm;
-        height: ${LABEL.qrSizeMm}mm;
-        background: #fff;
-        display: block;
-      }
-      .barcode {
-        width: ${LABEL.barcodeWidthMm}mm;
-        height: ${LABEL.barcodeHeightMm}mm;
-        object-fit: contain;
-      }
-    `
-  }
-
-  function getLabelSheetMarkup(label, qr, barcode = '') {
-    return `
-      <div class="sheet">
-        <div class="code-top">${escapeHtml(label.code)}</div>
-        <div class="side-right">${getLabelBodyHtml(label)}</div>
-        <div class="media">
-          <img class="qr" src="${qr}" alt="QR" />
-          ${LABEL_SHOW_BARCODE && barcode ? `<img class="barcode" src="${barcode}" alt="Barcode" />` : ''}
-        </div>
-      </div>
-    `
-  }
-
-  async function renderLabelSheetImageDataUrl(label, qr, barcode = '') {
-    const { default: html2canvas } = await loadHtml2CanvasLib()
-    const host = document.createElement('div')
-    host.style.position = 'fixed'
-    host.style.left = '-10000px'
-    host.style.top = '0'
-    host.style.zIndex = '-1'
-    host.style.pointerEvents = 'none'
-    host.innerHTML = `
-      <style>${getSingleLabelSheetStyles()}</style>
-      <div class="label-pdf-root">
-        ${getLabelSheetMarkup(label, qr, barcode)}
-      </div>
-    `
-    document.body.appendChild(host)
+  async function suggestAssetDepreciation(selectedCatalogItem) {
+    if (!selectedCatalogItem?.id) return
     try {
-      const root = host.querySelector('.label-pdf-root')
-      const canvas = await html2canvas(root, {
-        backgroundColor: '#ffffff',
-        scale: Math.max(3, window.devicePixelRatio || 1),
-        useCORS: true,
-        logging: false,
+      const payload = {
+        catalogItemId: Number(selectedCatalogItem.id),
+        assetTypeId: assetForm.assetTypeId ? Number(assetForm.assetTypeId) : undefined,
+        accountingAccount: assetForm.accountingAccount || undefined,
+        name: assetForm.name || selectedCatalogItem.name || undefined,
+        acquisitionValue: assetForm.acquisitionValue ? Number(assetForm.acquisitionValue) : undefined,
+        acquisitionDate: assetForm.acquisitionDate || undefined,
+        depreciationStartDate: assetForm.depreciationStartDate || undefined,
+        usefulLifeYears: assetForm.usefulLifeYears ? Number(assetForm.usefulLifeYears) : undefined,
+        depreciationAnnualValue: undefined,
+        depreciationAnnualRate: undefined,
+      }
+      const suggestion = await api('/assets/depreciation/suggest', {
+        method: 'POST',
+        body: payload,
       })
-      return canvas.toDataURL('image/png')
-    } finally {
-      host.remove()
+      if (!suggestion) return
+      setAssetForm((prev) => {
+        const next = { ...prev }
+        if (suggestion.usefulLifeYears) {
+          next.usefulLifeYears = String(suggestion.usefulLifeYears)
+        }
+        if (!next.depreciationStartDate && suggestion.depreciationStartDate) {
+          next.depreciationStartDate = String(suggestion.depreciationStartDate).slice(0, 10)
+        }
+        return next
+      })
+    } catch {
+      // Sugerencia opcional, no bloquea el alta.
     }
-  }
-
-  function getRequiredTechnicalSheetQrValue(label) {
-    const value = String(label?.technicalSheetUrl || '').trim()
-    if (!value) {
-      throw new Error(`El activo ${label?.code || ''} no tiene URL de ficha tecnica para QR.`)
-    }
-    return value
-  }
-
-  function buildAssetTechnicalSheetUrl(assetLike) {
-    const assetId = getSafeAssetId(assetLike)
-    if (!assetId) return ''
-    const forcedPublicBase = String(PUBLIC_SHEET_BASE || '').trim().replace(/\/+$/, '')
-    if (/^https?:\/\//i.test(forcedPublicBase)) {
-      return `${forcedPublicBase}/assets/public/${assetId}/ficha.html`
-    }
-    let base = String(API_BASE || '/api').trim()
-    const forcedHttpsIdx = base.toLowerCase().lastIndexOf('https://')
-    const forcedHttpIdx = base.toLowerCase().lastIndexOf('http://')
-    const forcedIdx = Math.max(forcedHttpsIdx, forcedHttpIdx)
-    if (forcedIdx > 0) {
-      base = base.slice(forcedIdx)
-    }
-    base = base.replace(/\/+$/, '')
-    if (/^https?:\/\//i.test(base)) {
-      return `${base}/assets/public/${assetId}/ficha.html`
-    }
-    const normalizedBase = base.startsWith('/') ? base : `/${base}`
-    return `${window.location.origin}${normalizedBase}/assets/public/${assetId}/ficha.html`
-  }
-
-  function normalizeScannedAssetReference(rawValue) {
-    const raw = String(rawValue || '').trim()
-    if (!raw) return null
-    const absolutePublicUrlMatch = raw.match(
-      /^https?:\/\/[^/\s]+\/(?:api\/)?assets\/public\/(\d+)\/(?:ficha\.html|technical-sheet)/i
-    )
-    if (absolutePublicUrlMatch?.[1]) {
-      return {
-        assetId: Number(absolutePublicUrlMatch[1]),
-        internalCode: null,
-        publicUrl: buildAssetTechnicalSheetUrl({ id: Number(absolutePublicUrlMatch[1]) }),
-      }
-    }
-    const htmlPathMatch = raw.match(/\/assets\/public\/(\d+)\/ficha\.html/i)
-    if (htmlPathMatch?.[1]) {
-      return {
-        assetId: Number(htmlPathMatch[1]),
-        internalCode: null,
-        publicUrl: buildAssetTechnicalSheetUrl({ id: Number(htmlPathMatch[1]) }),
-      }
-    }
-    const pathMatch = raw.match(/\/assets\/public\/(\d+)\/technical-sheet/i)
-    if (pathMatch?.[1]) {
-      return {
-        assetId: Number(pathMatch[1]),
-        internalCode: null,
-        publicUrl: buildAssetTechnicalSheetUrl({ id: Number(pathMatch[1]) }),
-      }
-    }
-    const queryId = raw.match(/[?&]assetId=(\d{1,12})/i)
-    if (queryId?.[1]) {
-      return { assetId: Number(queryId[1]), internalCode: null, publicUrl: null }
-    }
-    const direct = Number(raw)
-    if (Number.isFinite(direct) && direct > 0)
-      return { internalCode: Math.trunc(direct), assetId: null, publicUrl: null }
-    const invMatch = raw.match(/INV[-_\s]?(\d{1,12})/i)
-    if (invMatch?.[1]) return { internalCode: Number(invMatch[1]), assetId: null, publicUrl: null }
-    const anyDigits = raw.match(/(\d{1,12})/)
-    if (anyDigits?.[1]) return { internalCode: Number(anyDigits[1]), assetId: null, publicUrl: null }
-    return null
   }
 
   function toPositiveIntOrNull(value) {
@@ -3696,1007 +1907,6 @@ function App() {
 
   function getSafeAssetId(assetLike) {
     return toPositiveIntOrNull(assetLike?.id)
-  }
-
-  function escapeHtml(value) {
-    return String(value ?? '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;')
-  }
-
-  async function downloadLabelPdf() {
-    if (!createdAsset?.internalCode) return
-    const [{ jsPDF }, { default: QRCode }] = await Promise.all([loadJsPdfLib(), loadQrCodeLib()])
-    const label = getLabelData(createdAsset)
-    const doc = new jsPDF({ unit: 'mm', format: [LABEL.widthMm, LABEL.heightMm] })
-    const qrValue = getRequiredTechnicalSheetQrValue(label)
-    let qr = qrCodeUrl
-    if (!qr) {
-      qr = await buildQrLabelDataUrl(qrValue, QRCode)
-    }
-    const barcode = LABEL_SHOW_BARCODE ? await buildBarcodeDataUrl(label.code) : ''
-    const imageDataUrl = await renderLabelSheetImageDataUrl(label, qr, barcode)
-    doc.addImage(imageDataUrl, 'PNG', 0, 0, LABEL.widthMm, LABEL.heightMm, undefined, 'FAST')
-    doc.save(`label_${label.code}.pdf`)
-  }
-
-  async function downloadBatchLabelsPdf() {
-    return downloadLabelsPdfForBatch(createdAssetBatch, 'labels_lote')
-  }
-
-  function getPrintableLabelBatch(items) {
-    return (items || [])
-      .filter((item) => item?.internalCode)
-      .sort((a, b) => Number(a.internalCode || 0) - Number(b.internalCode || 0))
-  }
-
-  async function downloadLabelsPdfForBatch(items, filePrefix = 'labels_lote') {
-    const batch = getPrintableLabelBatch(items)
-    if (!batch.length) return
-    const [{ jsPDF }, { default: QRCode }] = await Promise.all([loadJsPdfLib(), loadQrCodeLib()])
-    const doc = new jsPDF({ unit: 'mm', format: [LABEL.widthMm, LABEL.heightMm] })
-    for (let index = 0; index < batch.length; index++) {
-      if (index > 0) doc.addPage([LABEL.widthMm, LABEL.heightMm], 'portrait')
-      const label = getLabelData(batch[index])
-      const qr = await buildQrLabelDataUrl(getRequiredTechnicalSheetQrValue(label), QRCode)
-      const barcode = LABEL_SHOW_BARCODE ? await buildBarcodeDataUrl(label.code) : ''
-      const imageDataUrl = await renderLabelSheetImageDataUrl(label, qr, barcode)
-      doc.addImage(imageDataUrl, 'PNG', 0, 0, LABEL.widthMm, LABEL.heightMm, undefined, 'FAST')
-    }
-    doc.save(`${filePrefix}_${Date.now()}.pdf`)
-  }
-
-  async function openPrintLabel() {
-    if (!createdAsset?.internalCode) return
-    const { default: QRCode } = await loadQrCodeLib()
-    const label = getLabelData(createdAsset)
-
-    const qrValue = getRequiredTechnicalSheetQrValue(label)
-    let qr = qrCodeUrl
-    if (!qr) {
-      qr = await buildQrLabelDataUrl(qrValue, QRCode)
-    }
-    const barcode = LABEL_SHOW_BARCODE ? await buildBarcodeDataUrl(label.code) : ''
-
-    const win = window.open('', '_blank', 'width=480,height=420')
-    if (!win) {
-      setErr('El navegador bloqueo la ventana de impresion.')
-      return
-    }
-
-    const bodyHtml = getLabelBodyHtml(label)
-
-    const html = `<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>${escapeHtml(label.code)}</title>
-  <style>
-    @page { size: ${LABEL.widthMm}mm ${LABEL.heightMm}mm; margin: 0; }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      padding: ${LABEL.marginMm}mm;
-      width: ${LABEL.widthMm}mm;
-      height: ${LABEL.heightMm}mm;
-      font-family: Arial, "Helvetica Neue", sans-serif;
-      color: #0f172a;
-    }
-    .sheet {
-      width: ${LABEL.widthMm - 2 * LABEL.marginMm}mm;
-      height: ${LABEL.heightMm - 2 * LABEL.marginMm}mm;
-      transform: translate(${LABEL.offsetX}mm, ${LABEL.offsetY}mm);
-      position: relative;
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-start;
-      align-items: center;
-      text-align: center;
-      overflow: hidden;
-    }
-    .code-top {
-      ${(() => {
-        const { textLeftX, textWidth } = getLabelLayoutMetrics()
-        return `left: ${textLeftX}mm; width: ${textWidth}mm; text-align: left;`
-      })()}
-      position: absolute;
-      top: ${LABEL_CODE_TOP_MM}mm;
-      font-weight: 800;
-      font-size: 8.6px;
-      line-height: 1.1;
-      color: #020617;
-      letter-spacing: 0;
-      white-space: normal;
-      word-break: break-word;
-    }
-    .side-right {
-      ${(() => {
-        const { textLeftX, textTopY, textWidth } = getLabelLayoutMetrics()
-        return `left: ${textLeftX}mm; top: ${textTopY}mm; width: ${textWidth}mm;`
-      })()}
-      position: absolute;
-      display: grid;
-      gap: 0.5mm;
-      text-align: left;
-    }
-    .line {
-      font-size: 7.6px;
-      line-height: 1.12;
-      font-weight: 700;
-      white-space: normal;
-      word-break: break-word;
-      overflow: visible;
-      color: #111827;
-    }
-    .media {
-      width: 100%;
-      position: absolute;
-      left: ${LABEL_QR_LEFT_MM}mm;
-      top: ${LABEL_QR_TOP_MM}mm;
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      justify-content: center;
-      gap: 0.4mm;
-    }
-    .qr {
-      width: ${LABEL.qrSizeMm}mm;
-      height: ${LABEL.qrSizeMm}mm;
-      background: #fff;
-      display: block;
-    }
-    .barcode {
-      width: ${LABEL.barcodeWidthMm}mm;
-      height: ${LABEL.barcodeHeightMm}mm;
-      object-fit: contain;
-    }
-  </style>
-</head>
-<body>
-  <div class="sheet">
-    <div class="code-top">${escapeHtml(label.code)}</div>
-    <div class="side-right">${bodyHtml}</div>
-    <div class="media">
-      <img class="qr" src="${qr}" alt="QR" />
-      ${LABEL_SHOW_BARCODE && barcode ? `<img class="barcode" src="${barcode}" alt="Barcode" />` : ''}
-    </div>
-  </div>
-  <script>
-    window.addEventListener('load', () => {
-      const imgs = Array.from(document.images);
-      let loaded = 0;
-      const done = () => { window.print(); setTimeout(() => window.close(), 300); };
-      if (!imgs.length) return done();
-      imgs.forEach(img => {
-        if (img.complete) { loaded++; if (loaded === imgs.length) done(); }
-        else img.onload = img.onerror = () => {
-          loaded++;
-          if (loaded === imgs.length) done();
-        };
-      });
-    });
-  </script>
-</body>
-</html>`
-    win.document.open()
-    win.document.write(html)
-    win.document.close()
-  }
-
-  async function openPrintBatchLabels() {
-    return openPrintLabelsForBatch(createdAssetBatch)
-  }
-
-  async function openPrintLabelsForBatch(items, title = '') {
-    const batch = getPrintableLabelBatch(items)
-    if (!batch.length) return
-    const win = window.open('', '_blank', 'width=640,height=520')
-    if (!win) {
-      setErr('El navegador bloqueo la ventana de impresion.')
-      return
-    }
-
-    const { default: QRCode } = await loadQrCodeLib()
-    const sheets = []
-    for (const item of batch) {
-      const label = getLabelData(item)
-      const qr = await buildQrLabelDataUrl(getRequiredTechnicalSheetQrValue(label), QRCode)
-      const barcode = LABEL_SHOW_BARCODE ? await buildBarcodeDataUrl(label.code) : ''
-      const bodyHtml = getLabelBodyHtml(label)
-      sheets.push(`
-  <div class="sheet">
-    <div class="code-top">${escapeHtml(label.code)}</div>
-    <div class="side-right">${bodyHtml}</div>
-    <div class="media">
-      <img class="qr" src="${qr}" alt="QR" />
-      ${LABEL_SHOW_BARCODE && barcode ? `<img class="barcode" src="${barcode}" alt="Barcode" />` : ''}
-    </div>
-  </div>`)
-    }
-
-    const html = `<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>${escapeHtml(title || `Etiquetas lote (${batch.length})`)}</title>
-  <style>
-    @page { size: ${LABEL.widthMm}mm ${LABEL.heightMm}mm; margin: 0; }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: Arial, "Helvetica Neue", sans-serif;
-      color: #0f172a;
-    }
-    .sheet {
-      width: ${LABEL.widthMm}mm;
-      height: ${LABEL.heightMm}mm;
-      padding: ${LABEL.marginMm}mm;
-      transform: translate(${LABEL.offsetX}mm, ${LABEL.offsetY}mm);
-      position: relative;
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-start;
-      align-items: center;
-      text-align: center;
-      overflow: hidden;
-      page-break-after: always;
-    }
-    .sheet:last-child { page-break-after: auto; }
-    .code-top {
-      ${(() => {
-        const { textLeftX, textWidth } = getLabelLayoutMetrics()
-        return `left: ${textLeftX}mm; width: ${textWidth}mm; text-align: left;`
-      })()}
-      position: absolute;
-      top: ${LABEL_CODE_TOP_MM}mm;
-      font-weight: 800;
-      font-size: 8.6px;
-      line-height: 1.1;
-      color: #020617;
-      letter-spacing: 0;
-      white-space: normal;
-      word-break: break-word;
-    }
-    .side-right {
-      ${(() => {
-        const { textLeftX, textTopY, textWidth } = getLabelLayoutMetrics()
-        return `left: ${textLeftX}mm; top: ${textTopY}mm; width: ${textWidth}mm;`
-      })()}
-      position: absolute;
-      display: grid;
-      gap: 0.5mm;
-      text-align: left;
-    }
-    .line {
-      font-size: 7.6px;
-      line-height: 1.12;
-      font-weight: 700;
-      white-space: normal;
-      word-break: break-word;
-      overflow: visible;
-      color: #111827;
-    }
-    .media {
-      width: 100%;
-      position: absolute;
-      left: ${LABEL_QR_LEFT_MM}mm;
-      top: ${LABEL_QR_TOP_MM}mm;
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      justify-content: center;
-      gap: 0.4mm;
-    }
-    .qr {
-      width: ${LABEL.qrSizeMm}mm;
-      height: ${LABEL.qrSizeMm}mm;
-      background: #fff;
-      display: block;
-    }
-    .barcode {
-      width: ${LABEL.barcodeWidthMm}mm;
-      height: ${LABEL.barcodeHeightMm}mm;
-      object-fit: contain;
-    }
-  </style>
-</head>
-<body>${sheets.join('\n')}
-  <script>
-    window.addEventListener('load', () => {
-      const imgs = Array.from(document.images);
-      let loaded = 0;
-      const done = () => { window.print(); setTimeout(() => window.close(), 300); };
-      if (!imgs.length) return done();
-      imgs.forEach(img => {
-        if (img.complete) { loaded++; if (loaded === imgs.length) done(); }
-        else img.onload = img.onerror = () => {
-          loaded++;
-          if (loaded === imgs.length) done();
-        };
-      });
-    });
-  </script>
-</body>
-</html>`
-    win.document.open()
-    win.document.write(html)
-    win.document.close()
-  }
-
-  async function fetchAssetListBatchForLabels() {
-    const total = Number(assetListTotal || assetsList.length || 0)
-    if (!total) return []
-    if (total > 1000) {
-      throw new Error('Hay demasiados activos para imprimir de una vez. Filtra a 1000 o menos.')
-    }
-    const params = new URLSearchParams()
-    const safeId = toPositiveIntOrNull(assetListFilters.id)
-    if (assetListFilters.id && !safeId) {
-      throw new Error('Filtro ID invalido. Usa solo numeros positivos.')
-    }
-    if (safeId) params.set('id', String(safeId))
-    if (assetListFilters.internalCode) params.set('internalCode', assetListFilters.internalCode)
-    if (assetListFilters.q) params.set('q', assetListFilters.q)
-    if (assetListFilters.responsibleName) params.set('responsibleName', assetListFilters.responsibleName)
-    if (assetListFilters.costCenter) params.set('costCenter', assetListFilters.costCenter)
-    if (assetListFilters.institutionId) params.set('institutionId', assetListFilters.institutionId)
-    if (assetListFilters.establishmentId) params.set('establishmentId', assetListFilters.establishmentId)
-    if (assetListFilters.dependencyId) params.set('dependencyId', assetListFilters.dependencyId)
-    if (assetListFilters.assetStateId) params.set('assetStateId', assetListFilters.assetStateId)
-    if (assetListFilters.includeDeleted) params.set('includeDeleted', 'true')
-    if (assetListFilters.fromDate) params.set('fromDate', assetListFilters.fromDate)
-    if (assetListFilters.toDate) params.set('toDate', assetListFilters.toDate)
-    params.set('take', String(total))
-    params.set('skip', '0')
-    params.set('withCount', 'false')
-    const data = await api(`/assets?${params.toString()}`)
-    return data.items || []
-  }
-
-  async function loadImportJobStatus(batchId, { silent = false } = {}) {
-    const data = normalizeImportJobPayload(await api(`/assets/imports/${batchId}`))
-    setImportResult(data)
-    setImportErrors(data?.errorItems || [])
-
-    if (data?.status === 'PROCESSING') {
-      setImportLoading(true)
-      scheduleImportJobPoll(batchId)
-      return data
-    }
-
-    stopImportJobPolling()
-    setImportLoading(false)
-    loadImportHistory(1)
-    if (data?.status === 'COMPLETED' && !silent) {
-      setOk(UI_STATUS.importCompleted)
-    }
-    if (data?.status === 'FAILED' && !silent) {
-      setErr('La importacion quedo incompleta. Puedes revisar el detalle o reanudarla.')
-    }
-    return data
-  }
-
-  async function resumeImportJob(batchId) {
-    if (!batchId) return
-    setImportLoading(true)
-    const data = normalizeImportJobPayload(
-      await api(`/assets/imports/${batchId}/retry`, { method: 'POST' })
-    )
-    setImportResult(data)
-    setImportErrors(data?.errorItems || [])
-    if (data?.id) {
-      scheduleImportJobPoll(data.id)
-    }
-  }
-
-  useEffect(() => () => stopImportJobPolling(), [])
-  useEffect(
-    () => () => {
-      if (dangerZoneLockTimerRef.current) {
-        clearTimeout(dangerZoneLockTimerRef.current)
-        dangerZoneLockTimerRef.current = null
-      }
-    },
-    []
-  )
-
-  async function openPrintAssetListLabels() {
-    try {
-      const items = await fetchAssetListBatchForLabels()
-      if (!items.length) {
-        setErr('No hay activos fijos filtrados para imprimir QR.')
-        return
-      }
-      await openPrintLabelsForBatch(items, `Etiquetas activos (${items.length})`)
-    } catch (err) {
-      setErr(err)
-    }
-  }
-
-  function toggleSelectedAsset(assetId) {
-    const safeId = toPositiveIntOrNull(assetId)
-    if (!safeId) return
-    setSelectedAssetIds((prev) =>
-      prev.includes(safeId) ? prev.filter((id) => id !== safeId) : [...prev, safeId]
-    )
-  }
-
-  function toggleSelectAllVisibleAssets() {
-    const visibleIds = (assetsList || [])
-      .map((asset) => toPositiveIntOrNull(asset.id))
-      .filter(Boolean)
-    if (!visibleIds.length) return
-    setSelectedAssetIds((prev) => {
-      const allSelected = visibleIds.every((id) => prev.includes(id))
-      if (allSelected) {
-        return prev.filter((id) => !visibleIds.includes(id))
-      }
-      const next = new Set(prev)
-      visibleIds.forEach((id) => next.add(id))
-      return Array.from(next)
-    })
-  }
-
-  function clearSelectedAssets() {
-    setSelectedAssetIds([])
-  }
-
-  async function openPrintSelectedAssetLabels() {
-    try {
-      const selectedItems = (assetsList || []).filter((asset) =>
-        selectedAssetIds.includes(toPositiveIntOrNull(asset.id))
-      )
-      if (!selectedItems.length) {
-        setErr('Selecciona al menos un activo fijo visible para imprimir QR.')
-        return
-      }
-      await openPrintLabelsForBatch(selectedItems, `Etiquetas seleccionadas (${selectedItems.length})`)
-    } catch (err) {
-      setErr(err)
-    }
-  }
-
-  async function downloadPlanchetaLabelsPdf() {
-    try {
-      const items = getPrintableLabelBatch(planchetaPreview)
-      if (!items.length) {
-        setErr('Previsualiza planchetas con activos antes de exportar QR.')
-        return
-      }
-      await downloadLabelsPdfForBatch(items, 'labels_plancheta')
-    } catch (err) {
-      setErr(err)
-    }
-  }
-
-  async function openPrintPlanchetaLabels() {
-    try {
-      const items = getPrintableLabelBatch(planchetaPreview)
-      if (!items.length) {
-        setErr('Previsualiza planchetas con activos antes de imprimir QR.')
-        return
-      }
-      await openPrintLabelsForBatch(items, `Etiquetas plancheta (${items.length})`)
-    } catch (err) {
-      setErr(err)
-    }
-  }
-
-  async function handleCreateAsset() {
-    setAssetCreating(true)
-    try {
-      const errors = validateAssetForm()
-      setAssetErrors(errors)
-      if (Object.keys(errors).length) {
-        setAssetCreating(false)
-        return
-      }
-      const useMultiProduct = assetMultiProductEnabled
-      const requestedQuantity = Number(assetForm.quantity)
-      const serialValue = String(assetForm.serialNumber || '').trim()
-      const basePayload = {
-        establishmentId: Number(assetForm.establishmentId),
-        dependencyId: Number(assetForm.dependencyId),
-        assetStateId: Number(assetForm.assetStateId),
-        assetTypeId: Number(assetForm.assetTypeId),
-        accountingAccount: assetForm.accountingAccount,
-        acquisitionDate: assetForm.acquisitionDate,
-      }
-      const applyDepreciationValues = (payload, acquisitionValue) => {
-        if (assetForm.depreciationMethod !== 'LINEAL') return payload
-        const providedYears = Number(assetForm.usefulLifeYears)
-        const withYears =
-          Number.isInteger(providedYears) && providedYears > 0
-            ? { ...payload, usefulLifeYears: providedYears }
-            : payload
-        const depreciation = calculateStraightLineDepreciation({
-          acquisitionValue,
-          usefulLifeYears: assetForm.usefulLifeYears,
-          residualValue: assetForm.residualValue,
-        })
-        if (!depreciation) return withYears
-        return {
-          ...withYears,
-          usefulLifeYears: depreciation.usefulLifeYears,
-          depreciationAnnualValue: depreciation.annual,
-          depreciationAnnualRate: depreciation.rate,
-        }
-      }
-      if (assetHasResponsible) {
-        if (assetForm.responsibleName) basePayload.responsibleName = assetForm.responsibleName
-        if (assetForm.responsibleRut) {
-          basePayload.responsibleRut = normalizeRutValue(assetForm.responsibleRut)
-        }
-        if (assetForm.responsibleRole) basePayload.responsibleRole = assetForm.responsibleRole
-        if (assetForm.costCenter) basePayload.costCenter = normalizeCostCenterValue(assetForm.costCenter)
-      }
-
-      let createdFromSingle = null
-      let createdItems = []
-      if (useMultiProduct) {
-        for (const row of assetMultiProducts) {
-          let rowPayload = {
-            ...basePayload,
-            catalogItemId: Number(row.catalogItemId),
-            quantity: Number(row.quantity),
-            acquisitionValue: Number(row.acquisitionValue),
-          }
-          rowPayload = applyDepreciationValues(rowPayload, row.acquisitionValue)
-          const created = await api('/assets', { method: 'POST', body: rowPayload })
-          const rowItems = Array.isArray(created?.items) ? created.items : created ? [created] : []
-          createdItems.push(...rowItems)
-        }
-      } else {
-        let payload = {
-          ...basePayload,
-          quantity: requestedQuantity,
-          acquisitionValue: Number(assetForm.acquisitionValue),
-        }
-        payload = applyDepreciationValues(payload, assetForm.acquisitionValue)
-        if (assetForm.catalogItemId) payload.catalogItemId = Number(assetForm.catalogItemId)
-        if (assetForm.name) payload.name = assetForm.name
-        if (assetForm.brand) payload.brand = assetForm.brand
-        if (assetForm.modelName) payload.modelName = assetForm.modelName
-        if (serialValue && requestedQuantity === 1) payload.serialNumber = serialValue
-        createdFromSingle = await api('/assets', { method: 'POST', body: payload })
-        createdItems = Array.isArray(createdFromSingle?.items)
-          ? createdFromSingle.items
-          : createdFromSingle
-            ? [createdFromSingle]
-            : []
-      }
-      const primaryCreated = createdItems[0] || null
-      if (!primaryCreated) {
-        setErr('No se recibieron activos creados desde el servidor.')
-        return
-      }
-      let resolved = primaryCreated
-      const createdId = toPositiveIntOrNull(primaryCreated?.id)
-      if (createdId) {
-        try {
-          resolved = await api(`/assets/${createdId}`)
-        } catch {
-          // ignore
-        }
-      }
-      setCreatedAsset(resolved)
-      setCreatedAssetBatch(createdItems.length > 1 ? createdItems : [])
-      const resolvedId = toPositiveIntOrNull(resolved?.id)
-      if (resolvedId) {
-        localStorage.setItem('last_asset_id', String(resolvedId))
-      }
-      const totalCreated = useMultiProduct
-        ? createdItems.length
-        : Number(createdFromSingle?.createdCount || createdItems.length || 1)
-      if (totalCreated > 1) {
-        if (!useMultiProduct && serialValue) {
-          setOk(`Activos fijos creados: ${totalCreated}. Serie omitida por creacion en lote.`)
-        } else {
-          setOk(`Activos fijos creados: ${totalCreated}.`)
-        }
-      } else {
-        setOk('Activo fijo creado correctamente.')
-      }
-      setAssetErrors({})
-    } catch (err) {
-      const message = getAssetCreateConflictMessage(
-        err,
-        'No se pudo crear el activo fijo. Verifica los datos e intenta nuevamente.'
-      )
-      setErr(
-        withMappedError(
-          err,
-          message,
-          'No se pudo crear el activo fijo. Verifica los datos e intenta nuevamente.'
-        )
-      )
-    } finally {
-      setAssetCreating(false)
-    }
-  }
-
-  function openCatalogAction(type, assetOverride) {
-    const target = assetOverride || createdAsset
-    if (!target) {
-      setErr('Primero debes crear el activo fijo.')
-      return
-    }
-    if (assetOverride) {
-      const overrideId = toPositiveIntOrNull(assetOverride.id)
-      setCreatedAsset(assetOverride)
-      if (overrideId) localStorage.setItem('last_asset_id', String(overrideId))
-    }
-    if (type === 'edit') setOk('Accion: editar activo fijo')
-    if (type === 'move') setOk('Accion: mover activo fijo')
-    if (type === 'transfer') setOk('Accion: transferir activo fijo')
-    if (type === 'status') setOk('Accion: dar de baja')
-    if (type === 'edit') {
-      setEditAssetForm({
-        name: target.name || '',
-        quantity:
-          target.quantity !== undefined && target.quantity !== null
-            ? String(target.quantity)
-            : '',
-        brand: target.brand || '',
-        modelName: target.modelName || '',
-        serialNumber: target.serialNumber || '',
-        accountingAccount: target.accountingAccount || '',
-        analyticCode: target.analyticCode || '',
-        responsibleName: target.responsibleName || '',
-        responsibleRut: target.responsibleRut || '',
-        responsibleRole: target.responsibleRole || '',
-        costCenter: target.costCenter || '',
-        acquisitionValue: target.acquisitionValue || '',
-        acquisitionDate: target.acquisitionDate
-          ? String(target.acquisitionDate).slice(0, 10)
-          : '',
-      })
-    }
-    if (type === 'move') {
-      setMoveAssetForm({ toDependencyId: '' })
-      const targetEstablishmentId = toPositiveIntOrNull(
-        target?.establishmentId || target?.establishment?.id
-      )
-      if (!targetEstablishmentId) {
-        setAssetDependencies([])
-        setErr('El activo fijo no tiene establecimiento asociado para mover.')
-      } else {
-        loadAssetDependencies(targetEstablishmentId).catch((err) => {
-          setAssetDependencies([])
-          setErr(err)
-        })
-      }
-    }
-    if (type === 'transfer') {
-      if (!isCentral) {
-        setErr('Solo ADMIN_CENTRAL puede transferir activos fijos.')
-        setCatalogAction(null)
-        return
-      }
-      if (target.assetState?.name === 'BAJA' || target.isDeleted) {
-        setErr('No puedes transferir un activo fijo dado de baja.')
-        setCatalogAction(null)
-        return
-      }
-      const transferReasons = movementReasonCodes.transfer || []
-      setTransferAssetForm({
-        toEstablishmentId: '',
-        toDependencyId: '',
-        reasonCode: transferReasons[0]?.code || '',
-        docType: 'ACTA',
-        note: '',
-        file: null,
-      })
-      setTransferDependencies([])
-      loadTransferEstablishmentsForAsset(target).catch((err) => setErr(err))
-    }
-    if (type === 'status') {
-      if (target.assetState?.name === 'BAJA' || target.isDeleted) {
-        setErr('El activo fijo ya esta dado de baja.')
-        setCatalogAction(null)
-        return
-      }
-      if (!assetStates.length) {
-        loadAssetStates().catch((err) => setErr(err))
-      }
-      if (!(movementReasonCodes.statusChange || []).length) {
-        loadMovementReasonCodes().catch((err) => setErr(err))
-      }
-      const baja = assetStates.find((s) => s.name === 'BAJA')
-      const statusReasons = movementReasonCodes.statusChange || []
-      setStatusAssetForm({
-        assetStateId: baja ? String(baja.id) : '',
-        reasonCode: statusReasons[0]?.code || '',
-        docType: 'ACTA',
-        note: '',
-        file: null,
-      })
-      setEditAssetHasResponsible(
-        Boolean(
-          target.responsibleName ||
-            target.responsibleRut ||
-            target.responsibleRole ||
-            target.costCenter
-        )
-      )
-    }
-    setCatalogAction(type)
-  }
-
-  async function resolveScannedAsset() {
-    const reference = normalizeScannedAssetReference(scanInput)
-    if (!reference) {
-      setScanResult({
-        status: 'error',
-        message: 'Ingresa o escanea un codigo QR valido para continuar.',
-      })
-      return
-    }
-    try {
-      setScanResult(null)
-      const asset = await getAssetByScanReference(reference)
-      if (!asset) {
-        setScanResult({
-          status: 'error',
-          message:
-            reference.kind === 'internalCode'
-              ? 'No se encontro un activo fijo para el codigo interno ingresado.'
-              : 'No se encontro un activo fijo para el QR escaneado.',
-        })
-        return
-      }
-      openAssetModal(asset, { focusTechnicalSheet: true })
-      setOk(`Activo fijo cargado desde QR: INV-${asset.internalCode}`)
-      setScanResult({
-        status: 'success',
-        message: `Activo fijo encontrado: INV-${asset.internalCode}`,
-      })
-    } catch (error) {
-      setScanResult({
-        status: 'error',
-        message: getErrorMessage(error, 'No se pudo resolver el codigo QR escaneado.'),
-      })
-    }
-  }
-  function copyTechnicalSheetLink() {
-    const technicalSheetUrl = createdLabel?.technicalSheetUrl || labelData?.technicalSheetUrl
-    if (!technicalSheetUrl) {
-      setErr('No hay ficha tecnica disponible para copiar.')
-      return
-    }
-    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-      navigator.clipboard
-        .writeText(technicalSheetUrl)
-        .then(() => setOk('Enlace de ficha tecnica copiado al portapapeles.'))
-        .catch(() => setErr('Tu navegador no permite copiar al portapapeles en este contexto.'))
-      return
-    }
-    setErr('Tu navegador no permite copiar al portapapeles en este contexto.')
-  }
-
-  function selectAssetForModal(asset, action = null) {
-    const assetId = getSafeAssetId(asset)
-    if (!assetId) {
-      setErr('Activo fijo invalido.')
-      return
-    }
-    setCreatedAsset(asset)
-    setCreatedAssetBatch([])
-    setSelectedCatalogItem(asset?.catalogItem || null)
-    localStorage.setItem('last_asset_id', String(assetId))
-    setCatalogModalOpen(true)
-    setCatalogAction(null)
-    if (action) {
-      openCatalogAction(action, asset)
-    }
-  }
-
-  async function submitEditAsset() {
-    const assetId = getSafeAssetId(createdAsset)
-    if (!assetId) return
-    try {
-      const payload = {
-        name: editAssetForm.name || undefined,
-        quantity:
-          editAssetForm.quantity !== '' ? Number(editAssetForm.quantity) : undefined,
-        brand: editAssetForm.brand || undefined,
-        modelName: editAssetForm.modelName || undefined,
-        serialNumber: editAssetForm.serialNumber || undefined,
-        accountingAccount: editAssetForm.accountingAccount || undefined,
-        analyticCode: editAssetForm.analyticCode || undefined,
-        acquisitionValue:
-          editAssetForm.acquisitionValue !== ''
-            ? Number(editAssetForm.acquisitionValue)
-            : undefined,
-        acquisitionDate: editAssetForm.acquisitionDate || undefined,
-      }
-      if (editAssetHasResponsible) {
-        payload.responsibleName = editAssetForm.responsibleName || undefined
-        if (editAssetForm.responsibleRut) {
-          const compact = String(editAssetForm.responsibleRut)
-            .trim()
-            .replace(/\./g, '')
-            .replace(/\s+/g, '')
-            .toUpperCase()
-          if (!/^\d{7,8}-?[\dK]$/.test(compact)) {
-            setErr('RUT responsable invalido. Usa formato 12345678-9')
-            return
-          }
-        }
-        payload.responsibleRut = editAssetForm.responsibleRut
-          ? normalizeRutValue(editAssetForm.responsibleRut)
-          : undefined
-        payload.responsibleRole = editAssetForm.responsibleRole || undefined
-        payload.costCenter = editAssetForm.costCenter
-          ? normalizeCostCenterValue(editAssetForm.costCenter)
-          : undefined
-      } else {
-        payload.responsibleName = ''
-        payload.responsibleRut = ''
-        payload.responsibleRole = ''
-        payload.costCenter = ''
-      }
-      const updated = await api(`/assets/${assetId}`, {
-        method: 'PUT',
-        body: payload,
-      })
-      setCreatedAsset(updated)
-      setOk('Activo fijo actualizado.')
-      setCatalogAction(null)
-    } catch (err) {
-      setErr(err)
-    }
-  }
-
-  async function submitMoveAsset() {
-    const assetId = getSafeAssetId(createdAsset)
-    if (!assetId) return
-    if (!moveAssetForm.toDependencyId) {
-      setErr('Selecciona una dependencia de destino.')
-      return
-    }
-    try {
-      const updated = await api(`/assets/${assetId}/relocate`, {
-        method: 'PUT',
-        body: { toDependencyId: Number(moveAssetForm.toDependencyId) },
-      })
-      setCreatedAsset(updated)
-      await loadAssetsList()
-      setOk('Activo fijo movido correctamente.')
-      setCatalogAction(null)
-    } catch (err) {
-      const message = getMoveConflictMessage(err, 'No se pudo mover el activo fijo.')
-      setErr(withMappedError(err, message, 'No se pudo mover el activo fijo.'))
-    }
-  }
-
-  async function submitTransferAsset() {
-    const assetId = getSafeAssetId(createdAsset)
-    if (!assetId) return
-    if (!isCentral) {
-      setErr('Solo ADMIN_CENTRAL puede transferir activos fijos.')
-      return
-    }
-    if (!transferAssetForm.toEstablishmentId) {
-      setErr('Selecciona establecimiento destino.')
-      return
-    }
-    if (!transferAssetForm.toDependencyId) {
-      setErr('Selecciona dependencia destino.')
-      return
-    }
-    if (!transferAssetForm.reasonCode) {
-      setErr('Selecciona motivo de transferencia.')
-      return
-    }
-    if (!transferAssetForm.file) {
-      setErr('Adjunta evidencia (PDF/JPG/PNG) para transferir.')
-      return
-    }
-    try {
-      const formData = new FormData()
-      formData.append('toEstablishmentId', String(Number(transferAssetForm.toEstablishmentId)))
-      formData.append('toDependencyId', String(Number(transferAssetForm.toDependencyId)))
-      formData.append('reasonCode', transferAssetForm.reasonCode)
-      formData.append('docType', transferAssetForm.docType)
-      if (transferAssetForm.note) formData.append('note', transferAssetForm.note)
-      formData.append('file', transferAssetForm.file)
-      const updated = await apiMultipart(`/assets/${assetId}/transfer`, {
-        method: 'PUT',
-        formData,
-      })
-      setCreatedAsset(updated)
-      setOk('Activo fijo transferido correctamente.')
-      setCatalogAction(null)
-      await loadAssetsList()
-    } catch (err) {
-      if (err?.status === 409) {
-        try {
-          const latest = await api(`/assets/${assetId}`)
-          setCreatedAsset(latest)
-          await loadAssetsList()
-        } catch {
-          // ignore secondary refresh error
-        }
-      }
-      setErr(err)
-    }
-  }
-
-  async function submitStatusAsset() {
-    const assetId = getSafeAssetId(createdAsset)
-    if (!assetId) return
-    if (!statusAssetForm.assetStateId) {
-      setErr('Selecciona estado.')
-      return
-    }
-    if (String(createdAsset.assetStateId) === String(statusAssetForm.assetStateId)) {
-      setErr('El activo fijo ya tiene ese estado.')
-      return
-    }
-    if (!statusAssetForm.reasonCode) {
-      setErr('Selecciona un motivo de baja.')
-      return
-    }
-    if (!statusAssetForm.file) {
-      setErr('Adjunta evidencia (PDF/JPG/PNG) para dar de baja.')
-      return
-    }
-    try {
-      const formData = new FormData()
-      formData.append('assetStateId', String(Number(statusAssetForm.assetStateId)))
-      formData.append('reasonCode', statusAssetForm.reasonCode)
-      formData.append('docType', statusAssetForm.docType)
-      if (statusAssetForm.note) formData.append('note', statusAssetForm.note)
-      formData.append('file', statusAssetForm.file)
-      const updated = await apiMultipart(`/assets/${assetId}/status`, {
-        method: 'PUT',
-        formData,
-      })
-      setCreatedAsset(updated)
-      setOk('Estado actualizado.')
-      setCatalogAction(null)
-      setCatalogModalOpen(false)
-    } catch (err) {
-      if (err?.status === 409) {
-        try {
-          const latest = await api(`/assets/${assetId}`)
-          setCreatedAsset(latest)
-          setStatusAssetForm({
-            assetStateId: String(latest?.assetStateId || ''),
-            reasonCode: '',
-            docType: 'ACTA',
-            note: '',
-            file: null,
-          })
-          await loadAssetsList()
-        } catch {
-          // ignore secondary refresh error
-        }
-      }
-      setErr(err)
-    }
-  }
-
-
-  function applyCatalogItem(selected) {
-    if (!selected) {
-      setErr('No se encontro el catalogo seleccionado.')
-      return
-    }
-    setSelectedCatalogItem(selected)
-    setCatalogModalOpen(true)
-    setAssetForm((prev) => ({
-      ...prev,
-      catalogItemId: String(selected.id || ''),
-      name: selected.name || '',
-      brand: selected.brand || '',
-      modelName: selected.modelName || '',
-    }))
-    setOk(`Catalogo seleccionado: ${formatCatalogItemDisplay(selected)}`)
   }
 
   function extractCatalogDetail(description) {
@@ -4753,7 +1963,7 @@ function App() {
         ? 'Vaciar activos + eliminar estructura (forzado)'
         : 'Vaciar activos fijos',
       message: forceStructureDelete
-        ? 'Se eliminar\u00e1n todos los activos fijos, evidencias, movimientos e historial de importaciones. Adem\u00e1s, se eliminar\u00e1n forzadamente dependencias y establecimientos (incluyendo relaciones asociadas) cuando aplique. \u00bfContinuar?'
+        ? 'Se eliminar\u00e1n todos los activos fijos, evidencias, movimientos e historial de importaciones. Adem\u00e1s, se eliminar\u00e1n forzadamente sectores y establecimientos (incluyendo relaciones asociadas) cuando aplique. \u00bfContinuar?'
         : 'Se eliminar\u00e1n todos los activos fijos, evidencias, movimientos e historial de importaciones. El ID y el c\u00f3digo interno volver\u00e1n a 1. \u00bfContinuar?',
       onConfirm: async () => {
         try {
@@ -4777,7 +1987,7 @@ function App() {
           const deletedEsts = Number(result?.deletedEstablishmentCount || 0)
           setOk(
             forceStructureDelete
-              ? `Activos vaciados. Eliminados: ${deletedAssets}. Dependencias eliminadas: ${deletedDeps}. Establecimientos eliminados: ${deletedEsts}.`
+              ? `Activos vaciados. Eliminados: ${deletedAssets}. Sectores eliminados: ${deletedDeps}. Establecimientos eliminados: ${deletedEsts}.`
               : `Activos vaciados. Eliminados: ${deletedAssets}. Pr\u00f3ximo ID: 1. Pr\u00f3ximo c\u00f3digo interno: 1.`
           )
         } catch (err) {
@@ -4801,407 +2011,6 @@ function App() {
     setAssetMultiProducts((prev) =>
       prev.map((item, idx) => (idx === index ? { ...item, ...patch } : item))
     )
-  }
-
-  function uniqueById(items) {
-    const map = new Map()
-    for (const item of items || []) {
-      const id = item?.id
-      if (id === undefined || id === null) continue
-      if (!map.has(id)) map.set(id, item)
-    }
-    return Array.from(map.values())
-  }
-
-  function handleSelectCatalogItem(value) {
-    if (!value) {
-      setSelectedCatalogItem(null)
-      setAssetForm((prev) => ({
-        ...prev,
-        catalogItemId: '',
-      }))
-      return
-    }
-    const selected = assetCatalogItems.find((i) => String(i.id) === String(value))
-    applyCatalogItem(selected)
-  }
-
-  function formatDateInput(dateValue) {
-    const date = new Date(dateValue)
-    const yyyy = date.getFullYear()
-    const mm = String(date.getMonth() + 1).padStart(2, '0')
-    const dd = String(date.getDate()).padStart(2, '0')
-    return `${yyyy}-${mm}-${dd}`
-  }
-
-  function applyAuditRangePreset(target, preset) {
-    const now = new Date()
-    const toDate = formatDateInput(now)
-    const from = new Date(now)
-    if (preset === 'WEEK') from.setDate(now.getDate() - 6)
-    if (preset === 'MONTH') from.setDate(now.getDate() - 29)
-    if (preset === 'YEAR') from.setDate(now.getDate() - 364)
-    const fromDate = formatDateInput(from)
-
-    if (target === 'admin') {
-      setAuditFilters((prev) => ({ ...prev, fromDate, toDate }))
-      return
-    }
-    setLoginAuditFilters((prev) => ({ ...prev, fromDate, toDate }))
-  }
-
-  function buildAdminAuditParams(filters = auditFilters) {
-    const params = new URLSearchParams()
-    if (filters.entityType) params.set('entityType', filters.entityType)
-    if (filters.action) params.set('action', filters.action)
-    if (filters.fromDate) params.set('fromDate', filters.fromDate)
-    if (filters.toDate) params.set('toDate', filters.toDate)
-    return params
-  }
-
-  function buildLoginAuditParams(filters = loginAuditFilters) {
-    const params = new URLSearchParams()
-    if (filters.email) params.set('email', filters.email)
-    if (filters.success !== '') params.set('success', filters.success)
-    if (filters.fromDate) params.set('fromDate', filters.fromDate)
-    if (filters.toDate) params.set('toDate', filters.toDate)
-    return params
-  }
-
-  function resetAdminAuditFilters() {
-    const defaults = {
-      entityType: '',
-      action: '',
-      fromDate: '',
-      toDate: '',
-    }
-    setAuditFilters(defaults)
-    setAdminAuditPage(1)
-    loadAdminAudits(1, defaults)
-  }
-
-  function resetLoginAuditFilters() {
-    const defaults = {
-      email: '',
-      success: '',
-      fromDate: '',
-      toDate: '',
-    }
-    setLoginAuditFilters(defaults)
-    setLoginAuditPage(1)
-    loadLoginAudits(1, defaults)
-  }
-
-  async function loadAdminAudits(page = adminAuditPage, filters = auditFilters) {
-    setAdminAuditLoading(true)
-    try {
-      const take = 20
-      const safePage = Number(page)
-      const nextPage = Number.isFinite(safePage) && safePage > 0 ? safePage : 1
-      const skip = (nextPage - 1) * take
-      const params = buildAdminAuditParams(filters)
-      params.set('take', String(take))
-      params.set('skip', String(skip))
-      const data = await api(`/admin/audit?${params.toString()}`)
-      setAdminAudits(data.items || [])
-      setAdminAuditTotal(data.total || 0)
-      setAdminAuditPage(nextPage)
-    } catch (err) {
-      setErr(err)
-      setAdminAudits([])
-      setAdminAuditTotal(0)
-    } finally {
-      setAdminAuditLoading(false)
-    }
-  }
-
-  async function loadLoginAudits(page = loginAuditPage, filters = loginAuditFilters) {
-    setLoginAuditLoading(true)
-    try {
-      const take = 20
-      const safePage = Number(page)
-      const nextPage = Number.isFinite(safePage) && safePage > 0 ? safePage : 1
-      const skip = (nextPage - 1) * take
-      const params = buildLoginAuditParams(filters)
-      params.set('take', String(take))
-      params.set('skip', String(skip))
-      const data = await api(`/admin/login-audit?${params.toString()}`)
-      setLoginAudits(data.items || [])
-      setLoginAuditTotal(data.total || 0)
-      setLoginAuditPage(nextPage)
-    } catch (err) {
-      setErr(err)
-      setLoginAudits([])
-      setLoginAuditTotal(0)
-    } finally {
-      setLoginAuditLoading(false)
-    }
-  }
-
-  async function runAuditCleanup() {
-    const modeDescription =
-      auditCleanupForm.mode === 'DELETE_ALL'
-        ? 'Se borrara todo el historial del alcance seleccionado.'
-        : auditCleanupForm.mode === 'BEFORE_DATE'
-          ? `Se borraran registros anteriores a ${auditCleanupForm.beforeDate || '(sin fecha)'}.`
-          : `Se conservaran solo los ultimos ${auditCleanupForm.keepDays} dias.`
-
-    openConfirm({
-      title: 'Confirmar limpieza de auditoria',
-      message: modeDescription,
-      onConfirm: async () => {
-        const body = {
-          scope: auditCleanupForm.scope,
-          mode: auditCleanupForm.mode,
-        }
-        if (auditCleanupForm.mode === 'BEFORE_DATE') body.beforeDate = auditCleanupForm.beforeDate
-        if (auditCleanupForm.mode === 'KEEP_DAYS') body.keepDays = Number(auditCleanupForm.keepDays)
-
-        try {
-          const result = await api('/admin/audit/cleanup', {
-            method: 'POST',
-            body,
-          })
-          setOk(
-            `Limpieza auditoria completada. Admin: ${result.deleted?.adminAudit || 0}, Login: ${
-              result.deleted?.loginAudit || 0
-            }`
-          )
-          await Promise.all([loadAdminAudits(), loadLoginAudits(), loadLoginMetrics()])
-        } catch (err) {
-          setErr(err)
-        } finally {
-          closeConfirm()
-        }
-      },
-    })
-  }
-
-  async function loadLoginMetrics() {
-    const params = new URLSearchParams()
-    if (metricsFilters.fromDate) params.set('fromDate', metricsFilters.fromDate)
-    if (metricsFilters.toDate) params.set('toDate', metricsFilters.toDate)
-    if (metricsFilters.hourFrom !== '') params.set('hourFrom', metricsFilters.hourFrom)
-    if (metricsFilters.hourTo !== '') params.set('hourTo', metricsFilters.hourTo)
-    const qs = params.toString()
-    const base = qs ? `?${qs}` : ''
-    const data = await api(`/admin/login-audit/metrics${base}`)
-    const hourly = await api(`/admin/login-audit/metrics/hourly${base}`)
-    const byIp = await api(`/admin/login-audit/metrics/ip${base}`)
-    const byUser = await api(`/admin/login-audit/metrics/user${base}`)
-    setLoginMetrics(data.items || [])
-    setLoginMetricsHourly(hourly.items || [])
-    setLoginMetricsByIp(byIp.items || [])
-    setLoginMetricsByUser(byUser.items || [])
-  }
-
-  function buildPlanchetaQuery() {
-    const params = new URLSearchParams()
-    if (!planchetaFilters.establishmentId) return ''
-    params.set('establishmentId', planchetaFilters.establishmentId)
-    if (planchetaFilters.dependencyId) params.set('dependencyId', planchetaFilters.dependencyId)
-    if (planchetaFilters.fromDate) params.set('fromDate', planchetaFilters.fromDate)
-    if (planchetaFilters.toDate) params.set('toDate', planchetaFilters.toDate)
-    if (planchetaFilters.responsibleName)
-      params.set('responsibleName', planchetaFilters.responsibleName)
-    if (planchetaFilters.chiefName) params.set('chiefName', planchetaFilters.chiefName)
-    if (planchetaFilters.ministryText) params.set('ministryText', planchetaFilters.ministryText)
-    params.set('includeHistory', planchetaFilters.includeHistory ? 'true' : 'false')
-    return params.toString()
-  }
-
-  async function loadPlanchetaInstitutions() {
-    setLoadingPlancheta(true)
-    try {
-      const data = await api('/catalog/institutions?take=100&includeInactive=true')
-      const institutions = data.items || []
-      setPlanchetaInstitutions(institutions)
-      if (!institutions.length) {
-        setPlanchetaMessage(
-          'No hay instituciones disponibles. Crea estructura base antes de usar planchetas.'
-        )
-      } else {
-        setPlanchetaMessage('')
-        setPlanchetaFilters((prev) => {
-          if (prev.institutionId) return prev
-          const preferredInstitutionId =
-            (currentUser?.institutionId && String(currentUser.institutionId)) ||
-            (tokenClaims?.institutionId && String(tokenClaims.institutionId)) ||
-            String(institutions[0].id || '')
-          if (!preferredInstitutionId) return prev
-          return {
-            ...prev,
-            institutionId: preferredInstitutionId,
-          }
-        })
-      }
-    } catch (err) {
-      setPlanchetaMessage(err.message)
-      setErr(err)
-    } finally {
-      setLoadingPlancheta(false)
-    }
-  }
-
-  async function loadPlanchetaEstablishments(institutionId) {
-    if (!institutionId) {
-      setPlanchetaEstablishments([])
-      return
-    }
-    try {
-      const params = new URLSearchParams()
-      params.set('institutionId', String(institutionId))
-      params.set('take', '100')
-      params.set('includeInactive', 'true')
-      const data = await api(`/catalog/establishments?${params.toString()}`)
-      const establishments = data.items || []
-      setPlanchetaEstablishments(establishments)
-      if (!establishments.length) {
-        const scopedInstitutionId =
-          (currentUser?.institutionId && String(currentUser.institutionId)) ||
-          (tokenClaims?.institutionId && String(tokenClaims.institutionId)) ||
-          ''
-        if (scopedInstitutionId && String(scopedInstitutionId) !== String(institutionId)) {
-          setPlanchetaFilters((prev) => ({
-            ...prev,
-            institutionId: scopedInstitutionId,
-            establishmentId: '',
-            dependencyId: '',
-          }))
-          return
-        }
-        setPlanchetaFilters((prev) => ({
-          ...prev,
-          establishmentId: '',
-          dependencyId: '',
-        }))
-        setPlanchetaMessage('No hay establecimientos en esta institucion.')
-      } else {
-        setPlanchetaMessage('')
-        setPlanchetaFilters((prev) => {
-          if (prev.establishmentId) return prev
-          const preferredEstablishmentId =
-            (currentUser?.establishmentId && String(currentUser.establishmentId)) ||
-            (tokenClaims?.establishmentId && String(tokenClaims.establishmentId)) ||
-            String(establishments[0].id || '')
-          if (!preferredEstablishmentId) return prev
-          return {
-            ...prev,
-            establishmentId: preferredEstablishmentId,
-          }
-        })
-      }
-    } catch (err) {
-      setPlanchetaEstablishments([])
-      setPlanchetaMessage(err.message || 'No se pudieron cargar establecimientos.')
-      setErr(err.message || 'No se pudieron cargar establecimientos.')
-    }
-  }
-
-  async function loadPlanchetaDependencies(establishmentId) {
-    if (!establishmentId) {
-      setPlanchetaDependencies([])
-      return
-    }
-    try {
-      const params = new URLSearchParams()
-      params.set('establishmentId', String(establishmentId))
-      params.set('take', '100')
-      params.set('includeInactive', 'true')
-      const data = await api(`/catalog/dependencies?${params.toString()}`)
-      const items = data.items || []
-      setPlanchetaDependencies(items)
-      if (!items.length) {
-        setPlanchetaMessage('No hay dependencias en este establecimiento.')
-      } else if (planchetaMessage === 'No hay dependencias en este establecimiento.') {
-        setPlanchetaMessage('')
-      }
-    } catch (err) {
-      setPlanchetaDependencies([])
-      setErr(err.message || 'No se pudieron cargar dependencias.')
-    }
-  }
-
-  async function loadPlanchetaPreview() {
-    const qs = buildPlanchetaQuery()
-    if (!qs) {
-      setPlanchetaMessage('Selecciona establecimiento para previsualizar.')
-      setPlanchetaPreview([])
-      setPlanchetaSummary([])
-      setPlanchetaInsights(null)
-      return
-    }
-    setPlanchetaPreviewLoading(true)
-    try {
-      const data = await api(`/planchetas?${qs}`)
-      const items = data.items || []
-      const summary = data.summary || []
-      const insights = data.insights || null
-      setPlanchetaPreview(items)
-      setPlanchetaSummary(summary)
-      setPlanchetaInsights(insights)
-      if (!items.length) {
-        setPlanchetaMessage(
-          'No hay activos fijos para ese filtro. Carga activos fijos en la dependencia y vuelve a intentar.'
-        )
-      } else {
-        setPlanchetaMessage('')
-      }
-    } catch (err) {
-      setPlanchetaPreview([])
-      setPlanchetaSummary([])
-      setPlanchetaInsights(null)
-      const message = getPlanchetaErrorMessage(err, 'No se pudo cargar la previsualizacion.')
-      setPlanchetaMessage(message)
-      setErr(message)
-    } finally {
-      setPlanchetaPreviewLoading(false)
-    }
-  }
-
-  function formatPlanchetaMovement(movement) {
-    const typeMap = {
-      INVENTORY_CHECK: 'Registro inicial',
-      TRANSFER: 'Transferencia',
-      STATUS_CHANGE: 'Cambio de estado',
-      RELOCATION: 'Reubicacion',
-    }
-    const typeLabel = typeMap[movement?.type] || movement?.type || 'Movimiento'
-    const reason = movement?.reasonCode || movement?.reason || 'sin motivo'
-    return `${typeLabel} (${reason})`
-  }
-
-  async function downloadPlancheta(kind, variant = 'formal') {
-    const qs = buildPlanchetaQuery()
-    if (!qs) {
-      const msg = 'Selecciona establecimiento para descargar plancheta.'
-      setPlanchetaMessage(msg)
-      setErr(msg)
-      return
-    }
-    const isExecutive = variant === 'gerencial'
-    const path =
-      kind === 'excel'
-        ? `${isExecutive ? '/planchetas/gerencial/excel' : '/planchetas/excel'}?${qs}`
-        : `${isExecutive ? '/planchetas/gerencial/pdf' : '/planchetas/pdf'}?${qs}`
-    const filename =
-      kind === 'excel'
-        ? isExecutive
-          ? 'plancheta_gerencial.xlsx'
-          : 'plancheta.xlsx'
-        : isExecutive
-          ? 'plancheta_gerencial.pdf'
-          : 'plancheta.pdf'
-    try {
-      await downloadFile(path, filename)
-    } catch (err) {
-      const message = getPlanchetaErrorMessage(
-        err,
-        `No se pudo descargar plancheta ${kind.toUpperCase()}.`
-      )
-      setPlanchetaMessage(message)
-      setErr(err, message)
-    }
   }
 
   const handleActiveTabDataLoad = useEffectEvent(() => {
@@ -5253,6 +2062,7 @@ function App() {
       loadAssetTypes()
       loadCatalogItems()
       loadAssetsList()
+      if (isCentral) loadDepreciationRuns()
     }
     if (activeTab === 'imports' && importsView === 'catalog') {
       loadCatalogAdminItems(1)
@@ -5266,10 +2076,6 @@ function App() {
       loadLoginAudits()
       loadLoginMetrics()
     }
-    if (activeTab === 'planchetas') {
-      loadPlanchetaInstitutions()
-      setPlanchetaPreview([])
-    }
   })
 
   const handleInstitutionCatalogTabLoad = useEffectEvent(() => {
@@ -5278,24 +2084,6 @@ function App() {
       return
     }
     loadInstitutionCatalog()
-  })
-
-  const handlePlanchetaEstablishmentsLoad = useEffectEvent(() => {
-    if (!isAuthed || activeTab !== 'planchetas') return
-    if (!planchetaFilters.institutionId) {
-      setPlanchetaEstablishments([])
-      return
-    }
-    loadPlanchetaEstablishments(planchetaFilters.institutionId)
-  })
-
-  const handlePlanchetaDependenciesLoad = useEffectEvent(() => {
-    if (!isAuthed || activeTab !== 'planchetas') return
-    if (!planchetaFilters.establishmentId) {
-      setPlanchetaDependencies([])
-      return
-    }
-    loadPlanchetaDependencies(planchetaFilters.establishmentId)
   })
 
   const handleEstablishmentCatalogLoad = useEffectEvent(() => {
@@ -5308,24 +2096,6 @@ function App() {
     if (!isAuthed) return
     if (activeTab !== 'dependencies') return
     loadDependencyCatalog(depForm.establishmentId)
-  })
-
-  const handleAssistantInstitutionScopeChange = useEffectEvent(() => {
-    if (!isAuthed || activeTab !== 'assistant' || !isCentral) return
-    loadEstablishmentCatalog(assistantScope.institutionId)
-    setAssistantScope((prev) => ({ ...prev, establishmentId: '', dependencyId: '' }))
-    setDependenciesCatalog([])
-  })
-
-  const handleAssistantEstablishmentScopeChange = useEffectEvent(() => {
-    if (!isAuthed || activeTab !== 'assistant' || !isCentral) return
-    if (!assistantScope.establishmentId) {
-      setDependenciesCatalog([])
-      setAssistantScope((prev) => ({ ...prev, dependencyId: '' }))
-      return
-    }
-    loadDependencyCatalog(assistantScope.establishmentId)
-    setAssistantScope((prev) => ({ ...prev, dependencyId: '' }))
   })
 
   const handleAssetEstablishmentsLoad = useEffectEvent(() => {
@@ -5364,10 +2134,6 @@ function App() {
     loadAssetListDependencies(assetListFilters.establishmentId)
   })
 
-  const handleUsersSearch = useEffectEvent(() => {
-    loadUsersAdmin(1)
-  })
-
   const handleAssetsSearch = useEffectEvent(() => {
     loadAssetsList(1)
   })
@@ -5381,6 +2147,7 @@ function App() {
       localStorage.removeItem('last_asset_id')
       return
     }
+    setEvidenceForm({ movementId: '', docType: 'ACTA', note: '', file: null })
     api(`/assets/${safeLastId}`)
       .then((asset) => setCreatedAsset(asset))
       .catch(() => {
@@ -5392,7 +2159,9 @@ function App() {
     const safeAssetId = getSafeAssetId(createdAsset)
     if (!safeAssetId) {
       setAssetMovements([])
+      setAssetHistoryLoading(false)
       setAssetEvidence([])
+      setAssetEvidenceLoading(false)
       setEvidenceForm({ movementId: '', docType: 'ACTA', note: '', file: null })
       return
     }
@@ -5409,58 +2178,12 @@ function App() {
   }, [isAuthed, activeTab])
 
   useEffect(() => {
-    handlePlanchetaEstablishmentsLoad()
-  }, [isAuthed, activeTab, planchetaFilters.institutionId])
-
-  useEffect(() => {
-    handlePlanchetaDependenciesLoad()
-  }, [isAuthed, activeTab, planchetaFilters.establishmentId])
-
-  useEffect(() => {
-    if (activeTab !== 'planchetas') return
-    setPlanchetaPreview([])
-    setPlanchetaSummary([])
-    setPlanchetaInsights(null)
-  }, [
-    activeTab,
-    planchetaFilters.institutionId,
-    planchetaFilters.establishmentId,
-    planchetaFilters.dependencyId,
-    planchetaFilters.fromDate,
-    planchetaFilters.toDate,
-    planchetaFilters.includeHistory,
-  ])
-
-  useEffect(() => {
-    if (!isUserMenuOpen) return
-
-    function handlePointerDown(event) {
-      if (userMenuRef.current?.contains(event.target)) return
-      if (isChangePasswordOpen) closeChangePassword()
-      setIsUserMenuOpen(false)
-    }
-
-    document.addEventListener('mousedown', handlePointerDown)
-    return () => {
-      document.removeEventListener('mousedown', handlePointerDown)
-    }
-  }, [isUserMenuOpen, isChangePasswordOpen])
-
-  useEffect(() => {
     handleEstablishmentCatalogLoad()
   }, [isAuthed, estForm.institutionId, activeTab])
 
   useEffect(() => {
     handleDependencyCatalogLoad()
   }, [isAuthed, depForm.establishmentId, activeTab])
-
-  useEffect(() => {
-    handleAssistantInstitutionScopeChange()
-  }, [isAuthed, activeTab, isCentral, assistantScope.institutionId])
-
-  useEffect(() => {
-    handleAssistantEstablishmentScopeChange()
-  }, [isAuthed, activeTab, isCentral, assistantScope.establishmentId])
 
   useEffect(() => {
     handleAssetEstablishmentsLoad()
@@ -5477,34 +2200,6 @@ function App() {
   useEffect(() => {
     handleAssetListDependenciesLoad()
   }, [isAuthed, activeTab, assetListFilters.establishmentId])
-
-  useEffect(() => {
-    if (!isAuthed || !isCentral) return
-    if (activeTab !== 'users') return
-
-    if (usersSearchDebounceRef.current) {
-      clearTimeout(usersSearchDebounceRef.current)
-    }
-    usersSearchDebounceRef.current = setTimeout(() => {
-      handleUsersSearch()
-    }, 320)
-
-    return () => {
-      if (usersSearchDebounceRef.current) {
-        clearTimeout(usersSearchDebounceRef.current)
-        usersSearchDebounceRef.current = null
-      }
-    }
-  }, [
-    isAuthed,
-    isCentral,
-    activeTab,
-    userFilters.q,
-    userFilters.roleType,
-    userFilters.institutionId,
-    userFilters.establishmentId,
-    userFilters.includeInactive,
-  ])
 
   useEffect(() => {
     if (!isAuthed) return
@@ -5545,59 +2240,10 @@ function App() {
   }, [isAuthed])
 
   useEffect(() => {
-    if (!createdAsset?.internalCode) {
-      setQrCodeUrl('')
-      return
-    }
-    const barcodeValue = `INV-${createdAsset.internalCode}`
-    const qrValue = buildAssetTechnicalSheetUrl(createdAsset) || barcodeValue
-    let cancelled = false
-    Promise.all([loadQrCodeLib(), loadJsBarcodeLib()])
-      .then(([qrModule, barcodeModule]) => {
-        if (cancelled) return
-        qrModule.default
-          .toDataURL(qrValue, { margin: 1, width: 180 })
-          .then((url) => {
-            if (!cancelled) setQrCodeUrl(url)
-          })
-          .catch(() => {
-            if (!cancelled) setQrCodeUrl('')
-          })
-        const el = document.getElementById('barcode-preview')
-        if (el) {
-          try {
-            barcodeModule.default(el, barcodeValue, {
-              format: 'CODE128',
-              displayValue: true,
-              height: 48,
-              margin: 0,
-            })
-          } catch {
-            // ignore barcode errors
-          }
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setQrCodeUrl('')
-      })
     return () => {
-      cancelled = true
-    }
-  }, [createdAsset])
-
-  useEffect(() => {
-    const keyCheckTimers = catalogKeyCheckTimers.current
-    return () => {
-      Object.values(keyCheckTimers).forEach((timerId) => {
-        clearTimeout(timerId)
-      })
       if (assetSearchDebounceRef.current) {
         clearTimeout(assetSearchDebounceRef.current)
         assetSearchDebounceRef.current = null
-      }
-      if (usersSearchDebounceRef.current) {
-        clearTimeout(usersSearchDebounceRef.current)
-        usersSearchDebounceRef.current = null
       }
     }
   }, [])
@@ -5610,430 +2256,10 @@ function App() {
     setDepForm((prev) => ({ ...prev, establishmentId: '' }))
   }, [estForm.institutionId])
 
-  async function createInstitution() {
-    try {
-      if (!dangerZoneUnlocked) {
-        setErr('Acciones críticas bloqueadas. Usa "Habilitar acciones críticas".')
-        return
-      }
-      if (!instForm.name.trim()) {
-        setFormErrors((prev) => ({ ...prev, instName: 'Nombre requerido.' }))
-        return
-      }
-      const created = await api('/admin/institutions', {
-        method: 'POST',
-        body: { name: instForm.name.trim() },
-      })
-      setInstForm({ name: '' })
-      await Promise.all([loadInstitutions(), loadInstitutionCatalog()])
-      setOk(UI_SUCCESS.institutionCreated(created.name))
-    } catch (err) {
-      if (err?.status === 403) {
-        setErr('Tu sesión no tiene permisos ADMIN_CENTRAL. Cierra sesión y vuelve a ingresar.')
-        return
-      }
-      setErr(err)
-    }
-  }
-
-  async function updateInstitution(payload) {
-    try {
-      if (!payload.name || !payload.name.trim()) {
-        setFormErrors((prev) => ({ ...prev, instEdit: 'Nombre requerido.' }))
-        return
-      }
-      await api(`/admin/institutions/${payload.id}`, {
-        method: 'PUT',
-        body: { name: payload.name },
-      })
-      await loadInstitutions()
-      setOk(UI_STATUS.institutionUpdated)
-    } catch (err) {
-      setErr(err)
-    }
-  }
-
-  async function deleteInstitution(id) {
-    openConfirm({
-      title: 'Dar de baja institucion',
-      message: 'La institucion quedara inactiva y ya no podra operar hasta su reactivacion.',
-      onConfirm: async () => {
-        try {
-          await api(`/admin/institutions/${id}`, { method: 'DELETE' })
-          await loadInstitutions()
-          setOk(UI_STATUS.institutionDeactivated)
-        } catch (err) {
-          const message = getInstitutionConflictMessage(err, UI_ERROR.couldNotDeactivate('la institucion'))
-          setErr(withMappedError(err, message, UI_ERROR.couldNotDeactivate('la institucion')))
-        } finally {
-          closeConfirm()
-        }
-      },
-    })
-  }
-
-  async function reactivateInstitution(id) {
-    try {
-      await api(`/admin/institutions/${id}/reactivate`, { method: 'PUT' })
-      await Promise.all([loadInstitutions(), loadInstitutionCatalog()])
-      setOk(UI_STATUS.institutionReactivated)
-    } catch (err) {
-      const message = getInstitutionConflictMessage(err, UI_ERROR.couldNotReactivate('la institucion'))
-      setErr(withMappedError(err, message, UI_ERROR.couldNotReactivate('la institucion')))
-    }
-  }
-
-  async function hardDeleteInstitution(id) {
-    openConfirm({
-      title: 'Eliminar institucion',
-      message:
-        'Esta accion es irreversible. Se eliminara definitivamente si no tiene relaciones.',
-      onConfirm: async () => {
-        try {
-          await api(`/admin/institutions/${id}/permanent`, { method: 'DELETE' })
-          await loadInstitutions()
-          setOk(UI_STATUS.institutionDeleted)
-        } catch (err) {
-          if (err?.code === 'INSTITUTION_HARD_DELETE_HAS_RELATIONS') {
-            openForceDelete('institution', id, `#${id}`)
-            setOk('La institucion tiene relaciones. Usa eliminacion forzada confirmada.')
-            return
-          }
-          const message = getInstitutionConflictMessage(
-            err,
-            UI_ERROR.couldNotDeletePermanently('la institucion')
-          )
-          setErr(withMappedError(err, message, UI_ERROR.couldNotDeletePermanently('la institucion')))
-        } finally {
-          closeConfirm()
-        }
-      },
-    })
-  }
-
-  async function createEstablishment() {
-    try {
-      if (!estForm.name.trim()) {
-        setFormErrors((prev) => ({ ...prev, estName: 'Nombre requerido.' }))
-        return
-      }
-      if (!estForm.type.trim()) {
-        setFormErrors((prev) => ({ ...prev, estType: 'Tipo requerido.' }))
-        return
-      }
-      if (!Number(estForm.institutionId)) {
-        setFormErrors((prev) => ({
-          ...prev,
-          estInstitutionId: 'ID de institucion invalido.',
-        }))
-        return
-      }
-      const created = await api('/admin/establishments', {
-        method: 'POST',
-        body: {
-          name: estForm.name,
-          type: estForm.type,
-          ...(estForm.rbd ? { rbd: estForm.rbd.trim() } : {}),
-          ...(estForm.commune ? { commune: estForm.commune.trim() } : {}),
-          institutionId: Number(estForm.institutionId),
-        },
-      })
-      const createdInstitutionId = Number(estForm.institutionId)
-      setEstForm({ name: '', type: '', rbd: '', commune: '', institutionId: '' })
-      await Promise.all([
-        loadEstablishments(),
-        loadEstablishmentCatalog(createdInstitutionId),
-        loadInstitutionCatalog(),
-      ])
-      setOk(UI_SUCCESS.establishmentCreated(created.name))
-    } catch (err) {
-      setErr(err)
-    }
-  }
-
-  async function updateEstablishment(payload) {
-    try {
-      if (payload.name !== undefined && payload.name !== '' && !payload.name.trim()) {
-        setFormErrors((prev) => ({ ...prev, estEdit: 'Nombre invalido.' }))
-        return
-      }
-      await api(`/admin/establishments/${payload.id}`, {
-        method: 'PUT',
-        body: {
-          name: payload.name || undefined,
-          type: payload.type || undefined,
-          rbd:
-            payload.rbd === undefined
-              ? undefined
-              : String(payload.rbd).trim()
-                ? String(payload.rbd).trim()
-                : undefined,
-          commune:
-            payload.commune === undefined
-              ? undefined
-              : String(payload.commune).trim()
-                ? String(payload.commune).trim()
-                : undefined,
-          institutionId: payload.institutionId
-            ? Number(payload.institutionId)
-            : undefined,
-        },
-      })
-      await loadEstablishments()
-      setOk('Establecimiento actualizado.')
-    } catch (err) {
-      setErr(err)
-    }
-  }
-
-  async function deleteEstablishment(id) {
-    openConfirm({
-      title: 'Dar de baja establecimiento',
-      message: 'El establecimiento quedara inactivo pero no se eliminara.',
-      onConfirm: async () => {
-        try {
-          const result = await api(`/admin/establishments/${id}`, { method: 'DELETE' })
-          await loadEstablishments()
-          const autoDeps = Number(result?.autoDeactivatedDependencies || 0)
-          if (autoDeps > 0) {
-            setOk(`Establecimiento dado de baja. Dependencias auto-desactivadas: ${autoDeps}.`)
-          } else {
-            setOk('Establecimiento dado de baja.')
-          }
-        } catch (err) {
-          if (err?.code === 'ESTABLISHMENT_HAS_ACTIVE_DEPENDENCIES') {
-            openDeleteBlockModal({
-              title: 'No se puede dar de baja el establecimiento',
-              summary: {
-                activeDependencies: Number(err?.details?.activeDependencies || 0),
-              },
-              dependencies: err?.details?.blockedDependencies || [],
-            })
-            return
-          }
-          const message = getEstablishmentConflictMessage(
-            err,
-            UI_ERROR.couldNotDeactivate('el establecimiento')
-          )
-          setErr(withMappedError(err, message, UI_ERROR.couldNotDeactivate('el establecimiento')))
-        } finally {
-          closeConfirm()
-        }
-      },
-    })
-  }
-
-  async function reactivateEstablishment(id) {
-    try {
-      await api(`/admin/establishments/${id}/reactivate`, { method: 'PUT' })
-      await loadEstablishments()
-      setOk('Establecimiento reactivado.')
-    } catch (err) {
-      const message = getEstablishmentConflictMessage(
-        err,
-        UI_ERROR.couldNotReactivate('el establecimiento')
-      )
-      setErr(withMappedError(err, message, UI_ERROR.couldNotReactivate('el establecimiento')))
-    }
-  }
-
-  async function hardDeleteEstablishment(id) {
-    openConfirm({
-      title: 'Eliminar establecimiento definitivamente',
-      message:
-        'Esta accion es irreversible. Se eliminara definitivamente si no tiene relaciones.',
-      onConfirm: async () => {
-        try {
-          await api(`/admin/establishments/${id}/permanent`, { method: 'DELETE' })
-          await loadEstablishments()
-          setOk('Establecimiento eliminado definitivamente.')
-        } catch (err) {
-          if (err?.code === 'ESTABLISHMENT_HARD_DELETE_HAS_RELATIONS') {
-            openForceDelete('establishment', id, `#${id}`)
-            setOk('El establecimiento tiene relaciones. Usa eliminacion forzada confirmada.')
-            return
-          }
-          const message = getEstablishmentConflictMessage(
-            err,
-            UI_ERROR.couldNotDeletePermanently('el establecimiento')
-          )
-          setErr(
-            withMappedError(
-              err,
-              message,
-              UI_ERROR.couldNotDeletePermanently('el establecimiento')
-            )
-          )
-        } finally {
-          closeConfirm()
-        }
-      },
-    })
-  }
-
-  async function createDependency() {
-    try {
-      if (!depForm.name.trim()) {
-        setFormErrors((prev) => ({ ...prev, depName: 'Nombre requerido.' }))
-        return
-      }
-      if (!Number(depForm.establishmentId)) {
-        setFormErrors((prev) => ({
-          ...prev,
-          depEstablishmentId: 'ID de establecimiento invalido.',
-        }))
-        return
-      }
-      const created = await api('/admin/dependencies', {
-        method: 'POST',
-        body: {
-          name: depForm.name,
-          establishmentId: Number(depForm.establishmentId),
-        },
-      })
-      const createdEstablishmentId = Number(depForm.establishmentId)
-      setDepForm({ name: '', establishmentId: '' })
-      await Promise.all([
-        loadDependencies(),
-        loadDependencyCatalog(createdEstablishmentId),
-        loadEstablishmentCatalog(),
-      ])
-      setOk(UI_SUCCESS.dependencyCreated(created.name))
-    } catch (err) {
-      setErr(err)
-    }
-  }
-
-  async function updateDependency(payload) {
-    try {
-      if (payload.name !== undefined && payload.name !== '' && !payload.name.trim()) {
-        setFormErrors((prev) => ({ ...prev, depEdit: 'Nombre invalido.' }))
-        return
-      }
-      await api(`/admin/dependencies/${payload.id}`, {
-        method: 'PUT',
-        body: {
-          name: payload.name || undefined,
-          establishmentId: payload.establishmentId
-            ? Number(payload.establishmentId)
-            : undefined,
-        },
-      })
-      await loadDependencies()
-      setOk(UI_STATUS.dependencyUpdated)
-    } catch (err) {
-      setErr(err)
-    }
-  }
-
-  async function deleteDependency(id) {
-    openConfirm({
-      title: 'Dar de baja dependencia',
-      message: 'La dependencia quedara inactiva pero no se eliminara.',
-      onConfirm: async () => {
-        try {
-          await api(`/admin/dependencies/${id}`, { method: 'DELETE' })
-          await loadDependencies()
-          setOk(UI_STATUS.dependencyDeactivated)
-        } catch (err) {
-          const message = getDependencyConflictMessage(err, UI_ERROR.couldNotDeactivate('la dependencia'))
-          setErr(withMappedError(err, message, UI_ERROR.couldNotDeactivate('la dependencia')))
-        } finally {
-          closeConfirm()
-        }
-      },
-    })
-  }
-
-  async function replicateDependenciesFromBase() {
-    try {
-      setDepReplicateResult(null)
-      const sourceEstablishmentId = Number(depReplicateForm.sourceEstablishmentId)
-      const targetEstablishmentId = Number(depReplicateForm.targetEstablishmentId)
-      if (!sourceEstablishmentId || sourceEstablishmentId <= 0) {
-        setErr('Selecciona un establecimiento de origen valido.')
-        return
-      }
-      if (!targetEstablishmentId || targetEstablishmentId <= 0) {
-        setErr('Selecciona un establecimiento de destino valido.')
-        return
-      }
-      if (sourceEstablishmentId === targetEstablishmentId) {
-        setErr('Origen y destino deben ser distintos.')
-        return
-      }
-
-      const result = await api('/admin/dependencies/replicate', {
-        method: 'POST',
-        body: {
-          sourceEstablishmentId,
-          targetEstablishmentId,
-          includeInactive: depReplicateForm.includeInactive,
-        },
-      })
-      await loadDependencies(1)
-      const createdCount = Number(result?.createdCount || 0)
-      const skippedCount = Number(result?.skippedCount || 0)
-      setDepReplicateResult({
-        sourceEstablishmentName: result?.sourceEstablishmentName || '-',
-        targetEstablishmentName: result?.targetEstablishmentName || '-',
-        sourceCount: Number(result?.sourceCount || 0),
-        createdCount,
-        skippedCount,
-        skipped: Array.isArray(result?.skipped) ? result.skipped : [],
-      })
-      setOk(
-        `Replicacion completada. Creadas: ${createdCount}. Omitidas: ${skippedCount}.`
-      )
-    } catch (err) {
-      setDepReplicateResult(null)
-      setErr(err)
-    }
-  }
-
-  async function reactivateDependency(id) {
-    try {
-      await api(`/admin/dependencies/${id}/reactivate`, { method: 'PUT' })
-      await loadDependencies()
-      setOk(UI_STATUS.dependencyReactivated)
-    } catch (err) {
-      const message = getDependencyConflictMessage(err, UI_ERROR.couldNotReactivate('la dependencia'))
-      setErr(withMappedError(err, message, UI_ERROR.couldNotReactivate('la dependencia')))
-    }
-  }
-
-  async function hardDeleteDependency(id) {
-    openConfirm({
-      title: 'Eliminar dependencia definitivamente',
-      message:
-        'Esta accion es irreversible. Se eliminara definitivamente si no tiene relaciones.',
-      onConfirm: async () => {
-        try {
-          await api(`/admin/dependencies/${id}/permanent`, { method: 'DELETE' })
-          await loadDependencies()
-          setOk(UI_STATUS.dependencyDeleted)
-        } catch (err) {
-          if (err?.code === 'DEPENDENCY_HARD_DELETE_HAS_RELATIONS') {
-            openForceDelete('dependency', id, `#${id}`)
-            setOk('La dependencia tiene relaciones. Usa eliminacion forzada confirmada.')
-            return
-          }
-          const message = getDependencyConflictMessage(
-            err,
-            UI_ERROR.couldNotDeletePermanently('la dependencia')
-          )
-          setErr(withMappedError(err, message, UI_ERROR.couldNotDeletePermanently('la dependencia')))
-        } finally {
-          closeConfirm()
-        }
-      },
-    })
-  }
-
   const tabs = [
     { id: 'institutions', label: 'Instituciones' },
     { id: 'establishments', label: 'Establecimientos' },
-    { id: 'dependencies', label: 'Dependencias' },
+    { id: 'dependencies', label: 'Sectores' },
     { id: 'users', label: 'Usuarios' },
     { id: 'assistant', label: 'Asistente Central' },
     { id: 'assets', label: UI_TEXT.assetPlural },
@@ -6058,15 +2284,15 @@ function App() {
         'Seleccionar la institución y revisar la nómina de establecimientos.',
         'Completar tipo, RBD, comuna y antecedentes administrativos.',
         'Actualizar los datos y guardar.',
-        'Dar de baja o reactivar respetando las reglas de dependencias activas.',
+        'Dar de baja o reactivar respetando las reglas de sectores activos.',
       ],
     },
     dependencies: {
-      title: 'Dependencias',
+      title: 'Sectores',
       steps: [
-        'Seleccionar el establecimiento antes de crear la dependencia.',
+        'Seleccionar el establecimiento antes de crear el sector.',
         'Verificar que el nombre identifique claramente sala, oficina o bodega.',
-        'Usar la replicación de dependencias base para copiar estructura a otro establecimiento.',
+        'Usar la replicación de sectores base para copiar estructura a otro establecimiento.',
         'Actualizar los datos si cambia la estructura interna.',
         'Dar de baja solo cuando no existan activos vinculados.',
       ],
@@ -6092,7 +2318,7 @@ function App() {
     assets: {
       title: UI_TEXT.assetPlural,
       steps: [
-        'Seleccionar institución, establecimiento y dependencia.',
+        'Seleccionar institución, establecimiento y sector.',
         'Elegir catálogo o ingresar los datos del activo de forma manual.',
         'Definir cantidad, valor, fecha y responsable, si corresponde.',
         'Crear el activo y luego gestionar movimiento, transferencia o baja desde el modal.',
@@ -6118,7 +2344,7 @@ function App() {
     planchetas: {
       steps: [
         'Seleccionar institución y establecimiento.',
-        'Opcionalmente filtrar por dependencia y rango de fechas.',
+        'Opcionalmente filtrar por sector y rango de fechas.',
         'Previsualizar los resultados y validar los conteos.',
         'Exportar a PDF o Excel para uso administrativo.',
       ],
@@ -6134,10 +2360,10 @@ function App() {
     },
   }
   const activeMiniManual = miniManualByTab[activeTab]
-
-  const labelData = createdAsset ? getLabelData(createdAsset) : null
-  const createdLabel = createdAsset ? getLabelData(createdAsset) : null
   const modalCatalogItem = selectedCatalogItem || createdAsset?.catalogItem || null
+  const assetEvidenceMovements = assetMovements.filter(
+    (m) => m.type === 'TRANSFER' || m.type === 'STATUS_CHANGE'
+  )
   const multiProductsTotalQuantity = assetMultiProducts.reduce((acc, row) => {
     const qty = Number(row?.quantity)
     if (!Number.isInteger(qty) || qty <= 0) return acc
@@ -6149,17 +2375,6 @@ function App() {
   const selectedAssetEstablishment = assetEstablishments.find(
     (est) => String(est.id) === String(assetForm.establishmentId)
   )
-  const hasModalContext = Boolean(createdAsset || modalCatalogItem)
-  const isBaja =
-    Boolean(createdAsset?.isDeleted) || createdAsset?.assetState?.name === 'BAJA'
-  const assistantScopeCoverage = [
-    assistantScope.institutionId,
-    assistantScope.establishmentId,
-    assistantScope.dependencyId,
-  ].filter(Boolean).length
-  const supportOpenCount = supportRequests.filter((item) => item.status === 'OPEN').length
-  const supportOverdueCount = supportRequests.filter((item) => item.status === 'OVERDUE').length
-  const supportResolvedCount = supportRequests.filter((item) => item.status === 'RESOLVED').length
   const trashWithDateCount = trashAssets.filter((asset) => asset.deletedAt).length
   const trashWithDependencyCount = trashAssets.filter((asset) => asset.dependency?.name).length
 
@@ -6193,748 +2408,64 @@ function App() {
 
   return (
     <div className="page">
-      {catalogModalOpen && (
-        <div className="modal-backdrop" onClick={() => setCatalogModalOpen(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-head">
-              <h4>{modalCatalogItem ? 'Catalogo seleccionado' : 'Activo fijo seleccionado'}</h4>
-              <button className="ghost" onClick={() => setCatalogModalOpen(false)}>
-                Cerrar
-              </button>
-            </div>
-            {hasModalContext ? (
-              <div className="modal-body">
-                <div className="modal-layout">
-                  <div className="modal-main">
-                    <div className="modal-grid">
-                      <div>
-                        <strong>Nombre</strong>
-                        <span>{modalCatalogItem?.name || createdAsset?.name || '-'}</span>
-                      </div>
-                      <div>
-                        <strong>Categoria</strong>
-                        <span>{modalCatalogItem?.category || '-'}</span>
-                      </div>
-                      <div>
-                        <strong>Subcategoria</strong>
-                        <span>{modalCatalogItem?.subcategory || '-'}</span>
-                      </div>
-                      <div>
-                        <strong>Marca</strong>
-                        <span>{modalCatalogItem?.brand || createdAsset?.brand || '-'}</span>
-                      </div>
-                      <div>
-                        <strong>Modelo</strong>
-                        <span>{modalCatalogItem?.modelName || createdAsset?.modelName || '-'}</span>
-                      </div>
-                    </div>
-                    {!modalCatalogItem && (
-                      <p className="muted">
-                        Este activo fijo no tiene item de catalogo asociado; puedes operar igual.
-                      </p>
-                    )}
-                    {status.details && (
-                      <button
-                        type="button"
-                        className="ghost status-copy-btn"
-                        onClick={copyStatusDetailsJson}
-                      >
-                        Copiar detalle JSON
-                      </button>
-                    )}
-                    {createdLabel ? (
-                      <div className="modal-label">
-                        <div className="label-code">
-                          Codigo: <strong>{createdLabel.code}</strong>
-                        </div>
-                        {qrCodeUrl && <img className="qr" src={qrCodeUrl} alt="QR" />}
-                        <div className="actions">
-                          <a
-                            className="ghost"
-                            href={createdLabel.technicalSheetUrl || '#'}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            Ver ficha tecnica HTML
-                          </a>
-                          <button className="ghost" onClick={copyTechnicalSheetLink}>
-                            Copiar link ficha
-                          </button>
-                          <button className="ghost" onClick={openPrintLabel}>
-                            Imprimir QR
-                          </button>
-                          <button className="ghost" onClick={openPrintLabel}>
-                            Imprimir
-                          </button>
-                          <button className="ghost" onClick={downloadLabelPdf}>
-                            Descargar PDF
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <p className="muted">
-                          Para ver QR e imprimir etiqueta necesitas crear el activo fijo.
-                        </p>
-                        <div className="actions">
-                          <button className="ghost" disabled>
-                            Ver ficha tecnica HTML
-                          </button>
-                          <button className="ghost" disabled>
-                            Copiar link ficha
-                          </button>
-                          <button className="ghost" disabled>
-                            Imprimir QR
-                          </button>
-                          <button className="ghost" disabled>
-                            Imprimir
-                          </button>
-                          <button className="ghost" disabled>
-                            Descargar PDF
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                  <div className="modal-side">
-                    <div className="modal-actions">
-                      <button
-                        className="ghost"
-                        disabled={!createdLabel}
-                        onClick={() => openCatalogAction('edit')}
-                      >
-                        Editar producto
-                      </button>
-                      <button
-                        className="ghost"
-                        disabled={!createdLabel}
-                        onClick={() => openCatalogAction('move')}
-                      >
-                        Mover producto
-                      </button>
-                      <button
-                        className="ghost"
-                        disabled={!createdLabel || !isCentral || isBaja}
-                        onClick={() => openCatalogAction('transfer')}
-                      >
-                        Transferir
-                      </button>
-                      <button
-                        className="danger"
-                        disabled={!createdLabel || isBaja}
-                        onClick={() => openCatalogAction('status')}
-                      >
-                        Dar de baja
-                      </button>
-                    </div>
-                    {catalogAction === 'edit' && (
-                      <div className="modal-form">
-                        <h5>Editar activo fijo</h5>
-                        <div className="modal-grid">
-                          <div>
-                            <strong>Nombre</strong>
-                            <input
-                              value={editAssetForm.name}
-                              onChange={(e) =>
-                                setEditAssetForm((p) => ({ ...p, name: e.target.value }))
-                              }
-                            />
-                          </div>
-                          <div>
-                            <strong>Marca</strong>
-                            <input
-                              value={editAssetForm.brand}
-                              onChange={(e) =>
-                                setEditAssetForm((p) => ({ ...p, brand: e.target.value }))
-                              }
-                            />
-                          </div>
-                          <div>
-                            <strong>Modelo</strong>
-                            <input
-                              value={editAssetForm.modelName}
-                              onChange={(e) =>
-                                setEditAssetForm((p) => ({
-                                  ...p,
-                                  modelName: e.target.value,
-                                }))
-                              }
-                            />
-                          </div>
-                          <div>
-                            <strong>Serie</strong>
-                            <input
-                              value={editAssetForm.serialNumber}
-                              onChange={(e) =>
-                                setEditAssetForm((p) => ({
-                                  ...p,
-                                  serialNumber: e.target.value,
-                                }))
-                              }
-                            />
-                          </div>
-                          <div>
-                            <strong>Cantidad</strong>
-                            <input
-                              type="number"
-                              min="1"
-                              step="1"
-                              value={editAssetForm.quantity}
-                              onChange={(e) =>
-                                setEditAssetForm((p) => ({
-                                  ...p,
-                                  quantity: e.target.value,
-                                }))
-                              }
-                            />
-                          </div>
-                          <div>
-                            <strong>Cuenta contable</strong>
-                            <input
-                              value={editAssetForm.accountingAccount}
-                              onChange={(e) =>
-                                setEditAssetForm((p) => ({
-                                  ...p,
-                                  accountingAccount: e.target.value,
-                                }))
-                              }
-                            />
-                          </div>
-                          <div>
-                            <strong>Codigo analitico</strong>
-                            <input
-                              value={editAssetForm.analyticCode}
-                              onChange={(e) =>
-                                setEditAssetForm((p) => ({
-                                  ...p,
-                                  analyticCode: e.target.value,
-                                }))
-                              }
-                            />
-                          </div>
-                          <label className="inline-check">
-                            <input
-                              type="checkbox"
-                              checked={!editAssetHasResponsible}
-                              onChange={(e) => {
-                                const withoutResponsible = e.target.checked
-                                setEditAssetHasResponsible(!withoutResponsible)
-                                if (withoutResponsible) {
-                                  setEditAssetForm((p) => ({
-                                    ...p,
-                                    responsibleName: '',
-                                    responsibleRut: '',
-                                    responsibleRole: '',
-                                    costCenter: '',
-                                  }))
-                                }
-                              }}
-                            />
-                            Sin responsable asignado
-                          </label>
-                          {editAssetHasResponsible ? (
-                            <>
-                              <div>
-                                <strong>Responsable</strong>
-                                <input
-                                  value={editAssetForm.responsibleName}
-                                  onChange={(e) =>
-                                    setEditAssetForm((p) => ({
-                                      ...p,
-                                      responsibleName: e.target.value,
-                                    }))
-                                  }
-                                />
-                              </div>
-                              <div>
-                                <strong>RUT responsable</strong>
-                                <input
-                                  value={editAssetForm.responsibleRut}
-                                  onChange={(e) =>
-                                    setEditAssetForm((p) => ({
-                                      ...p,
-                                      responsibleRut: e.target.value,
-                                    }))
-                                  }
-                                  onBlur={(e) =>
-                                    setEditAssetForm((p) => ({
-                                      ...p,
-                                      responsibleRut: normalizeRutValue(e.target.value),
-                                    }))
-                                  }
-                                />
-                              </div>
-                              <div>
-                                <strong>Cargo responsable</strong>
-                                <input
-                                  value={editAssetForm.responsibleRole}
-                                  onChange={(e) =>
-                                    setEditAssetForm((p) => ({
-                                      ...p,
-                                      responsibleRole: e.target.value,
-                                    }))
-                                  }
-                                />
-                              </div>
-                              <div>
-                                <strong>Centro de costo</strong>
-                                <input
-                                  value={editAssetForm.costCenter}
-                                  onChange={(e) =>
-                                    setEditAssetForm((p) => ({
-                                      ...p,
-                                      costCenter: e.target.value,
-                                    }))
-                                  }
-                                  onBlur={(e) =>
-                                    setEditAssetForm((p) => ({
-                                      ...p,
-                                      costCenter: normalizeCostCenterValue(e.target.value),
-                                    }))
-                                  }
-                                />
-                              </div>
-                            </>
-                          ) : (
-                            <p className="muted">El activo fijo quedara sin responsable.</p>
-                          )}
-                          <div>
-                            <strong>Valor de adquisicion</strong>
-                            <input
-                              type="number"
-                              value={editAssetForm.acquisitionValue}
-                              onChange={(e) =>
-                                setEditAssetForm((p) => ({
-                                  ...p,
-                                  acquisitionValue: e.target.value,
-                                }))
-                              }
-                            />
-                          </div>
-                          <div>
-                            <strong>Fecha de adquisicion</strong>
-                            <input
-                              type="date"
-                              value={editAssetForm.acquisitionDate}
-                              onChange={(e) =>
-                                setEditAssetForm((p) => ({
-                                  ...p,
-                                  acquisitionDate: e.target.value,
-                                }))
-                              }
-                            />
-                          </div>
-                        </div>
-                        <div className="actions">
-                          <button className="ghost" onClick={() => setCatalogAction(null)}>
-                            Cancelar
-                          </button>
-                          <button className="primary" onClick={submitEditAsset}>
-                            {UI_TEXT.saveChanges}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                    {catalogAction === 'move' && (
-                      <div className="modal-form">
-                        <h5>Mover activo fijo</h5>
-                        <div className="modal-grid">
-                          <div>
-                            <strong>Establecimiento actual</strong>
-                            <span>{createdAsset?.establishment?.name || '-'}</span>
-                          </div>
-                          <div>
-                            <strong>Dependencia actual</strong>
-                            <span>{createdAsset?.dependency?.name || '-'}</span>
-                          </div>
-                        </div>
-                        <div className="modal-grid">
-                          <div>
-                            <strong>Dependencia destino</strong>
-                            <select
-                              value={moveAssetForm.toDependencyId}
-                              onChange={(e) =>
-                                setMoveAssetForm({ toDependencyId: e.target.value })
-                              }
-                            >
-                              <option value="">Selecciona dependencia</option>
-                              {assetDependencies.map((dep) => (
-                                <option key={dep.id} value={dep.id}>
-                                  {dep.name}
-                                </option>
-                              ))}
-                            </select>
-                            {!assetDependencies.length && (
-                              <p className="muted">
-                                No hay dependencias disponibles para este establecimiento.
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        <div className="actions">
-                          <button className="ghost" onClick={() => setCatalogAction(null)}>
-                            Cancelar
-                          </button>
-                          <button className="primary" onClick={submitMoveAsset}>
-                            Mover
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                    {catalogAction === 'transfer' && (
-                      <div className="modal-form">
-                        <h5>Transferir activo fijo</h5>
-                        <div className="modal-grid">
-                          <div>
-                            <strong>Establecimiento destino</strong>
-                            <select
-                              value={transferAssetForm.toEstablishmentId}
-                              onChange={(e) => {
-                                const value = e.target.value
-                                setTransferAssetForm((prev) => ({
-                                  ...prev,
-                                  toEstablishmentId: value,
-                                  toDependencyId: '',
-                                }))
-                                loadTransferDependenciesForEstablishment(value).catch((err) =>
-                                  setErr(err)
-                                )
-                              }}
-                            >
-                              <option value="">Selecciona establecimiento</option>
-                              {transferEstablishments.map((est) => (
-                                <option key={est.id} value={est.id}>
-                                  {est.name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <strong>Dependencia destino</strong>
-                            <select
-                              value={transferAssetForm.toDependencyId}
-                              onChange={(e) =>
-                                setTransferAssetForm((prev) => ({
-                                  ...prev,
-                                  toDependencyId: e.target.value,
-                                }))
-                              }
-                              disabled={!transferAssetForm.toEstablishmentId}
-                            >
-                              <option value="">Selecciona dependencia</option>
-                              {transferDependencies.map((dep) => (
-                                <option key={dep.id} value={dep.id}>
-                                  {dep.name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <strong>Motivo</strong>
-                            <select
-                              value={transferAssetForm.reasonCode}
-                              onChange={(e) =>
-                                setTransferAssetForm((prev) => ({
-                                  ...prev,
-                                  reasonCode: e.target.value,
-                                }))
-                              }
-                            >
-                              <option value="">Selecciona motivo</option>
-                              {(movementReasonCodes.transfer || []).map((item) => (
-                                <option key={item.code} value={item.code}>
-                                  {item.label}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <strong>Tipo documento</strong>
-                            <select
-                              value={transferAssetForm.docType}
-                              onChange={(e) =>
-                                setTransferAssetForm((prev) => ({
-                                  ...prev,
-                                  docType: e.target.value,
-                                }))
-                              }
-                            >
-                              <option value="FOTO">FOTO</option>
-                              <option value="ACTA">ACTA</option>
-                              <option value="FACTURA">FACTURA</option>
-                              <option value="OTRO">OTRO</option>
-                            </select>
-                          </div>
-                          <div>
-                            <strong>Nota evidencia</strong>
-                            <input
-                              value={transferAssetForm.note}
-                              onChange={(e) =>
-                                setTransferAssetForm((prev) => ({
-                                  ...prev,
-                                  note: e.target.value,
-                                }))
-                              }
-                              placeholder={UI_TEXT.noteShort}
-                            />
-                          </div>
-                          <div>
-                            <strong>Archivo (PDF/JPG/PNG)</strong>
-                            <input
-                              type="file"
-                              accept=".pdf,.png,.jpg,.jpeg"
-                              onChange={(e) =>
-                                setTransferAssetForm((prev) => ({
-                                  ...prev,
-                                  file: e.target.files?.[0] || null,
-                                }))
-                              }
-                            />
-                          </div>
-                        </div>
-                        <div className="actions">
-                          <button className="ghost" onClick={() => setCatalogAction(null)}>
-                            Cancelar
-                          </button>
-                          <button className="primary" onClick={submitTransferAsset}>
-                            Confirmar transferencia
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                    {catalogAction === 'status' && (
-                      <div className="modal-form">
-                        <h5>Dar de baja</h5>
-                        <div className="modal-grid">
-                          <div>
-                            <strong>Estado</strong>
-                            <select
-                              value={statusAssetForm.assetStateId}
-                              onChange={(e) =>
-                                setStatusAssetForm((prev) => ({
-                                  ...prev,
-                                  assetStateId: e.target.value,
-                                }))
-                              }
-                            >
-                              <option value="">Selecciona estado</option>
-                              {assetStates.map((st) => (
-                                <option key={st.id} value={st.id}>
-                                  {st.name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <strong>Motivo</strong>
-                            <select
-                              value={statusAssetForm.reasonCode}
-                              onChange={(e) =>
-                                setStatusAssetForm((prev) => ({
-                                  ...prev,
-                                  reasonCode: e.target.value,
-                                }))
-                              }
-                            >
-                              <option value="">Selecciona motivo</option>
-                              {(movementReasonCodes.statusChange || []).map((item) => (
-                                <option key={item.code} value={item.code}>
-                                  {item.label}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <strong>Tipo documento</strong>
-                            <select
-                              value={statusAssetForm.docType}
-                              onChange={(e) =>
-                                setStatusAssetForm((prev) => ({
-                                  ...prev,
-                                  docType: e.target.value,
-                                }))
-                              }
-                            >
-                              <option value="FOTO">FOTO</option>
-                              <option value="ACTA">ACTA</option>
-                              <option value="FACTURA">FACTURA</option>
-                              <option value="OTRO">OTRO</option>
-                            </select>
-                          </div>
-                          <div>
-                            <strong>Nota evidencia</strong>
-                            <input
-                              value={statusAssetForm.note}
-                              onChange={(e) =>
-                                setStatusAssetForm((prev) => ({
-                                  ...prev,
-                                  note: e.target.value,
-                                }))
-                              }
-                              placeholder={UI_TEXT.noteShort}
-                            />
-                          </div>
-                          <div>
-                            <strong>Archivo (PDF/JPG/PNG)</strong>
-                            <input
-                              type="file"
-                              accept=".pdf,.png,.jpg,.jpeg"
-                              onChange={(e) =>
-                                setStatusAssetForm((prev) => ({
-                                  ...prev,
-                                  file: e.target.files?.[0] || null,
-                                }))
-                              }
-                            />
-                          </div>
-                        </div>
-                        <div className="actions">
-                          <button className="ghost" onClick={() => setCatalogAction(null)}>
-                            Cancelar
-                          </button>
-                          <button className="danger" onClick={submitStatusAsset}>
-                            Confirmar baja
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                    {createdLabel && (
-                      <div className="modal-form">
-                        <h5>Evidencias</h5>
-                        <div className="modal-grid">
-                          <div>
-                            <strong>Movimiento sensible</strong>
-                            <select
-                              value={evidenceForm.movementId}
-                              onChange={(e) =>
-                                setEvidenceForm((prev) => ({
-                                  ...prev,
-                                  movementId: e.target.value,
-                                }))
-                              }
-                            >
-                              <option value="">Sin movimiento especifico</option>
-                              {assetMovements.map((m) => (
-                                <option key={m.id} value={m.id}>
-                                  #{m.id} - {m.type} - {m.reasonCode || m.reason || 'sin motivo'} - {new Date(m.createdAt).toLocaleString()}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <strong>Tipo documento</strong>
-                            <select
-                              value={evidenceForm.docType}
-                              onChange={(e) =>
-                                setEvidenceForm((prev) => ({
-                                  ...prev,
-                                  docType: e.target.value,
-                                }))
-                              }
-                            >
-                              <option value="FOTO">FOTO</option>
-                              <option value="ACTA">ACTA</option>
-                              <option value="FACTURA">FACTURA</option>
-                              <option value="OTRO">OTRO</option>
-                            </select>
-                          </div>
-                          <div>
-                            <strong>Nota</strong>
-                            <input
-                              value={evidenceForm.note}
-                              onChange={(e) =>
-                                setEvidenceForm((prev) => ({
-                                  ...prev,
-                                  note: e.target.value,
-                                }))
-                              }
-                              placeholder={UI_TEXT.noteShort}
-                            />
-                          </div>
-                          <div>
-                            <strong>Archivo (PDF/JPG/PNG)</strong>
-                            <input
-                              id="evidence-file-input"
-                              type="file"
-                              accept=".pdf,.png,.jpg,.jpeg"
-                              onChange={(e) =>
-                                setEvidenceForm((prev) => ({
-                                  ...prev,
-                                  file: e.target.files?.[0] || null,
-                                }))
-                              }
-                            />
-                          </div>
-                        </div>
-                        <div className="actions">
-                          <button className="primary" onClick={submitEvidenceUpload}>
-                            Subir evidencia
-                          </button>
-                        </div>
-                        <div className="table-wrap">
-                          {assetEvidenceLoading ? (
-                            <p className="muted">Cargando evidencias...</p>
-                          ) : assetEvidence.length ? (
-                            <table>
-                              <thead>
-                                <tr>
-                                  <th>ID</th>
-                                  <th>Tipo</th>
-                                  <th>Movimiento</th>
-                                  <th>Archivo</th>
-                                  <th>Fecha</th>
-                                  <th>{UI_TEXT.action}</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {assetEvidence.map((ev) => (
-                                  <tr key={ev.id}>
-                                    <td>{ev.id}</td>
-                                    <td>{ev.docType}</td>
-                                    <td>{ev.movementId || '-'}</td>
-                                    <td>{ev.fileName}</td>
-                                    <td>{new Date(ev.createdAt).toLocaleString()}</td>
-                                    <td>
-                                      <button
-                                        className="ghost"
-                                        onClick={() => downloadEvidence(ev)}
-                                      >
-                                        Descargar
-                                      </button>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          ) : (
-                            <p className="muted">Sin evidencias cargadas.</p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                    <div className="modal-help">
-                      <strong>Como usar</strong>
-                      <p>1. Crea el activo fijo para habilitar QR y acciones.</p>
-                      <p>2. Usa Editar para cambiar datos.</p>
-                      <p>3. Dar de baja lo envia al Basurero.</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="actions">
-                  <button
-                    className="primary"
-                    onClick={() => setCatalogModalOpen(false)}
-                  >
-                    Continuar con el formulario
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <p className="muted">{`Sin datos de ${UI_TEXT.catalog.toLowerCase()}.`}</p>
-            )}
-          </div>
-        </div>
-      )}
+      <AssetCatalogModal
+        {...{
+          isOpen: catalogModalOpen,
+          onClose: () => setCatalogModalOpen(false),
+          modalCatalogItem,
+          createdAsset,
+          createdLabel,
+          qrCodeUrl,
+          status,
+          copyStatusDetailsJson,
+          copyTechnicalSheetLink,
+          openPrintLabel,
+          downloadLabelPdf,
+          openCatalogAction,
+          isCentral,
+          catalogAction,
+          setCatalogAction,
+          editAssetForm,
+          setEditAssetForm,
+          editAssetHasResponsible,
+          setEditAssetHasResponsible,
+          normalizeRutValue,
+          normalizeCostCenterValue,
+          submitEditAsset,
+          moveAssetForm,
+          setMoveAssetForm,
+          assetDependencies,
+          submitMoveAsset,
+          transferAssetForm,
+          setTransferAssetForm,
+          transferEstablishments,
+          transferDependencies,
+          loadTransferDependenciesForEstablishment,
+          setErr,
+          movementReasonCodes,
+          submitTransferAsset,
+          statusAssetForm,
+          setStatusAssetForm,
+          assetStates,
+          submitStatusAsset,
+          assetEvidenceMovements,
+          evidenceForm,
+          setEvidenceForm,
+          prepareEvidenceDocType,
+          submitEvidenceUpload,
+          assetEvidenceLoading,
+          assetEvidence,
+          downloadEvidence,
+          assetHistoryLoading,
+          assetMovements,
+          getMovementTitle,
+          getMovementRouteLabel,
+          getMovementReasonLabel,
+          isActaEligibleMovement,
+          openMovementActa,
+          prepareEvidenceForMovement,
+        }}
+      />
       <div className="hero">
         <div className="hero-top">
           <div className="hero-title">
@@ -6944,7 +2475,6 @@ function App() {
                 src={logoSubsecretaria}
                 alt="Logo Subsecretaria de la Ninez"
               />
-              <img className="hero-logo" src={logoInventacore} alt="Logo InventaCore" />
             </div>
             <div className="hero-heading">
               <span>Inventario</span>
@@ -7178,1533 +2708,196 @@ function App() {
         ) : null}
 
         {isAuthed && activeTab === 'institutions' && (
-          <InstitutionsTabPanel>
-          <div className="section module-section module-section-assistant">
-            <div className="section-head">
-              <h3>Instituciones</h3>
-              <div className="actions">
-                {isCentral ? (
-                  <>
-                    <input
-                      placeholder="Buscar..."
-                      value={instQuery}
-                      onChange={(e) => setInstQuery(e.target.value)}
-                    />
-                    <label className="inline-check">
-                      <input
-                        type="checkbox"
-                        checked={instIncludeInactive}
-                        onChange={(e) => {
-                          setInstIncludeInactive(e.target.checked)
-                          loadInstitutions(1)
-                        }}
-                      />
-                      Mostrar inactivos
-                    </label>
-                    <button onClick={() => loadInstitutions(1)}>{UI_TEXT.updating}</button>
-                    <button
-                      className="ghost"
-                      onClick={() =>
-                        downloadFile('/admin/institutions/export/excel', 'institutions.xlsx')
-                      }
-                    >
-                      Exportar Excel
-                    </button>
-                    <button
-                      className="ghost"
-                      onClick={() =>
-                        downloadFile('/admin/institutions/export/csv', 'institutions.csv')
-                      }
-                    >
-                      Exportar CSV
-                    </button>
-                  </>
-                ) : (
-                  <span className="muted">Vista solo lectura</span>
-                )}
-              </div>
-            </div>
-            {isCentral && instQuery && (
-              <div className="chip-row">
-                <span className="chip">
-                  {UI_TEXT.search}: {instQuery}
-                  <button onClick={() => setInstQuery('')}>x</button>
-                </span>
-              </div>
-            )}
-            {isCentral && (
-              <div className="split">
-                <div className="form-card">
-                  <h4>Nueva institución</h4>
-                  <div className="actions">
-                    <button
-                      className={dangerZoneUnlocked ? 'ghost' : 'primary'}
-                      onClick={dangerZoneUnlocked ? lockDangerZoneButtons : unlockDangerZoneButtons}
-                      disabled={dangerZoneUnlocking}
-                    >
-                      {dangerZoneUnlocking
-                        ? 'Verificando...'
-                        : dangerZoneUnlocked
-                          ? 'Bloquear acciones críticas'
-                          : 'Habilitar acciones críticas'}
-                    </button>
-                  </div>
-                  <input
-                    placeholder="Nombre"
-                    value={instForm.name}
-                    onChange={(e) => {
-                      setInstForm({ name: e.target.value })
-                      if (formErrors.instName) {
-                        setFormErrors((prev) => ({ ...prev, instName: '' }))
-                      }
-                    }}
-                  />
-                  {formErrors.instName && <p className="error">{formErrors.instName}</p>}
-                  <button
-                    className="primary"
-                    onClick={createInstitution}
-                    disabled={!dangerZoneUnlocked}
-                    title={!dangerZoneUnlocked ? 'Primero habilita las acciones críticas.' : ''}
-                  >
-                    Crear
-                  </button>
-                </div>
-              </div>
-            )}
-            <div className="table">
-              <div className="table-head">
-                <div className="sort-controls">
-                  <label>Orden</label>
-                  <select
-                    value={instSort.key}
-                    onChange={(e) => setInstSort((s) => ({ ...s, key: e.target.value }))}
-                  >
-                    <option value="name">Nombre</option>
-                  </select>
-                  <button
-                    className="ghost"
-                    onClick={() =>
-                      setInstSort((s) => ({
-                        ...s,
-                        order: s.order === 'asc' ? 'desc' : 'asc',
-                      }))
-                    }
-                  >
-                    {instSort.order === 'asc' ? 'Asc' : 'Desc'}
-                  </button>
-                </div>
-                <span className="muted">
-                  {isCentral
-                    ? `Mostrando ${institutions.length} de ${instTotal}`
-                    : `Mostrando ${institutionsCatalog.length}`}
-                </span>
-              </div>
-              {[...(isCentral ? institutions : institutionsCatalog)]
-                .sort((a, b) => {
-                  const dir = instSort.order === 'asc' ? 1 : -1
-                  return a.name.localeCompare(b.name) * dir
-                })
-                .map((i, idx) => (
-                <div key={i.id} className="row">
-                  <div className="row-main">
-                    <strong>#{isCentral ? (instPage - 1) * 20 + idx + 1 : idx + 1}</strong>
-                    <span className="pill">ID real: {i.id}</span>
-                    {!i.isActive && <span className="pill danger-pill">INACTIVA</span>}
-                    {isCentral ? (
-                      <input
-                        className="inline-input"
-                        value={i.name}
-                        onChange={(e) => {
-                          const next = institutions.map((x) =>
-                            x.id === i.id ? { ...x, name: e.target.value } : x
-                          )
-                          setInstitutions(next)
-                        }}
-                      />
-                    ) : (
-                      <span>{i.name}</span>
-                    )}
-                  </div>
-                  {isCentral && (
-                    <div className="row-actions">
-                      <button
-                        disabled={
-                          !instOriginal[i.id] ||
-                          instOriginal[i.id].name === i.name
-                        }
-                        onClick={() =>
-                          updateInstitution({
-                            id: i.id,
-                            name: i.name,
-                          })
-                        }
-                      >
-                        {UI_TEXT.save}
-                      </button>
-                      {i.isActive ? (
-                        <button
-                          className="danger"
-                          onClick={() => deleteInstitution(i.id)}
-                        >
-                          Dar de baja
-                        </button>
-                      ) : (
-                        <>
-                          <button onClick={() => reactivateInstitution(i.id)}>
-                            Reactivar
-                          </button>
-                          <button
-                            className="danger"
-                            onClick={() => hardDeleteInstitution(i.id)}
-                          >
-                            Eliminar definitivo
-                          </button>
-                          <button
-                            className="danger danger-outline"
-                            onClick={() => openForceDelete('institution', i.id, i.name)}
-                          >
-                            Eliminar forzado
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-              {isCentral && !institutions.length && (
-                <p className="muted">Sin resultados.</p>
-              )}
-              {!isCentral && !institutionsCatalog.length && (
-                <p className="muted">Sin resultados.</p>
-              )}
-            </div>
-            {isCentral && (
-              <div className="pager">
-                <button
-                  className="ghost"
-                  disabled={instPage <= 1}
-                  onClick={() => {
-                    const next = instPage - 1
-                    setInstPage(next)
-                    loadInstitutions(next)
-                  }}
-                >
-                  {UI_TEXT.previous}
-                </button>
-                <span>
-                  {UI_TEXT.page} {instPage} / {Math.max(1, Math.ceil(instTotal / 10))}
-                </span>
-                <button
-                  className="ghost"
-                  disabled={instPage >= Math.ceil(instTotal / 10)}
-                  onClick={() => {
-                    const next = instPage + 1
-                    setInstPage(next)
-                    loadInstitutions(next)
-                  }}
-                >
-                  {UI_TEXT.next}
-                </button>
-              </div>
-            )}
-          </div>
-          </InstitutionsTabPanel>
+          <InstitutionsAdminSection
+            {...{
+              isCentral,
+              instQuery,
+              setInstQuery,
+              instIncludeInactive,
+              setInstIncludeInactive,
+              loadInstitutions,
+              downloadFile,
+              dangerZoneUnlocked,
+              lockDangerZoneButtons,
+              unlockDangerZoneButtons,
+              dangerZoneUnlocking,
+              instForm,
+              setInstForm,
+              formErrors,
+              setFormErrors,
+              createInstitution,
+              institutions,
+              institutionsCatalog,
+              instSort,
+              setInstSort,
+              instTotal,
+              instPage,
+              setInstPage,
+              setInstitutions,
+              instOriginal,
+              updateInstitution,
+              deleteInstitution,
+              reactivateInstitution,
+              hardDeleteInstitution,
+              openForceDelete,
+            }}
+          />
         )}
 
         {isAuthed && activeTab === 'establishments' && isCentral && (
-          <EstablishmentsTabPanel>
-          <div className="section module-section module-section-trash">
-            <div className="section-head">
-              <h3>Establecimientos</h3>
-              <div className="actions">
-                <input
-                  placeholder="Buscar..."
-                  value={estFilters.q}
-                  onChange={(e) => setEstFilters({ ...estFilters, q: e.target.value })}
-                />
-                <label className="inline-check">
-                  <input
-                    type="checkbox"
-                    checked={estIncludeInactive}
-                    onChange={(e) => {
-                      setEstIncludeInactive(e.target.checked)
-                      loadEstablishments(1)
-                    }}
-                  />
-                  Mostrar inactivos
-                </label>
-                <input
-                  placeholder="Institution ID"
-                  value={estFilters.institutionId}
-                  onChange={(e) =>
-                    setEstFilters({ ...estFilters, institutionId: e.target.value })
-                  }
-                />
-                <button onClick={() => loadEstablishments(1)}>{UI_TEXT.updating}</button>
-                <button
-                  className="ghost"
-                  onClick={() =>
-                    downloadFile('/admin/establishments/export/excel', 'establishments.xlsx')
-                  }
-                >
-                  Exportar Excel
-                </button>
-                <button
-                  className="ghost"
-                  onClick={() =>
-                    downloadFile('/admin/establishments/export/csv', 'establishments.csv')
-                  }
-                >
-                  Exportar CSV
-                </button>
-              </div>
-            </div>
-            {(estFilters.q || estFilters.institutionId) && (
-              <div className="chip-row">
-                {estFilters.q && (
-                  <span className="chip">
-                    {UI_TEXT.search}: {estFilters.q}
-                    <button onClick={() => setEstFilters({ ...estFilters, q: '' })}>
-                      x
-                    </button>
-                  </span>
-                )}
-                {estFilters.institutionId && (
-                  <span className="chip">
-                    {UI_TEXT.institution}: {estFilters.institutionId}
-                    <button
-                      onClick={() => setEstFilters({ ...estFilters, institutionId: '' })}
-                    >
-                      x
-                    </button>
-                  </span>
-                )}
-              </div>
-            )}
-            <div className="split">
-              <div className="form-card">
-                <h4>Nuevo establecimiento</h4>
-                <input
-                  placeholder="Nombre"
-                  value={estForm.name}
-                  onChange={(e) => setEstForm({ ...estForm, name: e.target.value })}
-                />
-                {formErrors.estName && <p className="error">{formErrors.estName}</p>}
-                <input
-                  placeholder="Tipo"
-                  value={estForm.type}
-                  onChange={(e) => setEstForm({ ...estForm, type: e.target.value })}
-                />
-                {formErrors.estType && <p className="error">{formErrors.estType}</p>}
-                <input
-                  placeholder="RBD"
-                  value={estForm.rbd}
-                  onChange={(e) => setEstForm({ ...estForm, rbd: e.target.value })}
-                />
-                <input
-                  placeholder="Comuna"
-                  value={estForm.commune}
-                  onChange={(e) => setEstForm({ ...estForm, commune: e.target.value })}
-                />
-                <input
-                  placeholder="Institution ID"
-                  value={estForm.institutionId}
-                  onChange={(e) =>
-                    setEstForm({ ...estForm, institutionId: e.target.value })
-                  }
-                  style={{
-                    display:
-                      institutionsCatalog.length === 0 && !loadingInstitutions
-                        ? 'block'
-                        : 'none',
-                  }}
-                />
-                <div className="select-wrap">
-                  <input
-                    className="select-search"
-                    placeholder="Buscar institucion..."
-                    value={estFilters.institutionSearch || ''}
-                    onChange={(e) =>
-                      setEstFilters({ ...estFilters, institutionSearch: e.target.value })
-                    }
-                  />
-                  <select
-                    value={estForm.institutionId}
-                    onChange={(e) =>
-                      setEstForm({ ...estForm, institutionId: e.target.value })
-                    }
-                    disabled={loadingInstitutions || institutionsCatalog.length === 0}
-                  >
-                    <option value="">
-                      {loadingInstitutions ? UI_TEXT.loading : 'Selecciona institucion'}
-                    </option>
-                    {institutionsCatalog
-                      .filter((i) =>
-                        estFilters.institutionSearch
-                          ? i.name
-                              .toLowerCase()
-                              .includes(estFilters.institutionSearch.toLowerCase())
-                          : true
-                      )
-                      .map((i) => (
-                        <option key={i.id} value={i.id}>
-                          {i.name}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-                {estForm.institutionId && (
-                  <p className="muted">
-                    Comunas ya usadas en esta institucion:{' '}
-                    {[
-                      ...new Set(
-                        (establishmentsCatalog || [])
-                          .map((x) => (x.commune || '').trim())
-                          .filter(Boolean)
-                      ),
-                    ].join(', ') || 'sin registro'}
-                  </p>
-                )}
-                <p className="muted">
-                  Nota: codigo postal aun no existe en base de datos; si lo quieres, agregamos
-                  migracion para guardarlo formalmente.
-                </p>
-                {formErrors.estInstitutionId && (
-                  <p className="error">{formErrors.estInstitutionId}</p>
-                )}
-                <button className="primary" onClick={createEstablishment}>
-                  Crear
-                </button>
-              </div>
-            </div>
-            <div className="table">
-              <div className="table-head">
-                <div className="sort-controls">
-                  <label>Orden</label>
-                  <select
-                    value={estSort.key}
-                    onChange={(e) => setEstSort((s) => ({ ...s, key: e.target.value }))}
-                  >
-                    <option value="name">Nombre</option>
-                    <option value="type">Tipo</option>
-                    <option value="institutionId">{UI_TEXT.institution}</option>
-                  </select>
-                  <button
-                    className="ghost"
-                    onClick={() =>
-                      setEstSort((s) => ({
-                        ...s,
-                        order: s.order === 'asc' ? 'desc' : 'asc',
-                      }))
-                    }
-                  >
-                    {estSort.order === 'asc' ? 'Asc' : 'Desc'}
-                  </button>
-                </div>
-                <span className="muted">
-                  Mostrando {establishments.length} de {estTotal}
-                </span>
-              </div>
-              {[...establishments]
-                .sort((a, b) => {
-                  const dir = estSort.order === 'asc' ? 1 : -1
-                  if (estSort.key === 'type') return a.type.localeCompare(b.type) * dir
-                  if (estSort.key === 'institutionId')
-                    return (a.institutionId - b.institutionId) * dir
-                  return a.name.localeCompare(b.name) * dir
-                })
-                .map((e, idx) => (
-                <div key={e.id} className="row">
-                  <div className="row-main">
-                    <strong>#{(estPage - 1) * 20 + idx + 1}</strong>
-                    <span className="pill">ID real: {e.id}</span>
-                    {!e.isActive && <span className="pill danger-pill">INACTIVO</span>}
-                    <input
-                      className="inline-input"
-                      value={e.name}
-                      onChange={(evt) => {
-                        const next = establishments.map((x) =>
-                          x.id === e.id ? { ...x, name: evt.target.value } : x
-                        )
-                        setEstablishments(next)
-                      }}
-                    />
-                    <input
-                      className="inline-input small"
-                      value={e.type}
-                      onChange={(evt) => {
-                        const next = establishments.map((x) =>
-                          x.id === e.id ? { ...x, type: evt.target.value } : x
-                        )
-                        setEstablishments(next)
-                      }}
-                    />
-                    <input
-                      className="inline-input small"
-                      value={e.rbd || ''}
-                      onChange={(evt) => {
-                        const next = establishments.map((x) =>
-                          x.id === e.id ? { ...x, rbd: evt.target.value } : x
-                        )
-                        setEstablishments(next)
-                      }}
-                    />
-                    <input
-                      className="inline-input"
-                      value={e.commune || ''}
-                      onChange={(evt) => {
-                        const next = establishments.map((x) =>
-                          x.id === e.id ? { ...x, commune: evt.target.value } : x
-                        )
-                        setEstablishments(next)
-                      }}
-                    />
-                    <span className="pill">Inst {e.institutionId}</span>
-                  </div>
-                  <div className="row-actions">
-                    <button
-                      disabled={
-                        !estOriginal[e.id] ||
-                        (estOriginal[e.id].name === e.name &&
-                          estOriginal[e.id].type === e.type &&
-                          estOriginal[e.id].rbd === (e.rbd || '') &&
-                          estOriginal[e.id].commune === (e.commune || '') &&
-                          estOriginal[e.id].institutionId === e.institutionId)
-                      }
-                      onClick={() =>
-                        updateEstablishment({
-                          id: e.id,
-                          name: e.name,
-                          type: e.type,
-                          rbd: e.rbd,
-                          commune: e.commune,
-                          institutionId: e.institutionId,
-                        })
-                      }
-                    >
-                      {UI_TEXT.save}
-                    </button>
-                    {e.isActive ? (
-                      <button
-                        className="danger"
-                        onClick={() => deleteEstablishment(e.id)}
-                      >
-                        Dar de baja
-                      </button>
-                    ) : (
-                      <>
-                        <button onClick={() => reactivateEstablishment(e.id)}>
-                          Reactivar
-                        </button>
-                        <button
-                          className="danger"
-                          onClick={() => hardDeleteEstablishment(e.id)}
-                        >
-                          Eliminar definitivo
-                        </button>
-                        <button
-                          className="danger danger-outline"
-                          onClick={() => openForceDelete('establishment', e.id, e.name)}
-                        >
-                          Eliminar forzado
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              ))}
-              {!establishments.length && <p className="muted">Sin resultados.</p>}
-            </div>
-            <div className="pager">
-              <button
-                className="ghost"
-                disabled={estPage <= 1}
-                onClick={() => {
-                  const next = estPage - 1
-                  setEstPage(next)
-                  loadEstablishments(next)
-                }}
-              >
-                {UI_TEXT.previous}
-              </button>
-              <span>
-                {UI_TEXT.page} {estPage} / {Math.max(1, Math.ceil(estTotal / 10))}
-              </span>
-              <button
-                className="ghost"
-                disabled={estPage >= Math.ceil(estTotal / 10)}
-                onClick={() => {
-                  const next = estPage + 1
-                  setEstPage(next)
-                  loadEstablishments(next)
-                }}
-              >
-                {UI_TEXT.next}
-              </button>
-            </div>
-          </div>
-          </EstablishmentsTabPanel>
+          <EstablishmentsAdminSection
+            {...{
+              estFilters,
+              setEstFilters,
+              estIncludeInactive,
+              setEstIncludeInactive,
+              loadEstablishments,
+              downloadFile,
+              estForm,
+              setEstForm,
+              formErrors,
+              institutionsCatalog,
+              loadingInstitutions,
+              establishmentsCatalog,
+              createEstablishment,
+              establishments,
+              estSort,
+              setEstSort,
+              estTotal,
+              estPage,
+              setEstPage,
+              setEstablishments,
+              estOriginal,
+              updateEstablishment,
+              deleteEstablishment,
+              reactivateEstablishment,
+              hardDeleteEstablishment,
+              openForceDelete,
+            }}
+          />
         )}
 
         {isAuthed && activeTab === 'dependencies' && isCentral && (
-          <DependenciesTabPanel>
-          <div className="section">
-            <div className="section-head">
-              <h3>Dependencias</h3>
-              <div className="actions">
-                <input
-                  placeholder="Buscar..."
-                  value={depFilters.q}
-                  onChange={(e) => setDepFilters({ ...depFilters, q: e.target.value })}
-                />
-                <label className="inline-check">
-                  <input
-                    type="checkbox"
-                    checked={depIncludeInactive}
-                    onChange={(e) => {
-                      setDepIncludeInactive(e.target.checked)
-                      loadDependencies(1)
-                    }}
-                  />
-                  Mostrar inactivos
-                </label>
-                <select
-                  value={depFilters.establishmentId}
-                  onChange={(e) =>
-                    setDepFilters({ ...depFilters, establishmentId: e.target.value })
-                  }
-                >
-                  <option value="">Todos los establecimientos</option>
-                  {establishmentsCatalog.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.name}
-                    </option>
-                  ))}
-                </select>
-                <button onClick={() => loadDependencies(1)}>{UI_TEXT.updating}</button>
-                <button
-                  className="ghost"
-                  onClick={() =>
-                    downloadFile('/admin/dependencies/export/excel', 'dependencies.xlsx')
-                  }
-                >
-                  Exportar Excel
-                </button>
-                <button
-                  className="ghost"
-                  onClick={() =>
-                    downloadFile('/admin/dependencies/export/csv', 'dependencies.csv')
-                  }
-                >
-                  Exportar CSV
-                </button>
-              </div>
-            </div>
-            {(depFilters.q || depFilters.establishmentId) && (
-              <div className="chip-row">
-                {depFilters.q && (
-                  <span className="chip">
-                    {UI_TEXT.search}: {depFilters.q}
-                    <button onClick={() => setDepFilters({ ...depFilters, q: '' })}>
-                      x
-                    </button>
-                  </span>
-                )}
-                {depFilters.establishmentId && (
-                  <span className="chip">
-                    Establecimiento:{' '}
-                    {establishmentsCatalog.find(
-                      (e) => String(e.id) === String(depFilters.establishmentId)
-                    )?.name || depFilters.establishmentId}
-                    <button
-                      onClick={() =>
-                        setDepFilters({ ...depFilters, establishmentId: '' })
-                      }
-                    >
-                      x
-                    </button>
-                  </span>
-                )}
-              </div>
-            )}
-            <div className="split">
-              <div className="form-card">
-                <h4>Nueva dependencia</h4>
-                <input
-                  placeholder="Nombre"
-                  value={depForm.name}
-                  onChange={(e) => setDepForm({ ...depForm, name: e.target.value })}
-                />
-                {formErrors.depName && <p className="error">{formErrors.depName}</p>}
-                <div className="select-wrap">
-                  <input
-                    className="select-search"
-                    placeholder="Buscar establecimiento..."
-                    value={depFilters.establishmentSearch || ''}
-                    onChange={(e) =>
-                      setDepFilters({
-                        ...depFilters,
-                        establishmentSearch: e.target.value,
-                      })
-                    }
-                  />
-                  <select
-                  value={depForm.establishmentId}
-                  onChange={(e) =>
-                    setDepForm({ ...depForm, establishmentId: e.target.value })
-                  }
-                  disabled={loadingEstablishments || establishmentsCatalog.length === 0}
-                  >
-                    <option value="">
-                      {loadingEstablishments
-                        ? UI_TEXT.loading
-                        : 'Selecciona establecimiento'}
-                    </option>
-                    {establishmentsCatalog
-                      .filter((e) =>
-                        depFilters.establishmentSearch
-                          ? e.name
-                              .toLowerCase()
-                              .includes(depFilters.establishmentSearch.toLowerCase())
-                          : true
-                      )
-                      .map((e) => (
-                        <option key={e.id} value={e.id}>
-                          {e.name}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-                {formErrors.depEstablishmentId && (
-                  <p className="error">{formErrors.depEstablishmentId}</p>
-                )}
-                <button className="primary" onClick={createDependency}>
-                  Crear
-                </button>
-              </div>
-              <div className="form-card">
-                <h4>Replicar dependencias base</h4>
-                <p className="muted">
-                  Copia dependencias desde un establecimiento origen a uno destino, sin duplicar
-                  nombres existentes.
-                </p>
-                <div className="select-wrap">
-                  <label>Establecimiento origen</label>
-                  <select
-                    value={depReplicateForm.sourceEstablishmentId}
-                    onChange={(e) =>
-                      setDepReplicateForm((prev) => ({
-                        ...prev,
-                        sourceEstablishmentId: e.target.value,
-                      }))
-                    }
-                  >
-                    <option value="">Selecciona origen</option>
-                    {establishmentsCatalog.map((e) => (
-                      <option key={`dep-repl-src-${e.id}`} value={e.id}>
-                        {e.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="select-wrap">
-                  <label>Establecimiento destino</label>
-                  <select
-                    value={depReplicateForm.targetEstablishmentId}
-                    onChange={(e) =>
-                      setDepReplicateForm((prev) => ({
-                        ...prev,
-                        targetEstablishmentId: e.target.value,
-                      }))
-                    }
-                  >
-                    <option value="">Selecciona destino</option>
-                    {establishmentsCatalog.map((e) => (
-                      <option key={`dep-repl-dst-${e.id}`} value={e.id}>
-                        {e.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <label className="inline-check">
-                  <input
-                    type="checkbox"
-                    checked={depReplicateForm.includeInactive}
-                    onChange={(e) =>
-                      setDepReplicateForm((prev) => ({
-                        ...prev,
-                        includeInactive: e.target.checked,
-                      }))
-                    }
-                  />
-                  Incluir dependencias inactivas del origen
-                </label>
-                <button className="primary" onClick={replicateDependenciesFromBase}>
-                  Replicar
-                </button>
-                {depReplicateResult && (
-                  <div className="import-summary">
-                    <span className="pill">
-                      Origen: {depReplicateResult.sourceEstablishmentName}
-                    </span>
-                    <span className="pill">
-                      Destino: {depReplicateResult.targetEstablishmentName}
-                    </span>
-                    <span className="pill">Base: {depReplicateResult.sourceCount}</span>
-                    <span className="pill">Creadas: {depReplicateResult.createdCount}</span>
-                    <span className="pill">Omitidas: {depReplicateResult.skippedCount}</span>
-                    {depReplicateResult.skippedCount > 0 && (
-                      <div className="muted">
-                        Omitidas (duplicadas u otras):{' '}
-                        {depReplicateResult.skipped
-                          .slice(0, 10)
-                          .map((s) => `${s.name || '-'} [${s.reason || 'SKIPPED'}]`)
-                          .join(' - ')}
-                        {depReplicateResult.skipped.length > 10 ? ' - ...' : ''}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="table">
-              <div className="table-head">
-                <div className="sort-controls">
-                  <label>Orden</label>
-                  <select
-                    value={depSort.key}
-                    onChange={(e) => setDepSort((s) => ({ ...s, key: e.target.value }))}
-                  >
-                    <option value="name">Nombre</option>
-                    <option value="establishmentId">Establecimiento</option>
-                  </select>
-                  <button
-                    className="ghost"
-                    onClick={() =>
-                      setDepSort((s) => ({
-                        ...s,
-                        order: s.order === 'asc' ? 'desc' : 'asc',
-                      }))
-                    }
-                  >
-                    {depSort.order === 'asc' ? 'Asc' : 'Desc'}
-                  </button>
-                </div>
-                <span className="muted">
-                  Mostrando {dependencies.length} de {depTotal}
-                </span>
-              </div>
-              {[...dependencies]
-                .sort((a, b) => {
-                  const dir = depSort.order === 'asc' ? 1 : -1
-                  if (depSort.key === 'establishmentId')
-                    return (a.establishmentId - b.establishmentId) * dir
-                  return a.name.localeCompare(b.name) * dir
-                })
-                .map((d, idx) => (
-                <div key={d.id} className="row">
-                  <div className="row-main">
-                    <strong>#{(depPage - 1) * 20 + idx + 1}</strong>
-                    <span className="pill">ID real: {d.id}</span>
-                    {!d.isActive && <span className="pill danger-pill">INACTIVA</span>}
-                    <input
-                      className="inline-input"
-                      value={d.name}
-                      onChange={(evt) => {
-                        const next = dependencies.map((x) =>
-                          x.id === d.id ? { ...x, name: evt.target.value } : x
-                        )
-                        setDependencies(next)
-                      }}
-                    />
-                    <span className="pill">
-                      {establishmentsCatalog.find(
-                        (e) => Number(e.id) === Number(d.establishmentId)
-                      )?.name || `Est ${d.establishmentId}`}
-                    </span>
-                  </div>
-                  <div className="row-actions">
-                    <button
-                      disabled={
-                        !depOriginal[d.id] ||
-                        (depOriginal[d.id].name === d.name &&
-                          depOriginal[d.id].establishmentId === d.establishmentId)
-                      }
-                      onClick={() =>
-                        updateDependency({
-                          id: d.id,
-                          name: d.name,
-                          establishmentId: d.establishmentId,
-                        })
-                      }
-                    >
-                      {UI_TEXT.save}
-                    </button>
-                    {d.isActive ? (
-                      <button
-                        className="danger"
-                        onClick={() => deleteDependency(d.id)}
-                      >
-                        Dar de baja
-                      </button>
-                    ) : (
-                      <>
-                        <button onClick={() => reactivateDependency(d.id)}>
-                          Reactivar
-                        </button>
-                        <button
-                          className="danger"
-                          onClick={() => hardDeleteDependency(d.id)}
-                        >
-                          Eliminar definitivo
-                        </button>
-                        <button
-                          className="danger danger-outline"
-                          onClick={() => openForceDelete('dependency', d.id, d.name)}
-                        >
-                          Eliminar forzado
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              ))}
-              {!dependencies.length && <p className="muted">Sin resultados.</p>}
-            </div>
-            <div className="pager">
-              <button
-                className="ghost"
-                disabled={depPage <= 1}
-                onClick={() => {
-                  const next = depPage - 1
-                  setDepPage(next)
-                  loadDependencies(next)
-                }}
-              >
-                {UI_TEXT.previous}
-              </button>
-              <span>
-                {UI_TEXT.page} {depPage} / {Math.max(1, Math.ceil(depTotal / 10))}
-              </span>
-              <button
-                className="ghost"
-                disabled={depPage >= Math.ceil(depTotal / 10)}
-                onClick={() => {
-                  const next = depPage + 1
-                  setDepPage(next)
-                  loadDependencies(next)
-                }}
-              >
-                {UI_TEXT.next}
-              </button>
-            </div>
-          </div>
-          </DependenciesTabPanel>
+          <DependenciesAdminSection
+            {...{
+              depFilters,
+              setDepFilters,
+              depIncludeInactive,
+              setDepIncludeInactive,
+              loadDependencies,
+              downloadFile,
+              establishmentsCatalog,
+              depForm,
+              setDepForm,
+              formErrors,
+              loadingEstablishments,
+              createDependency,
+              depReplicateForm,
+              setDepReplicateForm,
+              replicateDependenciesFromBase,
+              depReplicateResult,
+              depSort,
+              setDepSort,
+              dependencies,
+              depTotal,
+              depPage,
+              setDepPage,
+              setDependencies,
+              depOriginal,
+              updateDependency,
+              deleteDependency,
+              reactivateDependency,
+              hardDeleteDependency,
+              openForceDelete,
+            }}
+          />
         )}
 
         {isAuthed && activeTab === 'users' && isCentral && (
-          <UsersTabPanel>
-          <div className="section">
-            <div className="section-head">
-              <h3>Usuarios</h3>
-              <div className="actions">
-                <input
-                  placeholder="Buscar por nombre/email..."
-                  value={userFilters.q}
-                  onChange={(e) => setUserFilters({ ...userFilters, q: e.target.value })}
-                />
-                <select
-                  value={userFilters.roleType}
-                  onChange={(e) =>
-                    setUserFilters({ ...userFilters, roleType: e.target.value })
-                  }
-                >
-                  <option value="">Todos los roles</option>
-                  <option value="ADMIN_CENTRAL">ADMIN_CENTRAL</option>
-                  <option value="ADMIN_ESTABLISHMENT">ADMIN_ESTABLISHMENT</option>
-                  <option value="VIEWER">VIEWER</option>
-                </select>
-                <input
-                  placeholder="Institution ID"
-                  value={userFilters.institutionId}
-                  onChange={(e) =>
-                    setUserFilters({
-                      ...userFilters,
-                      institutionId: e.target.value.replace(/\D/g, ''),
-                    })
-                  }
-                />
-                <input
-                  placeholder="Establishment ID"
-                  value={userFilters.establishmentId}
-                  onChange={(e) =>
-                    setUserFilters({
-                      ...userFilters,
-                      establishmentId: e.target.value.replace(/\D/g, ''),
-                    })
-                  }
-                />
-                <label className="inline-check">
-                  <input
-                    type="checkbox"
-                    checked={userFilters.includeInactive}
-                    onChange={(e) =>
-                      setUserFilters({
-                        ...userFilters,
-                        includeInactive: e.target.checked,
-                      })
-                    }
-                  />
-                  Mostrar inactivos
-                </label>
-                <button onClick={() => loadUsersAdmin(1)}>{UI_TEXT.updating}</button>
-              </div>
-            </div>
-
-            <div className="split">
-              <div className="form-card">
-                <h4>Crear usuario</h4>
-                <input
-                  placeholder="Nombre *"
-                  value={userForm.name}
-                  onChange={(e) => setUserForm({ ...userForm, name: e.target.value })}
-                />
-                <input
-                  placeholder="Email *"
-                  type="email"
-                  value={userForm.email}
-                  onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
-                />
-                <input
-                  placeholder="Password *"
-                  type="password"
-                  value={userForm.password}
-                  onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
-                />
-                <select
-                  value={userForm.roleType}
-                  onChange={(e) =>
-                    setUserForm((prev) => ({
-                      ...prev,
-                      roleType: e.target.value,
-                      institutionId: e.target.value === 'ADMIN_CENTRAL' ? prev.institutionId : '',
-                      establishmentId:
-                        e.target.value === 'ADMIN_CENTRAL' ? '' : prev.establishmentId,
-                    }))
-                  }
-                >
-                  <option value="ADMIN_ESTABLISHMENT">ADMIN_ESTABLISHMENT</option>
-                  <option value="VIEWER">VIEWER</option>
-                  <option value="ADMIN_CENTRAL">ADMIN_CENTRAL</option>
-                </select>
-                <select
-                  value={userForm.institutionId}
-                  onChange={(e) =>
-                    setUserForm({
-                      ...userForm,
-                      institutionId: e.target.value,
-                    })
-                  }
-                  disabled={userForm.roleType !== 'ADMIN_CENTRAL'}
-                >
-                  <option value="">Selecciona institucion</option>
-                  {userInstitutionOptions.map((inst) => (
-                    <option key={inst.id} value={inst.id}>
-                      #{inst.id} - {inst.name}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={userForm.establishmentId}
-                  onChange={(e) =>
-                    setUserForm({
-                      ...userForm,
-                      establishmentId: e.target.value,
-                    })
-                  }
-                  disabled={userForm.roleType === 'ADMIN_CENTRAL'}
-                >
-                  <option value="">Selecciona establecimiento</option>
-                  {userEstablishmentOptions.map((est) => (
-                    <option key={est.id} value={est.id}>
-                      #{est.id} - {est.name} - Comuna: {est.commune || 's/i'} - Inst {est.institutionId}
-                    </option>
-                  ))}
-                </select>
-                <label className="inline-check">
-                  <input
-                    type="checkbox"
-                    checked={userFormWithoutPhoto}
-                    onChange={(e) => {
-                      const checked = e.target.checked
-                      setUserFormWithoutPhoto(checked)
-                      if (checked) setUserFormPhotoFile(null)
-                    }}
-                  />
-                  Sin foto
-                </label>
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg"
-                  disabled={userFormWithoutPhoto}
-                  onChange={(e) =>
-                    setUserFormPhotoFile(e.target.files && e.target.files[0] ? e.target.files[0] : null)
-                  }
-                />
-                <button className="primary" onClick={createUserAdmin}>
-                  Crear usuario
-                </button>
-              </div>
-            </div>
-            <div className="table">
-              <div className="table-head">
-                <span className="muted">
-                  Mostrando {users.length} de {usersTotal}
-                </span>
-              </div>
-
-              {usersLoading && <p className="muted">Cargando usuarios...</p>}
-              {!usersLoading &&
-                users.map((u, idx) => (
-                  <div key={u.id} className="row">
-                    <div className="row-main">
-                      <div className="user-thumb-wrap">
-                        {u.photoDataUrl ? (
-                          <img className="user-thumb" src={u.photoDataUrl} alt={`Foto ${u.name}`} />
-                        ) : (
-                          <div className="user-thumb user-thumb-empty">Sin foto</div>
-                        )}
-                      </div>
-                      <strong>#{(usersPage - 1) * 20 + idx + 1}</strong>
-                      <span className="pill">ID real: {u.id}</span>
-                      {!u.isActive && <span className="pill danger-pill">INACTIVO</span>}
-                      <input
-                        className="inline-input"
-                        value={u.name || ''}
-                        onChange={(e) => {
-                          const next = users.map((x) =>
-                            x.id === u.id ? { ...x, name: e.target.value } : x
-                          )
-                          setUsers(next)
-                        }}
-                      />
-                      <span className="pill">{u.email}</span>
-                      <select
-                        value={u.roleType || ''}
-                        onChange={(e) => {
-                          const next = users.map((x) =>
-                            x.id === u.id
-                              ? {
-                                  ...x,
-                                  roleType: e.target.value,
-                                  establishmentId:
-                                    e.target.value === 'ADMIN_CENTRAL'
-                                      ? ''
-                                      : x.establishmentId,
-                                }
-                              : x
-                          )
-                          setUsers(next)
-                        }}
-                      >
-                        <option value="ADMIN_CENTRAL">ADMIN_CENTRAL</option>
-                        <option value="ADMIN_ESTABLISHMENT">ADMIN_ESTABLISHMENT</option>
-                        <option value="VIEWER">VIEWER</option>
-                      </select>
-                      <input
-                        className="inline-input small"
-                        value={u.institutionId || ''}
-                        onChange={(e) => {
-                          const next = users.map((x) =>
-                            x.id === u.id ? { ...x, institutionId: e.target.value } : x
-                          )
-                          setUsers(next)
-                        }}
-                      />
-                      <select
-                        className="inline-input"
-                        value={u.establishmentId || ''}
-                        disabled={u.roleType === 'ADMIN_CENTRAL'}
-                        onChange={(e) => {
-                          const next = users.map((x) =>
-                            x.id === u.id ? { ...x, establishmentId: e.target.value } : x
-                          )
-                          setUsers(next)
-                        }}
-                      >
-                        <option value="">Sin establecimiento</option>
-                        {userEstablishmentOptions.map((est) => (
-                          <option key={est.id} value={est.id}>
-                            #{est.id} - {est.name} - {est.commune || 's/i'}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="row-actions">
-                      <input
-                        type="file"
-                        accept="image/png,image/jpeg"
-                        onChange={(e) =>
-                          setUserPhotoFiles((prev) => ({
-                            ...prev,
-                            [u.id]: e.target.files && e.target.files[0] ? e.target.files[0] : null,
-                          }))
-                        }
-                      />
-                      <button
-                        className="ghost"
-                        onClick={async () => {
-                          try {
-                            await saveUserPhotoAdmin(u.id, userPhotoFiles[u.id])
-                          } catch (err) {
-                            setErr(err)
-                          }
-                        }}
-                      >
-                        {UI_TEXT.savePhoto}
-                      </button>
-                      <button
-                        className="ghost"
-                        onClick={async () => {
-                          try {
-                            await clearUserPhotoAdmin(u.id)
-                          } catch (err) {
-                            setErr(err)
-                          }
-                        }}
-                      >
-                        Sin foto
-                      </button>
-                      <button
-                        disabled={
-                          !usersOriginal[u.id] ||
-                          (usersOriginal[u.id].name === u.name &&
-                            usersOriginal[u.id].roleType === u.roleType &&
-                            String(usersOriginal[u.id].institutionId || '') ===
-                              String(u.institutionId || '') &&
-                            String(usersOriginal[u.id].establishmentId || '') ===
-                              String(u.establishmentId || ''))
-                        }
-                        onClick={() => updateUserAdmin(u)}
-                      >
-                        {UI_TEXT.save}
-                      </button>
-                      <button
-                        className="ghost"
-                        disabled={Number(currentUser?.id) === Number(u.id)}
-                        onClick={() => resetUserPasswordAdmin(u)}
-                      >
-                        Restablecer clave
-                      </button>
-                      {u.isActive ? (
-                        <button
-                          className="danger"
-                          disabled={Number(currentUser?.id) === Number(u.id)}
-                          onClick={() => deactivateUserAdmin(u.id, u.email)}
-                        >
-                          Desactivar
-                        </button>
-                      ) : (
-                        <>
-                          <button
-                            className="ghost"
-                            onClick={() => reactivateUserAdmin(u.id, u.email)}
-                          >
-                            Reactivar
-                          </button>
-                          <button
-                            className="danger danger-outline"
-                            disabled={Number(currentUser?.id) === Number(u.id)}
-                            onClick={() => openForceDelete('user', u.id, u.email)}
-                          >
-                            Eliminar forzado
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              {!usersLoading && !users.length && <p className="muted">Sin resultados.</p>}
-            </div>
-
-            <div className="pager">
-              <button
-                className="ghost"
-                disabled={usersPage <= 1}
-                onClick={() => {
-                  const next = usersPage - 1
-                  setUsersPage(next)
-                  loadUsersAdmin(next)
-                }}
-              >
-                {UI_TEXT.previous}
-              </button>
-              <span>
-                {UI_TEXT.page} {usersPage} / {Math.max(1, Math.ceil(usersTotal / 10))}
-              </span>
-              <button
-                className="ghost"
-                disabled={usersPage >= Math.ceil(usersTotal / 10)}
-                onClick={() => {
-                  const next = usersPage + 1
-                  setUsersPage(next)
-                  loadUsersAdmin(next)
-                }}
-              >
-                {UI_TEXT.next}
-              </button>
-            </div>
-          </div>
-          </UsersTabPanel>
+          <UsersAdminSection
+            {...{
+              userFilters,
+              setUserFilters,
+              loadUsersAdmin,
+              userForm,
+              setUserForm,
+              userInstitutionOptions,
+              userEstablishmentOptions,
+              userFormWithoutPhoto,
+              setUserFormWithoutPhoto,
+              setUserFormPhotoFile,
+              createUserAdmin,
+              users,
+              usersTotal,
+              usersLoading,
+              usersPage,
+              setUsersPage,
+              setUsers,
+              usersOriginal,
+              currentUser,
+              userPhotoFiles,
+              setUserPhotoFiles,
+              saveUserPhotoAdmin,
+              clearUserPhotoAdmin,
+              updateUserAdmin,
+              resetUserPasswordAdmin,
+              deactivateUserAdmin,
+              reactivateUserAdmin,
+              openForceDelete,
+              setErr,
+            }}
+          />
         )}
 
         {isAuthed && activeTab === 'assistant' && isCentral && (
-          <AssistantTabPanel>
-          <div className="section module-section module-section-assistant">
-            <div className="section-head">
-              <h3>Asistente Central y Mesa de Solicitudes</h3>
-              <div className="actions">
-                <button onClick={() => loadSupportRequests(1)}>{UI_TEXT.updating}</button>
-                <button
-                  className="ghost"
-                  onClick={testAssistantSmtp}
-                  disabled={assistantSmtpLoading}
-                >
-                  {assistantSmtpLoading ? 'Probando SMTP...' : 'Probar SMTP'}
-                </button>
-              </div>
-            </div>
-            <div className="split">
-              <div className="form-card">
-                <h4>Consulta al asistente</h4>
-                <textarea
-                  rows={4}
-                  placeholder="Escribe la consulta del inventario..."
-                  value={assistantQuestion}
-                  onChange={(e) => setAssistantQuestion(e.target.value)}
-                />
-                <div className="grid">
-                  <select
-                    value={assistantScope.institutionId}
-                    onChange={(e) =>
-                      setAssistantScope((prev) => ({
-                        ...prev,
-                        institutionId: e.target.value,
-                        establishmentId: '',
-                        dependencyId: '',
-                      }))
-                    }
-                  >
-                    <option value="">{`${UI_TEXT.institution} (opcional)`}</option>
-                    {institutionsCatalog.map((item) => (
-                      <option key={item.id} value={String(item.id)}>
-                        {item.name}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={assistantScope.establishmentId}
-                    onChange={(e) =>
-                      setAssistantScope((prev) => ({
-                        ...prev,
-                        establishmentId: e.target.value,
-                        dependencyId: '',
-                      }))
-                    }
-                    disabled={!assistantScope.institutionId}
-                  >
-                    <option value="">Establecimiento (opcional)</option>
-                    {establishmentsCatalog
-                      .filter((item) =>
-                        assistantScope.institutionId
-                          ? String(item.institutionId) === String(assistantScope.institutionId)
-                          : true
-                      )
-                      .map((item) => (
-                        <option key={item.id} value={String(item.id)}>
-                          {item.name}
-                        </option>
-                      ))}
-                  </select>
-                  <select
-                    value={assistantScope.dependencyId}
-                    onChange={(e) =>
-                      setAssistantScope((prev) => ({
-                        ...prev,
-                        dependencyId: e.target.value,
-                      }))
-                    }
-                    disabled={!assistantScope.establishmentId}
-                  >
-                    <option value="">Dependencia (opcional)</option>
-                    {dependenciesCatalog.map((item) => (
-                      <option key={item.id} value={String(item.id)}>
-                        {item.name}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    type="email"
-                    placeholder="Correo destino notificaciones"
-                    value={assistantNotifyEmail}
-                    onChange={(e) => setAssistantNotifyEmail(e.target.value)}
-                  />
-                </div>
-                <button className="primary" onClick={askCentralAssistant} disabled={assistantLoading}>
-                  {assistantLoading ? 'Analizando...' : 'Preguntar'}
-                </button>
-              </div>
-
-              <div className="form-card">
-                <h4>Respuesta</h4>
-                {!assistantAnswer ? (
-                  <p className="muted">Sin respuesta aun.</p>
-                ) : (
-                  <>
-                    <p>{assistantAnswer.answer}</p>
-                    <p className="muted">
-                      Contexto: activos {assistantAnswer.context?.assetsActive || 0} - abiertas{' '}
-                      {assistantAnswer.context?.openRequests || 0} - vencidas{' '}
-                      {assistantAnswer.context?.overdueRequests || 0}
-                    </p>
-                    <ul>
-                      {(assistantAnswer.suggestions || []).map((s, idx) => (
-                        <li key={`assistant-suggestion-${idx}`}>{s}</li>
-                      ))}
-                    </ul>
-                    <button className="ghost" onClick={createSupportRequestFromAssistant}>
-                      Crear solicitud (SLA 72h)
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-
-            <div className="section-head">
-              <h4>Mesa de solicitudes</h4>
-              <div className="actions">
-                <input
-                  placeholder="Buscar asunto/pregunta..."
-                  value={supportFilters.q}
-                  onChange={(e) => setSupportFilters((prev) => ({ ...prev, q: e.target.value }))}
-                />
-                <select
-                  value={supportFilters.status}
-                  onChange={(e) =>
-                    setSupportFilters((prev) => ({ ...prev, status: e.target.value }))
-                  }
-                >
-                  <option value="">Todos estados</option>
-                  <option value="OPEN">OPEN</option>
-                  <option value="IN_PROGRESS">IN_PROGRESS</option>
-                  <option value="RESOLVED">RESOLVED</option>
-                  <option value="OVERDUE">OVERDUE</option>
-                </select>
-                <select
-                  value={supportFilters.priority}
-                  onChange={(e) =>
-                    setSupportFilters((prev) => ({ ...prev, priority: e.target.value }))
-                  }
-                >
-                  <option value="">Todas prioridades</option>
-                  <option value="LOW">LOW</option>
-                  <option value="MEDIUM">MEDIUM</option>
-                  <option value="HIGH">HIGH</option>
-                </select>
-                <button onClick={() => loadSupportRequests(1)}>Buscar</button>
-              </div>
-            </div>
-            <div className="table">
-              <div className="table-head">
-                <span className="muted">
-                  Mostrando {supportRequests.length} de {supportTotal}
-                </span>
-              </div>
-              {supportLoading && <p className="muted">Cargando solicitudes...</p>}
-              {!supportLoading &&
-                supportRequests.map((item, idx) => (
-                  <div key={item.id} className="row">
-                    <div className="row-main">
-                      <strong>#{(supportPage - 1) * 10 + idx + 1}</strong>
-                      <span className="pill">ID real: {item.id}</span>
-                      <span className="pill">{item.status}</span>
-                      <span className="pill">{item.priority}</span>
-                      <span>{item.subject}</span>
-                      <span className="muted">
-                        Vence: {item.dueAt ? new Date(item.dueAt).toLocaleString() : '-'}
-                      </span>
-                    </div>
-                    <div className="row-actions">
-                      <button className="ghost" onClick={() => updateSupportStatus(item, 'IN_PROGRESS')}>
-                        Tomar
-                      </button>
-                      <button className="ghost" onClick={() => updateSupportStatus(item, 'RESOLVED')}>
-                        Resolver
-                      </button>
-                      <button className="ghost" onClick={() => updateSupportStatus(item, 'OPEN')}>
-                        Reabrir
-                      </button>
-                    </div>
-                    <div className="row-main" style={{ marginTop: 8 }}>
-                      <span className="muted">{item.question}</span>
-                    </div>
-                    <div className="row-main" style={{ marginTop: 8 }}>
-                      <input
-                        className="inline-input"
-                        placeholder="Agregar comentario..."
-                        value={supportCommentDraft[item.id] || ''}
-                        onChange={(e) =>
-                          setSupportCommentDraft((prev) => ({
-                            ...prev,
-                            [item.id]: e.target.value,
-                          }))
-                        }
-                      />
-                      <button className="ghost" onClick={() => sendSupportComment(item)}>
-                        Comentar
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              {!supportLoading && !supportRequests.length && (
-                <p className="muted">Sin solicitudes.</p>
-              )}
-            </div>
-
-            <div className="pager">
-              <button
-                className="ghost"
-                disabled={supportPage <= 1}
-                onClick={() => {
-                  const next = supportPage - 1
-                  setSupportPage(next)
-                  loadSupportRequests(next)
-                }}
-              >
-                {UI_TEXT.previous}
-              </button>
-              <span>
-                {UI_TEXT.page} {supportPage} / {Math.max(1, Math.ceil(supportTotal / 10))}
-              </span>
-              <button
-                className="ghost"
-                disabled={supportPage >= Math.ceil(supportTotal / 10)}
-                onClick={() => {
-                  const next = supportPage + 1
-                  setSupportPage(next)
-                  loadSupportRequests(next)
-                }}
-              >
-                {UI_TEXT.next}
-              </button>
-            </div>
-          </div>
-          </AssistantTabPanel>
+          <AssistantCentralSection
+            {...{
+              loadSupportRequests,
+              testAssistantSmtp,
+              assistantSmtpLoading,
+              assistantQuestion,
+              setAssistantQuestion,
+              assistantScope,
+              setAssistantScope,
+              institutionsCatalog,
+              establishmentsCatalog,
+              dependenciesCatalog,
+              assistantNotifyEmail,
+              setAssistantNotifyEmail,
+              askCentralAssistant,
+              assistantLoading,
+              assistantAnswer,
+              createSupportRequestFromAssistant,
+              supportFilters,
+              setSupportFilters,
+              supportRequests,
+              supportTotal,
+              supportLoading,
+              supportPage,
+              setSupportPage,
+              updateSupportStatus,
+              supportCommentDraft,
+              setSupportCommentDraft,
+              sendSupportComment,
+            }}
+          />
         )}
 
         {isAuthed && activeTab === 'assets' && (
           <AssetsTabPanel>
           <AssetsSection>
+            <DepreciationCloseView
+              {...{
+                isCentral,
+                depreciationCloseForm,
+                setDepreciationCloseForm,
+                depreciationRuns,
+                depreciationRunsLoading,
+                depreciationClosing,
+                onRefreshRuns: loadDepreciationRuns,
+                onCloseRun: submitDepreciationClose,
+              }}
+            />
             <AssetsCreateView
               {...{
                 assetInstitutionId,
@@ -8986,6 +3179,7 @@ function App() {
                 planchetaPreviewLoading,
                 planchetaQuery,
                 planchetaPreview,
+                planchetaDirectory,
                 planchetaFilters,
                 planchetaInsights,
                 setPlanchetaFilters,
@@ -9171,7 +3365,7 @@ function App() {
             )}
             {deleteBlockState.dependencies.length > 0 && (
               <>
-                <p className="muted">Dependencias bloqueantes:</p>
+                <p className="muted">Sectores bloqueantes:</p>
                 <div className="rows">
                   {deleteBlockState.dependencies.map((dep) => (
                     <div key={`blocked-dep-${dep.id}`} className="row">
@@ -9274,7 +3468,7 @@ function App() {
                 {Array.isArray(forceDeleteState.details?.dependencies) &&
                   forceDeleteState.details.dependencies.length > 0 && (
                     <>
-                      <p className="muted">Dependencias y relaciones asociadas:</p>
+                      <p className="muted">Sectores y relaciones asociadas:</p>
                       <div className="rows">
                         {forceDeleteState.details.dependencies.map((dep) => (
                           <div key={`fd-dep-${dep.id}`} className="row">

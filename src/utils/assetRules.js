@@ -8,11 +8,15 @@ function isFutureDate(d) {
 }
 
 function validateAcquisitionDate(d) {
+  return validateDateNotFuture("acquisitionDate", d);
+}
+
+function validateDateNotFuture(fieldName, d) {
   if (!(d instanceof Date) || Number.isNaN(d.getTime())) {
-    return "acquisitionDate invalida";
+    return `${fieldName} invalida`;
   }
   if (isFutureDate(d)) {
-    return "acquisitionDate no puede ser futura";
+    return `${fieldName} no puede ser futura`;
   }
   return null;
 }
@@ -150,6 +154,7 @@ module.exports = {
   MAX_SHORT_TEXT,
   MAX_USEFUL_LIFE_YEARS,
   validateAcquisitionDate,
+  validateDateNotFuture,
   validateAcquisitionValue,
   normalizeDepreciationRate,
   resolveDepreciationValues,

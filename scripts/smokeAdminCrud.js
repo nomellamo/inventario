@@ -7,7 +7,7 @@ if (typeof fetch !== "function") {
   throw new Error("Este script requiere Node 18+ (fetch global)");
 }
 
-const CENTRAL_EMAIL = process.env.TEST_CENTRAL_EMAIL || "admin@cordillera.local";
+const CENTRAL_EMAIL = process.env.TEST_CENTRAL_EMAIL || "admin-central@inventacore.cl";
 const CENTRAL_PASSWORD = process.env.TEST_CENTRAL_PASSWORD || "admin123";
 let BASE_URL = process.env.API_BASE_URL || null;
 
@@ -119,7 +119,7 @@ async function run() {
   const createInstitution = await authRequest("/admin/institutions", token, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: `QA Smoke Institution ${suffix}` }),
+    body: JSON.stringify({ name: `Test Smoke Institution ${suffix}` }),
   });
   assert(
     createInstitution.res.status === 201,
@@ -133,8 +133,8 @@ async function run() {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      name: `QA Smoke Establishment ${suffix}`,
-      type: "QA",
+      name: `Test Smoke Establishment ${suffix}`,
+      type: "TEST",
       institutionId,
     }),
   });
@@ -150,7 +150,7 @@ async function run() {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      name: `QA Smoke Dependency ${suffix}`,
+      name: `Test Smoke Dependency ${suffix}`,
       establishmentId,
     }),
   });
@@ -171,7 +171,7 @@ async function run() {
       dependencyId: sourceDependencyId,
       assetStateId: bueno.id,
       assetTypeId: controlType.id,
-      name: `QA Smoke Guard Asset ${suffix}`,
+      name: `Test Smoke Guard Asset ${suffix}`,
       accountingAccount: "ACC-SMOKE",
       analyticCode: "AN-SMOKE",
       acquisitionValue: 1000,

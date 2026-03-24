@@ -23,7 +23,7 @@ Fuente: `docs/functional-contract.md`
 |---|---|---|---|---|---|
 | `assetId` | Si | Entero positivo, asset existente | Assets > Lista > Transferir | `PUT /assets/:id/transfer` | API: transfer OK/409/404 |
 | `toEstablishmentId` | Si | Entero positivo, activo, misma institucion | Modal Transferir | `PUT /assets/:id/transfer` | UI: bloqueo sin establecimiento |
-| `toDependencyId` | Si | Entero positivo, activa, pertenece a establecimiento destino | Modal Transferir | `PUT /assets/:id/transfer` | UI: bloqueo sin dependencia |
+| `toDependencyId` | Si | Entero positivo, activa, pertenece a establecimiento destino | Modal Transferir | `PUT /assets/:id/transfer` | UI: bloqueo sin sector |
 | `reasonCode` | Si | Catalogado (`/assets/reason-codes`) | Modal Transferir | `PUT /assets/:id/transfer` | API: `INVALID_REASON_CODE` |
 | `docType` | Si | `FOTO|ACTA|FACTURA|OTRO` | Modal Transferir | `PUT /assets/:id/transfer` | API: `INVALID_EVIDENCE_DOC_TYPE` |
 | `file` | Si | MIME permitido (`pdf/jpg/png`) y tamaño max | Modal Transferir | `PUT /assets/:id/transfer` | API: `EVIDENCE_REQUIRED` |
@@ -54,7 +54,7 @@ Fuente: `docs/functional-contract.md`
 | `officialKey` | No (recomendado) | Unico si informado | Alta/edición catalogo | `POST/PUT /admin/catalog-items` | API: `CATALOG_ITEM_DUPLICATE_OFFICIAL_KEY` |
 | Dedupe compuesto | Si (regla) | `name+category+subcategory+brand+modelName` | Importar catalogo | Import catalogo | Suite: skipped por composite |
 | `file` assets | Si | `.xlsx`, esquema válido | Carga masiva assets | `POST /assets/import/excel` | API: resumen created/errors |
-| Relaciones (IDs) | Si | Establecimiento/dependencia/estado/tipo existentes y activos | Importar assets | Import assets | Fila invalida -> error por fila |
+| Relaciones (IDs) | Si | Establecimiento/sector/estado/tipo existentes y activos | Importar assets | Import assets | Fila invalida -> error por fila |
 
 ## Usuarios (P1)
 | Campo | Obligatorio | Validacion | Pantalla | Endpoint | Test |
@@ -71,7 +71,7 @@ Fuente: `docs/functional-contract.md`
 |---|---|---|---|---|---|
 | `institutionId` | Si en UI | Entero positivo | Planchetas > Filtros | UI (catálogos) | UI: carga establecimientos |
 | `establishmentId` | Si para consultar/exportar | Entero positivo | Planchetas > Filtros | `GET /planchetas` | API: 400 si no viene |
-| `dependencyId` | No | Entero positivo | Planchetas > Filtros | `GET /planchetas` | API: filtra por dependencia |
+| `dependencyId` / `sectorId` | No | Entero positivo | Planchetas > Filtros | `GET /planchetas` | API: filtra por sector |
 | `includeHistory` | No (default true) | Boolean | Planchetas > Filtros | `GET /planchetas` | Preview muestra historial |
 | `responsibleName` | No (default) | String | Planchetas > Filtros | `GET /planchetas/pdf|excel` | Export incluye firma |
 | `chiefName` | No (default) | String | Planchetas > Filtros | `GET /planchetas/pdf|excel` | Export incluye firma |

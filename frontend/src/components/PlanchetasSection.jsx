@@ -1,3 +1,50 @@
+function formatPlanchetaDate(value) {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '-'
+  return date.toLocaleDateString('es-CL', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+}
+
+function formatPlanchetaDateTime(value) {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '-'
+  return date.toLocaleString('es-CL', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function formatPlanchetaMovementDetail(movement, formatPlanchetaMovement) {
+  const parts = []
+  const dateText = formatPlanchetaDateTime(movement?.createdAt)
+  if (dateText !== '-') {
+    parts.push(dateText)
+  }
+  const movementText = formatPlanchetaMovement(movement)
+  if (movementText) {
+    parts.push(movementText)
+  }
+  if (movement?.user?.name) {
+    parts.push(`Usuario: ${movement.user.name}`)
+  }
+  if (movement?.fromDependency?.name || movement?.toDependency?.name) {
+    parts.push(
+      `Ruta: ${movement?.fromDependency?.name || 'Origen'} -> ${
+        movement?.toDependency?.name || 'Destino'
+      }`
+    )
+  }
+  return parts.join(' | ') || 'Movimiento'
+}
+
 function PlanchetasSection(props) {
   const {
     canPreviewPlancheta,
@@ -7,6 +54,7 @@ function PlanchetasSection(props) {
     planchetaPreviewLoading,
     planchetaQuery,
     planchetaPreview,
+    planchetaDirectory = [],
     planchetaFilters,
     planchetaInsights,
     setPlanchetaFilters,
@@ -52,6 +100,50 @@ function PlanchetasSection(props) {
             className="ghost"
             disabled={!canExportPlancheta}
             title={!canExportPlancheta ? 'Previsualiza con datos antes de exportar.' : ''}
+            onClick={() => downloadPlancheta('excel', 'compacta')}
+          >
+            Excel Compacta
+          </button>
+          <button
+            className="ghost"
+            disabled={!canExportPlancheta}
+            title={!canExportPlancheta ? 'Previsualiza con datos antes de exportar.' : ''}
+            onClick={() => downloadPlancheta('pdf', 'compacta')}
+          >
+            PDF Compacta
+          </button>
+          <button
+            className="ghost"
+            disabled={!canExportPlancheta || !planchetaDirectory.length}
+            title={
+              !canExportPlancheta
+                ? 'Previsualiza con datos antes de exportar.'
+                : !planchetaDirectory.length
+                  ? 'El directorio necesita resultados visibles para exportarse.'
+                  : ''
+            }
+            onClick={() => downloadPlancheta('excel', 'directorio')}
+          >
+            Excel Directorio
+          </button>
+          <button
+            className="ghost"
+            disabled={!canExportPlancheta || !planchetaDirectory.length}
+            title={
+              !canExportPlancheta
+                ? 'Previsualiza con datos antes de exportar.'
+                : !planchetaDirectory.length
+                  ? 'El directorio necesita resultados visibles para exportarse.'
+                  : ''
+            }
+            onClick={() => downloadPlancheta('pdf', 'directorio')}
+          >
+            PDF Directorio
+          </button>
+          <button
+            className="ghost"
+            disabled={!canExportPlancheta}
+            title={!canExportPlancheta ? 'Previsualiza con datos antes de exportar.' : ''}
             onClick={() => downloadPlancheta('excel', 'gerencial')}
           >
             Excel Gerencial
@@ -70,7 +162,7 @@ function PlanchetasSection(props) {
             title={!canExportPlancheta ? 'Previsualiza con datos antes de exportar.' : ''}
             onClick={openPrintPlanchetaLabels}
           >
-            Imprimir QR
+            Imprimir etiquetas QR
           </button>
         </div>
       </div>
@@ -131,7 +223,7 @@ function PlanchetasSection(props) {
             </select>
           </div>
           <div className="select-wrap">
-            <label>Dependencia (opcional)</label>
+            <label>Sector (opcional)</label>
             <select
               value={planchetaFilters.dependencyId}
               onChange={(e) =>
@@ -142,7 +234,7 @@ function PlanchetasSection(props) {
               }
               disabled={loadingPlancheta || !planchetaFilters.establishmentId}
             >
-              <option value="">Todas</option>
+              <option value="">Todos</option>
               {planchetaDependencies.map((dep) => (
                 <option key={dep.id} value={dep.id}>
                   {dep.name}
@@ -150,7 +242,7 @@ function PlanchetasSection(props) {
               ))}
             </select>
           </div>
-          <p className="muted">Si no eliges dependencia, la plancheta se genera por establecimiento.</p>
+          <p className="muted">Si no eliges sector, la plancheta se genera por establecimiento.</p>
           <div className="split">
             <div className="select-wrap">
               <label>Fecha de adquisición desde (opcional)</label>
@@ -180,7 +272,7 @@ function PlanchetasSection(props) {
             </div>
           </div>
           <div className="select-wrap">
-            <label>Encargado de dependencia (firma)</label>
+            <label>Encargado de sector (firma)</label>
             <input
               value={planchetaFilters.responsibleName}
               onChange={(e) =>
@@ -193,7 +285,7 @@ function PlanchetasSection(props) {
             />
           </div>
           <div className="select-wrap">
-            <label>Jefe de dependencia (firma)</label>
+            <label>Jefe de sector (firma)</label>
             <input
               value={planchetaFilters.chiefName}
               onChange={(e) =>
@@ -273,7 +365,7 @@ function PlanchetasSection(props) {
                     .slice(0, 4)
                     .map(
                       (item) =>
-                        `INV-${item.internalCode} ${item.name} (${item.dependencyName || 'Sin dependencia'})`
+                        `INV-${item.internalCode} ${item.name} (${item.dependencyName || 'Sin sector'})`
                     )
                     .join(' | ')}
                 </div>
@@ -282,10 +374,87 @@ function PlanchetasSection(props) {
           )}
         </div>
       )}
+      {!planchetaPreviewLoading && planchetaDirectory.length > 0 && (
+        <div className="table">
+          <div className="table-head">
+            <h4>Historial por funcionario y asignaciones</h4>
+            <span className="muted">Agrupado por responsable del activo</span>
+          </div>
+          {planchetaDirectory.map((group) => (
+            <div key={group.key} className="table">
+              <div className="row">
+                <div>
+                  <strong>{group.responsibleName || 'Sin asignar'}</strong>
+                  <div className="muted">
+                    RUT: {group.responsibleRut || '-'} | Cargo:{' '}
+                    {group.responsibleRoles?.join(' / ') || '-'} | CC:{' '}
+                    {group.costCenters?.join(' / ') || '-'}
+                  </div>
+                  <div className="muted">
+                    Sectores: {group.dependencies?.join(' | ') || 'Sin sector'}
+                  </div>
+                </div>
+                <div className="muted">
+                  Activos: {group.assetCount || 0} | Unidades: {group.unitCount || 0}
+                  {' | '}Movimientos: {group.movementCount || 0}
+                </div>
+              </div>
+              <div className="row">
+                <div>
+                  <strong>Ultimo movimiento</strong>
+                  <div className="muted">
+                    {formatPlanchetaDateTime(group.latestMovementAt)}
+                  </div>
+                </div>
+                <div className="muted">
+                  Vista formal de custodia y reasignaciones
+                </div>
+              </div>
+              {group.assets.map((asset) => (
+                <div key={asset.id} className="row">
+                  <div>
+                    <strong>INV-{asset.internalCode}</strong> | {asset.name}
+                    <div className="muted">
+                      Marca: {asset.brand || '-'} | Modelo: {asset.modelName || '-'}
+                    </div>
+                    <div className="muted">
+                      Sector: {asset.dependencyName || '-'} | Estado:{' '}
+                      {asset.assetStateName || '-'}
+                    </div>
+                    <div className="muted">
+                      Cantidad: {asset.quantity ?? 1} | Adquisicion:{' '}
+                      {formatPlanchetaDate(asset.acquisitionDate)} | Vida util:{' '}
+                      {asset.usefulLifeYears || '-'} anos
+                    </div>
+                  </div>
+                  <div className="muted">
+                    <div>
+                      <strong>Historial reciente</strong>
+                    </div>
+                    {planchetaFilters.includeHistory ? (
+                      asset.movements?.length ? (
+                        asset.movements.slice(0, 3).map((movement) => (
+                          <div key={movement.id}>
+                            {formatPlanchetaMovementDetail(movement, formatPlanchetaMovement)}
+                          </div>
+                        ))
+                      ) : (
+                        <div>Sin movimientos recientes</div>
+                      )
+                    ) : (
+                      <div>Historial desactivado en esta vista</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
       {!planchetaPreviewLoading && planchetaSummary.length > 0 && (
         <div className="table">
           <div className="table-head">
-            <h4>Resumen por dependencia y producto</h4>
+            <h4>Resumen por sector y producto</h4>
             <span className="muted">Vista resumida (hasta 100 filas)</span>
           </div>
           {planchetaSummary.slice(0, 100).map((row, idx) => (
@@ -294,7 +463,7 @@ function PlanchetasSection(props) {
               className="row"
             >
               <div>
-                <strong>{row.dependencyName || 'Sin dependencia'}</strong>
+                <strong>{row.dependencyName || 'Sin sector'}</strong>
                 <div className="muted">Producto: {row.productName || 'Sin nombre'}</div>
                 <div className="muted">Categoría: {row.category || 'Sin categoría'}</div>
               </div>
@@ -321,7 +490,7 @@ function PlanchetasSection(props) {
                 </div>
               </div>
               <div className="muted">
-                Dependencia: {item.dependency?.name || '-'} | Estado: {item.assetState?.name || '-'}
+                Sector: {item.dependency?.name || '-'} | Estado: {item.assetState?.name || '-'}
               </div>
               <div className="muted">
                 Cantidad: {item.quantity ?? 1} | Responsable: {item.responsibleName || 'Sin asignar'}

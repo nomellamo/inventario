@@ -37,7 +37,7 @@
     "db:restore-latest": "node scripts/dbRestoreLatest.js",
     "db:seed": "node prisma/seed.js",
     "db:reset-single-admin": "node scripts/resetSingleAdmin.js",
-    "cleanup:qa": "node scripts/cleanupQa.js",
+    "cleanup:test": "node scripts/cleanupTest.js",
     "purge:inactive": "node scripts/purgeInactiveAdminTree.js"
   },
   "keywords": [],

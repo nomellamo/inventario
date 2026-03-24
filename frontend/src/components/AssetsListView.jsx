@@ -185,7 +185,7 @@ function AssetRecordsTable(props) {
             onChange={(e) => setAssetListFilters((p) => ({ ...p, dependencyId: e.target.value }))}
             disabled={!assetListFilters.establishmentId}
           >
-            <option value="">Dependencia</option>
+            <option value="">Sector</option>
             {assetListDependencies.map((dep) => (
               <option key={dep.id} value={dep.id}>
                 {dep.name}
@@ -232,14 +232,14 @@ function AssetRecordsTable(props) {
             disabled={assetsLoading || !assetListTotal}
             onClick={openPrintAssetListLabels}
           >
-            Imprimir QR masivo
+            Imprimir etiquetas QR masivo
           </button>
           <button
             className="ghost"
             disabled={!selectedVisibleCount}
             onClick={openPrintSelectedAssetLabels}
           >
-            Imprimir QR seleccionados
+            Imprimir etiquetas QR seleccionados
           </button>
           <button
             className="ghost"

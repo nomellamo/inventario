@@ -10,6 +10,11 @@ const evidenceIdParam = z.object({
   evidenceId: z.coerce.number().int().positive(),
 });
 
+const movementActaParams = z.object({
+  id: z.coerce.number().int().positive(),
+  movementId: z.coerce.number().int().positive(),
+});
+
 const relocateBody = z.object({
   toDependencyId: z.coerce.number().int().positive(),
 });
@@ -59,6 +64,7 @@ const createAssetBody = z.object({
   responsibleRole: z.string().trim().min(1).max(120).optional(),
   costCenter: z.string().trim().min(1).max(120).optional(),
   acquisitionValue: z.coerce.number().positive().max(1_000_000_000),
+  depreciationStartDate: z.coerce.date().optional(),
   usefulLifeYears: z.coerce.number().int().positive().max(120).optional(),
   depreciationAnnualValue: z.coerce.number().positive().max(1_000_000_000).optional(),
   depreciationAnnualRate: z.coerce.number().positive().max(100).optional(),
@@ -97,6 +103,7 @@ const updateAssetBody = z
     responsibleRole: z.union([z.string().trim().min(1).max(120), z.literal("")]).optional(),
     costCenter: z.union([z.string().trim().min(1).max(120), z.literal("")]).optional(),
     acquisitionValue: z.coerce.number().positive().max(1_000_000_000).optional(),
+    depreciationStartDate: z.coerce.date().optional(),
     usefulLifeYears: z.coerce.number().int().positive().max(120).optional(),
     depreciationAnnualValue: z.coerce.number().positive().max(1_000_000_000).optional(),
     depreciationAnnualRate: z.coerce.number().positive().max(100).optional(),
@@ -107,6 +114,19 @@ const updateAssetBody = z
   .refine((val) => Object.keys(val).length > 0, {
     message: "Se requiere al menos un campo",
   });
+
+const depreciationSuggestionBody = z.object({
+  catalogItemId: z.coerce.number().int().positive().optional(),
+  assetTypeId: z.coerce.number().int().positive().optional(),
+  accountingAccount: z.string().trim().min(1).max(100).optional(),
+  name: z.string().trim().min(1).max(200).optional(),
+  acquisitionValue: z.coerce.number().positive().max(1_000_000_000).optional(),
+  acquisitionDate: z.coerce.date().optional(),
+  depreciationStartDate: z.coerce.date().optional(),
+  usefulLifeYears: z.coerce.number().int().positive().max(120).optional(),
+  depreciationAnnualValue: z.coerce.number().positive().max(1_000_000_000).optional(),
+  depreciationAnnualRate: z.coerce.number().positive().max(100).optional(),
+});
 
 const listAssetsQuery = z.object({
   id: z.coerce.number().int().positive().optional(),
@@ -169,6 +189,7 @@ const purgeAssetsQuery = z.object({
 module.exports = {
   idParam,
   evidenceIdParam,
+  movementActaParams,
   relocateBody,
   transferBody,
   statusChangeBody,
@@ -180,6 +201,7 @@ module.exports = {
   importHistoryQuery,
   evidenceListQuery,
   depreciationPoliciesQuery,
+  depreciationSuggestionBody,
   purgeAssetsQuery,
 };
 

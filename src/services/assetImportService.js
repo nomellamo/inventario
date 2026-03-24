@@ -7,6 +7,7 @@ const { badRequest, forbidden, notFound } = require("../utils/httpError");
 const {
   validateAcquisitionDate,
   validateAcquisitionValue,
+  validateDateNotFuture,
   validateStringMax,
   MAX_NAME_LENGTH,
   MAX_SHORT_TEXT,
@@ -36,6 +37,7 @@ const HEADER_ALIASES = {
   estado: "assetstatename",
   establecimiento: "establishmentname",
   dependencia: "dependencyname",
+  sector: "dependencyname",
   valoradquisicion: "acquisitionvalue",
   fechaadquisicion: "acquisitiondate",
   cantidad: "quantity",
@@ -52,6 +54,10 @@ const HEADER_ALIASES = {
   depreciaciontasaanual: "depreciationannualrate",
   tasadepreciacionanual: "depreciationannualrate",
   tasadepreciacion: "depreciationannualrate",
+  fechainiciodepreciacion: "depreciationstartdate",
+  iniciodepreciacion: "depreciationstartdate",
+  depreciacioninicio: "depreciationstartdate",
+  depreciationstartdate: "depreciationstartdate",
   vidautil: "usefullifeyears",
   vidautilanos: "usefullifeyears",
   anosvidautil: "usefullifeyears",
@@ -154,6 +160,14 @@ function parseImportAcquisitionDate(value) {
     return new Date();
   }
   if (isImportPlaceholder(value)) return new Date();
+  return parseExcelDate(value);
+}
+
+function parseImportOptionalDate(value) {
+  if (value === undefined || value === null || normalizeImportText(value) === "") {
+    return null;
+  }
+  if (isImportPlaceholder(value)) return null;
   return parseExcelDate(value);
 }
 
@@ -677,6 +691,7 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx", opt
       const assetTypeIdRaw = getRowValue(row, keyMap, "assettypeid");
       const depreciationAnnualRaw = getRowValue(row, keyMap, "depreciationannualvalue");
       const depreciationRateRaw = getRowValue(row, keyMap, "depreciationannualrate");
+      const depreciationStartDateRaw = getRowValue(row, keyMap, "depreciationstartdate");
       const hasPercentInAnnualCell = hasPercentMarker(depreciationAnnualRaw);
 
       const input = {
@@ -703,6 +718,7 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx", opt
         costCenter: normalizeOptionalImportValue(getRowValue(row, keyMap, "costcenter")),
         acquisitionValue: parseImportAcquisitionValue(getRowValue(row, keyMap, "acquisitionvalue")),
         acquisitionDate: parseImportAcquisitionDate(getRowValue(row, keyMap, "acquisitiondate")),
+        depreciationStartDate: parseImportOptionalDate(depreciationStartDateRaw),
         usefulLifeYears: parseImportUsefulLifeYears(getRowValue(row, keyMap, "usefullifeyears")),
         depreciationAnnualValue: hasPercentInAnnualCell
           ? null
@@ -963,6 +979,15 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx", opt
       if (validateAcquisitionDate(input.acquisitionDate)) {
         invalidFields.push("acquisitionDate");
       }
+      if (normalizeImportText(depreciationStartDateRaw) && !input.depreciationStartDate) {
+        invalidFields.push("depreciationStartDate");
+      }
+      if (
+        input.depreciationStartDate &&
+        validateDateNotFuture("depreciationStartDate", input.depreciationStartDate)
+      ) {
+        invalidFields.push("depreciationStartDate");
+      }
       if (validateUsefulLifeYears(input.usefulLifeYears)) {
         invalidFields.push("usefulLifeYears");
       }
@@ -1043,10 +1068,10 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx", opt
         }
 
         const dependency = dependencyById.get(input.dependencyId);
-        if (!dependency) throw notFound("Dependency no existe");
-        if (!dependency.isActive) throw badRequest("Dependency inactiva");
+        if (!dependency) throw notFound("Sector no existe");
+        if (!dependency.isActive) throw badRequest("Sector inactivo");
         if (dependency.establishmentId !== input.establishmentId) {
-          throw badRequest("Dependency no pertenece al establishment");
+          throw badRequest("Sector no pertenece al establishment");
         }
 
         const state = stateById.get(input.assetStateId);
@@ -1096,6 +1121,8 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx", opt
                 costCenter: normalizedCostCenter,
                 acquisitionValue: Number(input.acquisitionValue),
                 acquisitionDate: new Date(input.acquisitionDate),
+                depreciationStartDate:
+                  input.depreciationStartDate || input.acquisitionDate || null,
                 usefulLifeYears: depreciation.usefulLifeYears,
                 depreciationAnnualValue: depreciation.depreciationAnnualValue,
                 assetTypeId: assetType.id,
@@ -1156,6 +1183,8 @@ async function importAssetsFromExcel(buffer, user, filename = "import.xlsx", opt
                     costCenter: normalizedCostCenter,
                     acquisitionValue: Number(input.acquisitionValue),
                     acquisitionDate: new Date(input.acquisitionDate),
+                    depreciationStartDate:
+                      input.depreciationStartDate || input.acquisitionDate || null,
                     usefulLifeYears: depreciation.usefulLifeYears,
                     depreciationAnnualValue: depreciation.depreciationAnnualValue,
                     assetTypeId: assetType.id,
@@ -1485,9 +1514,10 @@ async function buildAssetImportTemplate() {
     "Tipo",
     "Estado",
     "Establecimiento",
-    "Dependencia",
+    "Sector",
     "Valor Adquisicion",
     "Fecha Adquisicion",
+    "Fecha Inicio Depreciacion",
     "DESCRIPCI\u00d3N DEL BIEN",
     "Depreciacion Anual CLP",
     "Tasa Depreciacion Anual (%)",
@@ -1521,9 +1551,9 @@ async function buildAssetImportTemplate() {
         "Marca",
         "Modelo",
         "Serie",
-        "Encargado de Dependencia",
+        "Encargado de Sector",
         "11111111-1",
-        "Jefe de Dependencia",
+        "Jefe de Sector",
         "CC-001",
         "CT-001",
         "AN-001",
@@ -1533,6 +1563,7 @@ async function buildAssetImportTemplate() {
         dependency.name,
         "POR INFORMAR",
         "POR INFORMAR",
+        "",
         "Detalle referencial del bien",
         25000,
         10,

@@ -1,11 +1,16 @@
 const express = require("express");
 const router = express.Router();
-const fs = require("fs");
-const path = require("path");
 
 const { createAsset } = require("../services/assetService");
 const { updateAsset } = require("../services/assetUpdateService");
 const { listAssets } = require("../services/assetQueryService");
+const {
+  suggestAssetDepreciation,
+} = require("../services/assetDepreciationSuggestionService");
+const {
+  listDepreciationRuns,
+  closeAnnualDepreciationRun,
+} = require("../services/depreciationRunService");
 const { relocateAsset } = require("../services/assetRelocateService");
 const { getAssetById } = require("../services/assetGetService");
 const { exportAssetsToExcel } = require("../services/assetExportService");
@@ -14,6 +19,7 @@ const { getAssetHistory } = require("../services/assetHistoryService");
 const { transferAsset } = require("../services/assetTransferService");
 const { changeAssetStatus } = require("../services/assetStatusService");
 const { restoreAsset } = require("../services/assetRestoreService");
+const { buildAssetMovementActaHtml } = require("../services/assetMovementActaService");
 const {
   getAssetForceDeleteSummary,
   deleteAssetPermanentForce,
@@ -43,6 +49,7 @@ const {
 const {
   buildPublicAssetTechnicalSheetHtml,
 } = require("../services/assetPublicSheetService");
+const { getOfficialBrandLogoBuffer } = require("../utils/officialBranding");
 const {
   listDepreciationPolicies,
   importDepreciationPoliciesFromFile,
@@ -60,6 +67,7 @@ const { validateBody, validateParams, validateQuery } = require("../middleware/v
 const {
   idParam,
   evidenceIdParam,
+  movementActaParams,
   relocateBody,
   transferBody,
   statusChangeBody,
@@ -67,12 +75,17 @@ const {
   forceDeleteBody,
   createAssetBody,
   updateAssetBody,
+  depreciationSuggestionBody,
   listAssetsQuery,
   importHistoryQuery,
   evidenceListQuery,
   depreciationPoliciesQuery,
   purgeAssetsQuery,
 } = require("../validators/assetSchemas");
+const {
+  depreciationRunCloseBody,
+  depreciationRunListQuery,
+} = require("../validators/depreciationSchemas");
 
 const multer = require("multer");
 const upload = multer({
@@ -93,20 +106,8 @@ let cachedPublicFavicon = null;
 
 function getPublicFaviconBuffer() {
   if (cachedPublicFavicon) return cachedPublicFavicon;
-  const candidates = [
-    path.resolve(process.cwd(), "frontend/src/assets/images/logo-inventacore.png"),
-    path.resolve(__dirname, "../../frontend/src/assets/images/logo-inventacore.png"),
-  ];
-  for (const filePath of candidates) {
-    try {
-      if (!fs.existsSync(filePath)) continue;
-      cachedPublicFavicon = fs.readFileSync(filePath);
-      return cachedPublicFavicon;
-    } catch (_) {
-      // Try next path.
-    }
-  }
-  return null;
+  cachedPublicFavicon = getOfficialBrandLogoBuffer();
+  return cachedPublicFavicon;
 }
 
 router.get("/public/favicon.ico", (req, res) => {
@@ -158,6 +159,36 @@ router.get(
         label: MOVEMENT_REASON_LABELS[code] || code,
       })),
     });
+  })
+);
+
+router.post(
+  "/depreciation/suggest",
+  requireJson,
+  validateBody(depreciationSuggestionBody),
+  asyncHandler(async (req, res) => {
+    const suggestion = await suggestAssetDepreciation(req.body);
+    res.json(suggestion);
+  })
+);
+
+router.get(
+  "/depreciation/runs",
+  validateQuery(depreciationRunListQuery),
+  asyncHandler(async (req, res) => {
+    const result = await listDepreciationRuns(req.query, req.user);
+    res.json(result);
+  })
+);
+
+router.post(
+  "/depreciation/runs/close",
+  blockWriteForViewer,
+  requireJson,
+  validateBody(depreciationRunCloseBody),
+  asyncHandler(async (req, res) => {
+    const result = await closeAnnualDepreciationRun(req.body, req.user);
+    res.status(201).json(result);
   })
 );
 
@@ -454,6 +485,21 @@ router.get(
       count: history.length,
       movements: history,
     });
+  })
+);
+
+router.get(
+  "/:id/movements/:movementId/acta",
+  validateParams(movementActaParams),
+  asyncHandler(async (req, res) => {
+    const html = await buildAssetMovementActaHtml(
+      Number(req.params.id),
+      Number(req.params.movementId),
+      req.user
+    );
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store");
+    res.send(html);
   })
 );
 

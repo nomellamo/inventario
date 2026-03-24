@@ -1,20 +1,5 @@
 const ExcelJS = require("exceljs");
-const fs = require("fs");
-const path = require("path");
-
-function getLogoBuffer() {
-  const envPath = process.env.PLANCHETA_LOGO_PATH;
-  const fallback = path.join(__dirname, "..", "assets", "plancheta_logo.png");
-  const filePath = envPath || fallback;
-  try {
-    if (fs.existsSync(filePath)) {
-      return fs.readFileSync(filePath);
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
+const { getOfficialBrandLogoBuffer } = require("../utils/officialBranding");
 
 function normalizeStateName(value) {
   return String(value || "")
@@ -88,7 +73,7 @@ async function buildPlanchetaExcel(assets, meta) {
   ).sort((a, b) => b[1] - a[1]);
   const dependencyStats = Array.from(
     normalizedAssets.reduce((map, item) => {
-      const dependencyName = String(item?.dependency?.name || "Sin dependencia").trim() || "Sin dependencia";
+      const dependencyName = String(item?.dependency?.name || "Sin sector").trim() || "Sin sector";
       const units = Math.max(Number(item?.quantity) || 0, 1);
       map.set(dependencyName, (map.get(dependencyName) || 0) + units);
       return map;
@@ -135,7 +120,7 @@ async function buildPlanchetaExcel(assets, meta) {
     },
   };
 
-  const logo = getLogoBuffer();
+  const logo = getOfficialBrandLogoBuffer();
   if (logo) {
     try {
       const imageId = workbook.addImage({ buffer: logo, extension: "png" });
@@ -163,13 +148,33 @@ async function buildPlanchetaExcel(assets, meta) {
   sheet.addRow(["Establecimiento:", meta.establishment || ""]);
   sheet.addRow(["RBD:", meta.rbd || ""]);
   sheet.addRow(["Comuna:", meta.commune || ""]);
-  sheet.addRow(["Dependencia:", meta.dependency || ""]);
+  sheet.addRow(["Sector:", meta.dependency || ""]);
   sheet.addRow(["Rango adquisicion:", meta.dateRange || "Sin filtro"]);
   sheet.addRow(["Fecha:", new Date().toLocaleDateString()]);
   sheet.addRow([
     "Descripcion:",
-    meta.ministryText || "Resumen de bienes verificados en la dependencia indicada.",
+    meta.ministryText || "Resumen de bienes verificados en el sector indicado.",
   ]);
+  const responsibilityRow = sheet.addRow([
+    "Responsabilidad:",
+    "El funcionario responsable debe velar por el buen uso, custodia y resguardo de los recursos asignados.",
+  ]);
+  sheet.mergeCells(`B${responsibilityRow.number}:I${responsibilityRow.number}`);
+  sheet.getCell(`A${responsibilityRow.number}`).font = {
+    bold: true,
+    color: { argb: "FF1B4332" },
+  };
+  sheet.getCell(`A${responsibilityRow.number}`).alignment = {
+    vertical: "middle",
+  };
+  sheet.getCell(`B${responsibilityRow.number}`).font = {
+    italic: true,
+    color: { argb: "FF475569" },
+  };
+  sheet.getCell(`B${responsibilityRow.number}`).alignment = {
+    vertical: "middle",
+    wrapText: true,
+  };
 
   sheet.addRow([]);
 
@@ -179,7 +184,7 @@ async function buildPlanchetaExcel(assets, meta) {
     "Responsable",
     "RUT Responsable",
     "Estado",
-    "Dependencia",
+    "Sector",
     "Valor Adq CLP",
     "Deprec. Anual CLP",
     "Vida Util (años)",
@@ -505,8 +510,8 @@ async function buildPlanchetaExcel(assets, meta) {
   sheet.mergeCells(`A${signatureNameRow.number}:C${signatureNameRow.number}`);
   sheet.mergeCells(`D${signatureNameRow.number}:F${signatureNameRow.number}`);
   sheet.getCell(`A${signatureNameRow.number}`).value =
-    meta.responsibleName || "Encargado de Dependencia";
-  sheet.getCell(`D${signatureNameRow.number}`).value = meta.chiefName || "Jefe de Dependencia";
+    meta.responsibleName || "Encargado de Sector";
+  sheet.getCell(`D${signatureNameRow.number}`).value = meta.chiefName || "Jefe de Sector";
   sheet.getCell(`A${signatureNameRow.number}`).alignment = {
     horizontal: "center",
     vertical: "middle",

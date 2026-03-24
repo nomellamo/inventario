@@ -4,6 +4,7 @@ const { logAssetAudit, snapshotAsset } = require("./assetAuditService");
 const {
   validateAcquisitionDate,
   validateAcquisitionValue,
+  validateDateNotFuture,
   validateStringMax,
   MAX_NAME_LENGTH,
   MAX_SHORT_TEXT,
@@ -44,6 +45,14 @@ async function updateAsset(assetId, input, user) {
   if (input.acquisitionDate !== undefined) {
     const dateError = validateAcquisitionDate(new Date(input.acquisitionDate));
     assert(!dateError, badRequest(dateError));
+  }
+  if (input.depreciationStartDate !== undefined) {
+    const depreciationStartDate = new Date(input.depreciationStartDate);
+    const depreciationStartDateError = validateDateNotFuture(
+      "depreciationStartDate",
+      depreciationStartDate
+    );
+    assert(!depreciationStartDateError, badRequest(depreciationStartDateError));
   }
 
   const nameError = validateStringMax("name", input.name, MAX_NAME_LENGTH);
@@ -124,6 +133,9 @@ async function updateAsset(assetId, input, user) {
   if (input.costCenter !== undefined) data.costCenter = normalizedCostCenter;
   if (input.acquisitionValue !== undefined) data.acquisitionValue = input.acquisitionValue;
   if (input.acquisitionDate !== undefined) data.acquisitionDate = new Date(input.acquisitionDate);
+  if (input.depreciationStartDate !== undefined) {
+    data.depreciationStartDate = new Date(input.depreciationStartDate);
+  }
   if (input.catalogItemId !== undefined) data.catalogItemId = input.catalogItemId;
   if (input.usefulLifeYears !== undefined) data.usefulLifeYears = parsedUsefulLifeYears;
   if (input.depreciationAnnualValue !== undefined) {

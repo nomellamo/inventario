@@ -5,7 +5,7 @@ if (typeof fetch !== "function") {
   throw new Error("Este script requiere Node 18+ (fetch global)");
 }
 
-const CENTRAL_EMAIL = process.env.TEST_CENTRAL_EMAIL || "admin@cordillera.local";
+const CENTRAL_EMAIL = process.env.TEST_CENTRAL_EMAIL || "admin-central@inventacore.cl";
 const CENTRAL_PASSWORD = process.env.TEST_CENTRAL_PASSWORD || "admin123";
 let BASE_URL = process.env.API_BASE_URL || null;
 
@@ -115,8 +115,8 @@ async function run() {
     dependencyId,
     assetStateId: stateId,
     assetTypeId: typeId,
-    name: `QA Conflict Asset ${Date.now()}`,
-    accountingAccount: "ACC-QA-CONFLICT",
+    name: `Test Conflict Asset ${Date.now()}`,
+    accountingAccount: "ACC-TEST-CONFLICT",
     acquisitionValue: 1000,
     acquisitionDate: new Date().toISOString(),
   };
@@ -185,4 +185,3 @@ main().catch((err) => {
   console.error("Test asset conflict fallo:", err.message);
   process.exit(1);
 });
-

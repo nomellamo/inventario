@@ -3,7 +3,7 @@ require("dotenv").config();
 
 const API_BASE = process.env.API_BASE || "http://localhost:3000";
 const SCHOOL_EMAIL =
-  process.env.SCHOOL_EMAIL || "escuela1@cordillera.local";
+  process.env.SCHOOL_EMAIL || "escuela1@inventacore.cl";
 const SCHOOL_PASSWORD = process.env.SCHOOL_PASSWORD || "escuela123";
 
 async function http(method, path, body, token) {

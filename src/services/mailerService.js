@@ -1,3 +1,5 @@
+const { getOfficialBrandName } = require("../utils/officialBranding");
+
 let nodemailerModule = null;
 let transporterInstance = null;
 
@@ -16,6 +18,14 @@ function getNodemailer() {
 function toBool(value, fallback = false) {
   if (value === undefined || value === null || value === "") return fallback;
   return String(value).trim().toLowerCase() === "true";
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 function getSmtpConfig() {
@@ -61,14 +71,14 @@ function buildSupportRequestMail({ to, request, actor }) {
   const scopeParts = [
     request?.institution?.name ? `Institución: ${request.institution.name}` : null,
     request?.establishment?.name ? `Establecimiento: ${request.establishment.name}` : null,
-    request?.dependency?.name ? `Dependencia: ${request.dependency.name}` : null,
+    request?.dependency?.name ? `Sector: ${request.dependency.name}` : null,
   ].filter(Boolean);
 
   const scopeText = scopeParts.length ? scopeParts.join(" | ") : "Sin alcance específico";
   const requester = actor?.name || actor?.email || "ADMIN_CENTRAL";
   const dueAt = request?.dueAt ? new Date(request.dueAt).toLocaleString("es-CL") : "N/A";
 
-  const subject = `[InventaCore] Solicitud #${request.id}: ${request.subject}`;
+  const subject = `[${getOfficialBrandName()}] Solicitud #${request.id}: ${request.subject}`;
   const text = [
     "Se creó una nueva solicitud en Asistente Central.",
     "",
@@ -107,6 +117,55 @@ function buildSupportRequestMail({ to, request, actor }) {
       <pre style="white-space:pre-wrap;background:#f8fafc;padding:12px;border-radius:6px">${request.responseDraft}</pre>`
           : ""
       }
+    </div>
+  `;
+
+  return { to, subject, text, html };
+}
+
+function getAccountingRecipient() {
+  return process.env.ACCOUNTING_NOTIFY_EMAIL || process.env.SUPPORT_NOTIFY_EMAIL || null;
+}
+
+function buildAccountingBajaMail({ to, asset, movementId, reasonCode, actor }) {
+  const assetCode = asset?.internalCode ? `INV-${asset.internalCode}` : `Activo #${asset?.id || "-"}`;
+  const subject = `[${getOfficialBrandName()}] Aviso de baja: ${assetCode}`;
+  const dependencyName = asset?.dependency?.name || "Sin sector";
+  const establishmentName = asset?.establishment?.name || "Sin establecimiento";
+  const actorName = actor?.name || actor?.email || "Sistema";
+  const reason = reasonCode || "BAJA";
+  const emissionDate = new Date().toLocaleString("es-CL");
+  const text = [
+    "Se notifico una baja de activo para revision contable.",
+    "",
+    `Activo: ${assetCode} - ${asset?.name || "Sin nombre"}`,
+    `Movimiento: #${movementId || "-"}`,
+    `Motivo: ${reason}`,
+    `Establecimiento: ${establishmentName}`,
+    `Sector: ${dependencyName}`,
+    `Responsable: ${asset?.responsibleName || "Sin responsable"}`,
+    `Cargo: ${asset?.responsibleRole || "-"}`,
+    `Centro de costo: ${asset?.costCenter || "-"}`,
+    `Emitido por: ${actorName}`,
+    `Fecha: ${emissionDate}`,
+    "",
+    "Por favor ajustar la rebaja en el sistema contable y conservar el respaldo documental.",
+  ].join("\n");
+  const html = `
+    <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.5;color:#0f172a">
+      <h2 style="margin:0 0 12px 0">Aviso de baja para contabilidad</h2>
+      <p><strong>Activo:</strong> ${escapeHtml(assetCode)} - ${escapeHtml(asset?.name || "Sin nombre")}</p>
+      <p><strong>Movimiento:</strong> #${escapeHtml(movementId || "-")}</p>
+      <p><strong>Motivo:</strong> ${escapeHtml(reason)}</p>
+      <p><strong>Establecimiento:</strong> ${escapeHtml(establishmentName)}</p>
+      <p><strong>Sector:</strong> ${escapeHtml(dependencyName)}</p>
+      <p><strong>Responsable:</strong> ${escapeHtml(asset?.responsibleName || "Sin responsable")}</p>
+      <p><strong>Cargo:</strong> ${escapeHtml(asset?.responsibleRole || "-")}</p>
+      <p><strong>Centro de costo:</strong> ${escapeHtml(asset?.costCenter || "-")}</p>
+      <p><strong>Emitido por:</strong> ${escapeHtml(actorName)}</p>
+      <p><strong>Fecha:</strong> ${escapeHtml(emissionDate)}</p>
+      <hr />
+      <p>Por favor ajustar la rebaja en el sistema contable y conservar el respaldo documental.</p>
     </div>
   `;
 
@@ -167,7 +226,7 @@ async function sendSupportProbeEmail({ to, actor }) {
   const info = await transporter.sendMail({
     from: smtp.from,
     to,
-    subject: "[InventaCore] Prueba SMTP OK",
+    subject: `[${getOfficialBrandName()}] Prueba SMTP OK`,
     text: `Prueba SMTP exitosa.\nEnviado por: ${sender}\nFecha: ${new Date().toISOString()}`,
     html: `<div style="font-family:Arial,Helvetica,sans-serif">
       <h3>Prueba SMTP exitosa</h3>
@@ -184,7 +243,52 @@ async function sendSupportProbeEmail({ to, actor }) {
   };
 }
 
+async function sendAccountingBajaEmail({ to = getAccountingRecipient(), asset, movementId, reasonCode, actor }) {
+  const nodemailer = getNodemailer();
+  if (!nodemailer) {
+    return { status: "skipped", reason: "NODEMAILER_NOT_INSTALLED" };
+  }
+
+  const smtp = getSmtpConfig();
+  if (!smtp) {
+    return { status: "skipped", reason: "SMTP_NOT_CONFIGURED" };
+  }
+
+  const recipient = String(to || "").trim();
+  if (!recipient) {
+    return { status: "skipped", reason: "ACCOUNTING_NOTIFY_EMAIL_NOT_CONFIGURED" };
+  }
+
+  const transporter = getTransporter();
+  if (!transporter) {
+    return { status: "skipped", reason: "SMTP_TRANSPORT_UNAVAILABLE" };
+  }
+
+  const payload = buildAccountingBajaMail({
+    to: recipient,
+    asset,
+    movementId,
+    reasonCode,
+    actor,
+  });
+  const info = await transporter.sendMail({
+    from: smtp.from,
+    to: payload.to,
+    subject: payload.subject,
+    text: payload.text,
+    html: payload.html,
+  });
+
+  return {
+    status: "sent",
+    messageId: info?.messageId || null,
+    accepted: info?.accepted || [],
+    rejected: info?.rejected || [],
+  };
+}
+
 module.exports = {
   sendSupportRequestCreatedEmail,
   sendSupportProbeEmail,
+  sendAccountingBajaEmail,
 };

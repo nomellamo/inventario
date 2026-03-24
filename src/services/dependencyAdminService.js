@@ -17,7 +17,7 @@ const DEPENDENCY_CONFLICT_CODES = {
 
 function requireCentral(user) {
   if (user.role.type !== "ADMIN_CENTRAL") {
-    throw forbidden("Solo ADMIN_CENTRAL puede administrar dependencias");
+    throw forbidden("Solo ADMIN_CENTRAL puede administrar sectores");
   }
 }
 
@@ -61,7 +61,7 @@ async function listDependencies(query, user) {
 async function getDependency(id, user) {
   requireCentral(user);
   const item = await prisma.dependency.findUnique({ where: { id } });
-  if (!item) throw notFound("Dependency no existe");
+  if (!item) throw notFound("Sector no existe");
   return item;
 }
 
@@ -79,7 +79,7 @@ async function createDependency(data, user) {
       establishmentId: data.establishmentId,
     },
   });
-  if (dup) throw conflict("Ya existe una dependencia con ese nombre");
+  if (dup) throw conflict("Ya existe un sector con ese nombre");
   const created = await prisma.dependency.create({ data });
   await logAdminAudit({
     userId: user.id,
@@ -95,7 +95,7 @@ async function createDependency(data, user) {
 async function updateDependency(id, data, user) {
   requireCentral(user);
   const exists = await prisma.dependency.findUnique({ where: { id } });
-  if (!exists) throw notFound("Dependency no existe");
+  if (!exists) throw notFound("Sector no existe");
   const targetEstId = data.establishmentId || exists.establishmentId;
   if (data.establishmentId) {
     const est = await prisma.establishment.findUnique({
@@ -113,7 +113,7 @@ async function updateDependency(id, data, user) {
         NOT: { id },
       },
     });
-    if (dup) throw conflict("Ya existe una dependencia con ese nombre");
+    if (dup) throw conflict("Ya existe un sector con ese nombre");
   }
   const updated = await prisma.dependency.update({ where: { id }, data });
   await logAdminAudit({
@@ -130,10 +130,10 @@ async function updateDependency(id, data, user) {
 async function deleteDependency(id, user) {
   requireCentral(user);
   const exists = await prisma.dependency.findUnique({ where: { id } });
-  if (!exists) throw notFound("Dependency no existe");
+  if (!exists) throw notFound("Sector no existe");
   if (!exists.isActive) {
     throw conflict(
-      "Dependencia ya esta dada de baja",
+      "Sector ya esta dado de baja",
       DEPENDENCY_CONFLICT_CODES.ALREADY_INACTIVE
     );
   }
@@ -146,7 +146,7 @@ async function deleteDependency(id, user) {
   });
   if (activeAssets > 0) {
     throw conflict(
-      "No se puede dar de baja: hay activos vigentes asociados",
+      "No se puede dar de baja: hay activos vigentes asociados al sector",
       DEPENDENCY_CONFLICT_CODES.HAS_ACTIVE_ASSETS,
       { activeAssets }
     );
@@ -170,10 +170,10 @@ async function deleteDependency(id, user) {
 async function reactivateDependency(id, user) {
   requireCentral(user);
   const exists = await prisma.dependency.findUnique({ where: { id } });
-  if (!exists) throw notFound("Dependency no existe");
+  if (!exists) throw notFound("Sector no existe");
   if (exists.isActive) {
     throw conflict(
-      "Dependencia ya esta activa",
+      "Sector ya esta activo",
       DEPENDENCY_CONFLICT_CODES.ALREADY_ACTIVE
     );
   }
@@ -195,10 +195,10 @@ async function reactivateDependency(id, user) {
 async function deleteDependencyPermanent(id, user) {
   requireCentral(user);
   const exists = await prisma.dependency.findUnique({ where: { id } });
-  if (!exists) throw notFound("Dependency no existe");
+  if (!exists) throw notFound("Sector no existe");
   if (exists.isActive) {
     throw conflict(
-      "Para eliminar definitivamente, primero debes dar de baja la dependencia",
+      "Para eliminar definitivamente, primero debes dar de baja el sector",
       DEPENDENCY_CONFLICT_CODES.HARD_DELETE_REQUIRES_INACTIVE
     );
   }
@@ -233,10 +233,10 @@ async function deleteDependencyPermanent(id, user) {
 async function getDependencyForceDeleteSummary(id, user) {
   requireCentral(user);
   const exists = await prisma.dependency.findUnique({ where: { id } });
-  if (!exists) throw notFound("Dependency no existe");
+  if (!exists) throw notFound("Sector no existe");
   if (exists.isActive) {
     throw conflict(
-      "Para eliminar forzado, primero debes dar de baja la dependencia",
+      "Para eliminar forzado, primero debes dar de baja el sector",
       DEPENDENCY_CONFLICT_CODES.HARD_DELETE_REQUIRES_INACTIVE
     );
   }
@@ -253,10 +253,10 @@ async function getDependencyForceDeleteSummary(id, user) {
 async function deleteDependencyPermanentForce(id, data, user) {
   requireCentral(user);
   const exists = await prisma.dependency.findUnique({ where: { id } });
-  if (!exists) throw notFound("Dependency no existe");
+  if (!exists) throw notFound("Sector no existe");
   if (exists.isActive) {
     throw conflict(
-      "Para eliminar forzado, primero debes dar de baja la dependencia",
+      "Para eliminar forzado, primero debes dar de baja el sector",
       DEPENDENCY_CONFLICT_CODES.HARD_DELETE_REQUIRES_INACTIVE
     );
   }

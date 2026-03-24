@@ -34,7 +34,7 @@ function summarizeAssets(assets) {
     totalValue,
     totalAnnualDepreciation,
     states: aggregate((item) => item?.assetState?.name, "Sin estado"),
-    dependencies: aggregate((item) => item?.dependency?.name, "Sin dependencia"),
+    dependencies: aggregate((item) => item?.dependency?.name, "Sin sector"),
     types: aggregate((item) => item?.assetType?.name, "Sin tipo"),
     brands: aggregate((item) => item?.brand, "Sin marca"),
     responsibles: aggregate((item) => item?.responsibleName, "Sin responsable"),
@@ -102,7 +102,7 @@ async function buildPlanchetaExecutiveExcel(assets, meta) {
   sheet.addRow([]);
   sheet.addRow(["Institucion", meta.institution || ""]);
   sheet.addRow(["Establecimiento", meta.establishment || ""]);
-  sheet.addRow(["Dependencia", meta.dependency || ""]);
+  sheet.addRow(["Sector", meta.dependency || ""]);
   sheet.addRow(["Rango", meta.dateRange || "Sin filtro"]);
   sheet.addRow(["Fecha", new Date().toLocaleDateString()]);
 
@@ -120,7 +120,7 @@ async function buildPlanchetaExecutiveExcel(assets, meta) {
   });
 
   addRankingSection(sheet, "Estados", summary.states, summary.totalUnits, "FF2D6A4F");
-  addRankingSection(sheet, "Dependencias", summary.dependencies, summary.totalUnits, "FF1D4ED8");
+  addRankingSection(sheet, "Sectores", summary.dependencies, summary.totalUnits, "FF1D4ED8");
   addRankingSection(sheet, "Tipos de Activo", summary.types, summary.totalUnits, "FF475569");
   addRankingSection(sheet, "Marcas", summary.brands, summary.totalUnits, "FF6B705C");
   addRankingSection(sheet, "Responsables", summary.responsibles, summary.totalUnits, "FF5A189A");

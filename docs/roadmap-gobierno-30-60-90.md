@@ -61,12 +61,12 @@ Dejar el sistema listo para operacion institucional con trazabilidad, auditoria,
 - [ ] Reglas de depreciacion y vida util por categoria.
 
 ### 3) Continuidad y madurez
-- [ ] Ambientes separados (dev/qa/prod) con despliegue controlado.
+- [ ] Ambientes separados (dev/staging/prod) con despliegue controlado.
 - [ ] Pruebas de carga sobre importaciones masivas.
 - [ ] Simulacro de contingencia y recuperacion.
 
 ## Prioridad inmediata (proximo sprint)
-1. Cargar estructura base real por UI (establecimientos, dependencias, activos) y validar plancheta ministerial end-to-end.
+1. Cargar estructura base real por UI (establecimientos, sectores, activos) y validar plancheta ministerial end-to-end.
 2. Cerrar regla de duplicados de inventario por serie/marca/modelo en alta/importacion.
 3. Endurecer seguridad de cuentas (politica de password + bloqueo por intentos).
 4. Dashboard minimo de cumplimiento (sin responsable/sin ubicacion/sin evidencia/sin historial).

@@ -8,7 +8,7 @@ if (typeof fetch !== "function") {
   throw new Error("Este script requiere Node 18+ (fetch global)");
 }
 
-const CENTRAL_EMAIL = process.env.TEST_CENTRAL_EMAIL || "admin@cordillera.local";
+const CENTRAL_EMAIL = process.env.TEST_CENTRAL_EMAIL || "admin-central@inventacore.cl";
 const CENTRAL_PASSWORD = process.env.TEST_CENTRAL_PASSWORD || "admin123";
 let BASE_URL = process.env.API_BASE_URL || null;
 
@@ -249,4 +249,3 @@ main().catch((err) => {
   console.error("Smoke puntos recientes fallo:", err.message);
   process.exit(1);
 });
-

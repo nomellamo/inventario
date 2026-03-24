@@ -24,7 +24,7 @@ Base URL: `http://localhost:3000`
 - `401` No autorizado (token invalido o ausente).
 - `403` Prohibido (rol o alcance insuficiente).
 - `404` No encontrado.
-- `409` Conflicto (por ejemplo, asset ya en esa dependencia).
+- `409` Conflicto (por ejemplo, asset ya en ese sector).
 - `500` Error interno.
 
 ## Auth
@@ -141,6 +141,43 @@ Response:
 }
 ```
 
+### GET `/assets/depreciation/runs`
+Roles: `ADMIN_CENTRAL`
+Query:
+- `fiscalYear`, `take`, `skip`
+Response:
+```json
+{
+  "total": 1,
+  "skip": 0,
+  "take": 5,
+  "latest": {
+    "id": 1,
+    "institutionId": 1,
+    "fiscalYear": 2026,
+    "closingDate": "2026-12-31T23:59:59.999Z",
+    "closedAt": "2026-12-31T23:59:59.999Z",
+    "closedById": 10,
+    "closedBy": { "id": 10, "name": "Admin", "email": "admin@example.com" },
+    "totalAssets": 42,
+    "totalAnnualDepreciation": 1200000,
+    "totalClosingBookValue": 8400000,
+    "itemsCount": 42
+  },
+  "items": []
+}
+```
+
+### POST `/assets/depreciation/runs/close`
+Roles: `ADMIN_CENTRAL`
+Body:
+```json
+{ "fiscalYear": 2026 }
+```
+Notas:
+- El cierre se calcula al `31-12` del ano fiscal recibido.
+- Si ya existe un cierre para el mismo ano e institucion, el sistema responde `409`.
+
 ### PUT `/assets/:id/relocate`
 Body:
 ```json
@@ -227,6 +264,12 @@ Response:
 Query: `dependencyId` o `establishmentId`
 
 ### GET `/planchetas/pdf`
+Query: `dependencyId` o `establishmentId`
+
+### GET `/planchetas/compacta/excel`
+Query: `dependencyId` o `establishmentId`
+
+### GET `/planchetas/compacta/pdf`
 Query: `dependencyId` o `establishmentId`
 
 ### GET `/planchetas/:id/history`
@@ -337,7 +380,7 @@ Body:
 ```json
 {
   "name": "Admin Escuela 2",
-  "email": "escuela2@cordillera.local",
+  "email": "escuela2@inventacore.cl",
   "password": "Password123",
   "roleType": "ADMIN_ESTABLISHMENT",
   "establishmentId": 3

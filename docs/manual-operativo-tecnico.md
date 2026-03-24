@@ -25,10 +25,11 @@ Flujo base:
 4. Se registra auditoria en movimientos y acciones administrativas.
 
 Datos clave del dominio:
-- Institucion -> Establecimiento -> Dependencia -> Activo Fijo.
+- Institucion -> Establecimiento -> Sector -> Activo Fijo.
 - Movimientos de activo (`TRANSFER`, `STATUS_CHANGE`, `RESTORE`, `INVENTORY_CHECK`).
-- Evidencias por movimiento sensible.
+- Evidencias por movimiento sensible y facturas del bien.
 - Catalogo de items para alta estandarizada.
+- Cierres anuales de depreciacion al `31-12` con resumen historico de corridas.
 
 ---
 
@@ -36,7 +37,7 @@ Datos clave del dominio:
 
 ## 3.1 `ADMIN_CENTRAL`
 Responsabilidades:
-- Administrar instituciones, establecimientos, dependencias y usuarios.
+- Administrar instituciones, establecimientos, sectores y usuarios.
 - Crear/editar/desactivar y reactivar entidades.
 - Gestionar catalogo e importaciones masivas.
 - Ver auditorias administrativas y de login.
@@ -80,9 +81,13 @@ Validaciones:
 - Fecha valida.
 - Relaciones existentes y activas.
 
+Comportamiento asistido:
+- La vida util se sugiere automaticamente al seleccionar el item de catalogo.
+- La fecha de inicio de depreciacion se prellena con la fecha de adquisicion si no se informa manualmente.
+
 ## 4.2 Transferir
 Requiere:
-- Destino (`toEstablishmentId`, `toDependencyId`)
+- Destino (Sector destino, `toDependencyId`)
 - `reasonCode` valido
 - Evidencia obligatoria
 
@@ -96,6 +101,8 @@ Requiere:
 
 Resultado:
 - Cambio de estado + auditoria + historial del activo.
+- En bajas, se emite un aviso contable automatico si existe correo configurado para contabilidad.
+- La factura del bien se registra como evidencia `FACTURA` desde el mismo modulo de evidencias.
 
 ## 4.4 Importacion de Catalogo
 Objetivo:
@@ -113,6 +120,23 @@ Resultado esperado:
 - Sin errores 500.
 - Reporte claro de errores por fila.
 - Manejo robusto de conflictos de `internalCode`.
+
+## 4.6 Cierre Anual de Depreciacion
+Objetivo:
+- Generar el cierre contable anual al `31-12` para una institucion.
+
+Responsable:
+- Solo `ADMIN_CENTRAL`.
+
+Resultado esperado:
+- Cierre creado con resumen por activo.
+- Libro anual guardado en el sistema con corridas recientes visibles.
+- Conflicto `409` si ya existe un cierre para el mismo ano fiscal.
+
+Buenas practicas:
+- Ejecutar el cierre una sola vez por ano fiscal.
+- Revisar antes el estado de `depreciationStartDate`, `usefulLifeYears` y `depreciationAnnualValue`.
+- Usar el resumen de cierres recientes para auditar el ultimo proceso ejecutado.
 
 ---
 
@@ -132,6 +156,9 @@ Admin:
 Activos:
 - `POST /assets`
 - `GET /assets`
+- `POST /assets/depreciation/suggest`
+- `GET /assets/depreciation/runs`
+- `POST /assets/depreciation/runs/close`
 - `PUT /assets/:id/transfer`
 - `PUT /assets/:id/status`
 - `PUT /assets/:id/restore`
@@ -146,6 +173,13 @@ Planchetas:
 - `GET /planchetas`
 - `GET /planchetas/excel`
 - `GET /planchetas/pdf`
+- `GET /planchetas/compacta/excel`
+- `GET /planchetas/compacta/pdf`
+- `GET /planchetas/directorio/excel`
+- `GET /planchetas/directorio/pdf`
+
+La salida compacta elimina bloques graficos y prioriza una vista formal de una sola hoja para impresion.
+Las planchetas incluyen una leyenda de responsabilidad del funcionario sobre el buen uso de los recursos asignados.
 
 ---
 
@@ -163,7 +197,7 @@ Planchetas:
 
 ## 6.2 Convenciones clave
 - Errores de negocio: usar `code` estable (`409`/`400`) + `message` claro.
-- Evitar dependencias de texto libre en UI.
+- Evitar exponer `dependency` como texto visible en UI.
 - Mantener paridad UI/backend para validaciones criticas.
 - Cualquier cambio de esquema: migracion Prisma + regenerar cliente.
 
@@ -180,6 +214,7 @@ Regla:
 - CRUD usuarios con inactivos.
 - Crear/transferir/baja/restaurar activos.
 - Import catalogo y import assets.
+- Cierre anual de depreciacion y consulta de corridas recientes.
 
 ---
 
@@ -245,6 +280,9 @@ Backend:
 Frontend:
 - `VITE_API_BASE` (URL publica del backend)
 
+Opcionales utiles:
+- `ACCOUNTING_NOTIFY_EMAIL` (correo para avisos de baja contable)
+
 ---
 
 ## 10. Checklist de Produccion (Go-Live)
@@ -263,7 +301,7 @@ Frontend:
 
 ## 10.3 Calidad funcional
 - Suite automatizada en verde.
-- QA manual de flujos criticos (crear/importar/transferir/baja/restaurar/evidencia).
+- Revision manual de flujos criticos (crear/importar/transferir/baja/restaurar/evidencia).
 - Auditorias y reportes operativos validados.
 
 ## 10.4 Entrega
@@ -289,7 +327,7 @@ Accion base:
 ---
 
 ## 12. Recomendacion de roadmap inmediato
-1. Cerrar manual QA por rol (checklist de uso diario).
+1. Cerrar revision manual por rol (checklist de uso diario).
 2. Definir politicas de respaldo y retencion de auditoria.
 3. Incorporar monitoreo y alertas (errores 5xx, latencia, uso DB).
 4. Preparar ambiente staging igual a produccion.
@@ -308,4 +346,3 @@ Accion base:
   - https://vercel.com/docs/frameworks/backend
 - Railway (deploy CLI):
   - https://docs.railway.com/cli/deploying
-

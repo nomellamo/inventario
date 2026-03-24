@@ -28,7 +28,7 @@ async function buildAssetImportCatalogWorkbook() {
   ];
   establishments.forEach((e) => estSheet.addRow(e));
 
-  const depSheet = workbook.addWorksheet("Dependencias");
+  const depSheet = workbook.addWorksheet("Sectores");
   depSheet.columns = [
     { header: "ID", key: "id", width: 10 },
     { header: "Nombre", key: "name", width: 40 },

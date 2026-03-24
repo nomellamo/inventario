@@ -47,11 +47,12 @@ function parseDateEnd(dateText) {
 }
 
 async function getPlanchetaData(
-  { dependencyId, establishmentId, includeHistory, fromDate, toDate },
+  { dependencyId, sectorId, establishmentId, includeHistory, fromDate, toDate },
   user
 ) {
+  const effectiveDependencyId = dependencyId || sectorId;
   const { scopeWhere, fromDateParsed, toDateParsed } = await resolvePlanchetaScope(
-    { dependencyId, establishmentId, fromDate, toDate },
+    { dependencyId: effectiveDependencyId, sectorId, establishmentId, fromDate, toDate },
     user
   );
 
@@ -112,11 +113,12 @@ async function getPlanchetaData(
 }
 
 async function resolvePlanchetaScope(
-  { dependencyId, establishmentId, fromDate, toDate },
+  { dependencyId, sectorId, establishmentId, fromDate, toDate },
   user
 ) {
-  if (!dependencyId && !establishmentId) {
-    throw badRequest("Debe indicar dependencyId o establishmentId");
+  const effectiveDependencyId = dependencyId || sectorId;
+  if (!effectiveDependencyId && !establishmentId) {
+    throw badRequest("Debe indicar sectorId/dependencyId o establishmentId");
   }
 
   const fromDateParsed = parseDateStart(fromDate);
@@ -134,21 +136,21 @@ async function resolvePlanchetaScope(
       throw forbidden("No autorizado para este establecimiento");
     }
 
-    if (dependencyId) {
+    if (effectiveDependencyId) {
       const dep = await prisma.dependency.findUnique({
-        where: { id: dependencyId },
+        where: { id: effectiveDependencyId },
         select: { establishmentId: true },
       });
 
       if (!dep || dep.establishmentId !== user.establishmentId) {
-        throw forbidden("No autorizado para esta dependencia");
+        throw forbidden("No autorizado para este sector");
       }
     }
   }
 
   return {
     scopeWhere: {
-      ...(dependencyId ? { dependencyId } : {}),
+      ...(effectiveDependencyId ? { dependencyId: effectiveDependencyId } : {}),
       ...(establishmentId ? { establishmentId } : {}),
     },
     fromDateParsed,
@@ -204,7 +206,7 @@ function buildPlanchetaRecommendations(activeAssets, deletedAssets) {
   }
   if (withoutResponsible > 0) {
     change.push(
-      `Hay ${withoutResponsible} activos sin responsable. Regulariza la custodia y firma de dependencia.`
+      `Hay ${withoutResponsible} activos sin responsable. Regulariza la custodia y firma de sector.`
     );
   }
   if (!change.length) {
@@ -302,7 +304,7 @@ async function getPlanchetaInsights(filters, user, activeAssets = []) {
         name: item.name,
         quantity: Math.max(Number(item?.quantity) || 0, 1),
         deletedAt: item.deletedAt,
-        dependencyName: item?.dependency?.name || "Sin dependencia",
+        dependencyName: item?.dependency?.name || "Sin sector",
       })),
     },
     monthly: {
@@ -314,7 +316,7 @@ async function getPlanchetaInsights(filters, user, activeAssets = []) {
         name: item.name,
         quantity: Math.max(Number(item?.quantity) || 0, 1),
         deletedAt: item.deletedAt,
-        dependencyName: item?.dependency?.name || "Sin dependencia",
+        dependencyName: item?.dependency?.name || "Sin sector",
       })),
       byCategory: monthlyByCategory,
     },

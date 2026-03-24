@@ -118,7 +118,7 @@ async function seedMinimalCore(db, { email, password, institutionName }) {
 async function main() {
   const confirm = String(argValue("confirm", "") || "").trim();
   const dryRun = flagPresent("dry-run");
-  const email = String(argValue("email", "admin@cordillera.local") || "").trim().toLowerCase();
+  const email = String(argValue("email", "admin-central@inventacore.cl") || "").trim().toLowerCase();
   const password = String(argValue("password", "admin123") || "");
   const institutionName = String(argValue("institution-name", "Subsecretaria de la niñez") || "").trim();
   const expectedConfirm = "ELIMINAR TODO";

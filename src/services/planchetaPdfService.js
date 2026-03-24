@@ -1,20 +1,5 @@
 const PDFDocument = require("pdfkit");
-const fs = require("fs");
-const path = require("path");
-
-function getLogoBuffer() {
-  const envPath = process.env.PLANCHETA_LOGO_PATH;
-  const fallback = path.join(__dirname, "..", "assets", "plancheta_logo.png");
-  const filePath = envPath || fallback;
-  try {
-    if (fs.existsSync(filePath)) {
-      return fs.readFileSync(filePath);
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
+const { getOfficialBrandLogoBuffer } = require("../utils/officialBranding");
 
 function normalizeStateName(value) {
   return String(value || "")
@@ -142,7 +127,7 @@ function drawInsightsSection(doc, meta, tableLeft, tableWidth) {
     doc.moveDown(0.5);
     monthlyItems.slice(0, 6).forEach((item) => {
       if (doc.y + 18 > pageBottom() - 40) return;
-      const label = `INV-${item.internalCode} | ${item.name || "Sin nombre"} | ${item.dependencyName || "Sin dependencia"} | ${new Date(item.deletedAt).toLocaleDateString()}`;
+      const label = `INV-${item.internalCode} | ${item.name || "Sin nombre"} | ${item.dependencyName || "Sin sector"} | ${new Date(item.deletedAt).toLocaleDateString()}`;
       doc.font("Helvetica").fontSize(8.5).fillColor("#334155").text(`- ${label}`, tableLeft + 8, doc.y, {
         width: tableWidth - 16,
         ellipsis: true,
@@ -180,7 +165,7 @@ function buildPlanchetaPdf(assets, meta) {
   ).sort((a, b) => b[1] - a[1]);
   const dependencyStats = Array.from(
     normalizedAssets.reduce((map, item) => {
-      const dependencyName = String(item?.dependency?.name || "Sin dependencia").trim() || "Sin dependencia";
+      const dependencyName = String(item?.dependency?.name || "Sin sector").trim() || "Sin sector";
       const units = Math.max(Number(item?.quantity) || 0, 1);
       map.set(dependencyName, (map.get(dependencyName) || 0) + units);
       return map;
@@ -212,7 +197,7 @@ function buildPlanchetaPdf(assets, meta) {
     }, new Map())
   ).sort((a, b) => b[1] - a[1]);
 
-  const logo = getLogoBuffer();
+  const logo = getOfficialBrandLogoBuffer();
   if (logo) {
     try {
       doc.image(logo, 40, 30, { width: 80 });
@@ -232,12 +217,12 @@ function buildPlanchetaPdf(assets, meta) {
   doc.text(`Establecimiento: ${meta.establishment}`);
   doc.text(`RBD: ${meta.rbd || ""}`);
   doc.text(`Comuna: ${meta.commune || ""}`);
-  doc.text(`Dependencia: ${meta.dependency}`);
+  doc.text(`Sector: ${meta.dependency}`);
   doc.text(`Rango adquisicion: ${meta.dateRange || "Sin filtro"}`);
   doc.text(`Fecha: ${new Date().toLocaleDateString()}`);
   doc.moveDown(0.6);
   doc.font("Helvetica-Oblique").text(
-    meta.ministryText || "Resumen de bienes verificados en la dependencia indicada."
+    meta.ministryText || "Resumen de bienes verificados en el sector indicado."
   );
 
   doc.moveDown(1.5);
@@ -255,7 +240,7 @@ function buildPlanchetaPdf(assets, meta) {
     "Responsable",
     "RUT",
     "Estado",
-    "Dependencia",
+    "Sector",
   ];
   const printHeader = () => {
     const y = doc.y;
@@ -383,7 +368,7 @@ function buildPlanchetaPdf(assets, meta) {
   });
   const depLeft = tableLeft + tableWidth / 2 + 26;
   const depTop = chartTop;
-  doc.font("Helvetica-Bold").fontSize(8.5).fillColor("#163020").text("Por dependencia", depLeft, depTop - 14);
+  doc.font("Helvetica-Bold").fontSize(8.5).fillColor("#163020").text("Por sector", depLeft, depTop - 14);
   dependencyStats.slice(0, 4).forEach(([dependencyName, count], idx) => {
     const y = depTop + idx * 18;
     const pct = totalUnits > 0 ? Math.round((count / totalUnits) * 1000) / 10 : 0;
@@ -401,7 +386,7 @@ function buildPlanchetaPdf(assets, meta) {
     });
   });
   if (dependencyStats.length > 4) {
-    doc.fillColor("#64748B").text(`+${dependencyStats.length - 4} dependencias más`, depLeft, depTop + 4 * 18, {
+    doc.fillColor("#64748B").text(`+${dependencyStats.length - 4} sectores más`, depLeft, depTop + 4 * 18, {
       width: 220,
     });
   }
@@ -528,14 +513,21 @@ function buildPlanchetaPdf(assets, meta) {
   doc.moveTo(rightSignatureX, signatureLineY).lineTo(rightSignatureX + signatureWidth, signatureLineY).stroke();
 
   doc.fillColor("black").fontSize(10);
-  doc.text(meta.responsibleName || "Encargado de Dependencia", leftSignatureX, signatureLineY + 8, {
+  doc.text(meta.responsibleName || "Encargado de Sector", leftSignatureX, signatureLineY + 8, {
     width: signatureWidth,
     align: "center",
   });
-  doc.text(meta.chiefName || "Jefe de Dependencia", rightSignatureX, signatureLineY + 8, {
+  doc.text(meta.chiefName || "Jefe de Sector", rightSignatureX, signatureLineY + 8, {
     width: signatureWidth,
     align: "center",
   });
+
+  doc.fillColor("#475569").font("Helvetica").fontSize(8.5).text(
+    "El funcionario responsable debe velar por el buen uso, custodia y resguardo de los recursos asignados.",
+    tableLeft + 20,
+    signatureLineY + 28,
+    { width: tableWidth - 40, align: "center" }
+  );
 
   const sealWidth = 230;
   const sealHeight = 120;

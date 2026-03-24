@@ -4,6 +4,12 @@ const router = express.Router();
 const { getPlanchetaData, getPlanchetaInsights } = require("../services/planchetaService");
 const { buildPlanchetaExcel } = require("../services/planchetaExcelService");
 const { buildPlanchetaPdf } = require("../services/planchetaPdfService");
+const { buildPlanchetaCompactExcel } = require("../services/planchetaCompactExcelService");
+const { buildPlanchetaCompactPdf } = require("../services/planchetaCompactPdfService");
+const {
+  buildPlanchetaDirectoryExcel,
+  buildPlanchetaDirectoryPdf,
+} = require("../services/planchetaDirectoryExportService");
 const { buildPlanchetaExecutiveExcel } = require("../services/planchetaExecutiveExcelService");
 const { buildPlanchetaExecutivePdf } = require("../services/planchetaExecutivePdfService");
 const { parsePlanchetaFilters } = require("../utils/parsePlanchetaFilters");
@@ -26,7 +32,7 @@ function buildPlanchetaSummary(assets) {
 
   for (const asset of assets) {
     const dependencyId = asset?.dependency?.id || asset?.dependencyId || 0;
-    const dependencyName = asset?.dependency?.name || "Sin dependencia";
+    const dependencyName = asset?.dependency?.name || "Sin sector";
     const category = asset?.catalogItem?.category || "Sin categoría";
     const productName = asset?.catalogItem?.name || asset?.name || "Sin producto";
     const brand = asset?.catalogItem?.brand || asset?.brand || "";
@@ -61,12 +67,125 @@ function buildPlanchetaSummary(assets) {
   });
 }
 
+function buildPlanchetaDirectory(assets) {
+  const groups = new Map();
+
+  for (const asset of assets || []) {
+    const responsibleName =
+      String(asset?.responsibleName || "").trim() || "Sin asignar";
+    const responsibleRut = String(asset?.responsibleRut || "").trim();
+    const key = `${responsibleName.toLowerCase()}::${responsibleRut.toLowerCase() || "__no_rut__"}`;
+    const dependencyName = asset?.dependency?.name || "Sin sector";
+    const assetQuantity = Number(asset?.quantity || 1);
+    const normalizedQuantity =
+      Number.isFinite(assetQuantity) && assetQuantity > 0 ? assetQuantity : 1;
+    const movements = Array.isArray(asset?.movements) ? asset.movements : [];
+    const latestMovement = movements.length ? movements[0] : null;
+
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        responsibleName,
+        responsibleRut,
+        responsibleRoles: new Set(),
+        costCenters: new Set(),
+        dependencies: new Set(),
+        assetCount: 0,
+        unitCount: 0,
+        movementCount: 0,
+        latestMovementAt: null,
+        assets: [],
+      });
+    }
+
+    const group = groups.get(key);
+    group.assetCount += 1;
+    group.unitCount += normalizedQuantity;
+    if (asset?.responsibleRole) {
+      group.responsibleRoles.add(String(asset.responsibleRole).trim());
+    }
+    if (asset?.costCenter) {
+      group.costCenters.add(String(asset.costCenter).trim());
+    }
+    if (dependencyName) {
+      group.dependencies.add(dependencyName);
+    }
+    group.movementCount += movements.length;
+    if (latestMovement?.createdAt) {
+      const latestMovementAt = new Date(latestMovement.createdAt);
+      if (
+        !group.latestMovementAt ||
+        latestMovementAt > new Date(group.latestMovementAt)
+      ) {
+        group.latestMovementAt = latestMovement.createdAt;
+      }
+    }
+    group.assets.push({
+      id: asset.id,
+      internalCode: asset.internalCode,
+      name: asset.name,
+      brand: asset.brand || "",
+      modelName: asset.modelName || "",
+      quantity: normalizedQuantity,
+      dependencyName,
+      assetStateName: asset?.assetState?.name || "Sin estado",
+      acquisitionDate: asset.acquisitionDate || null,
+      acquisitionValue: asset.acquisitionValue || 0,
+      depreciationAnnualValue: asset.depreciationAnnualValue || 0,
+      usefulLifeYears: asset.usefulLifeYears || null,
+      movements,
+    });
+  }
+
+  return Array.from(groups.values())
+    .map((group) => ({
+      key: group.key,
+      responsibleName: group.responsibleName,
+      responsibleRut: group.responsibleRut,
+      responsibleRoles: Array.from(group.responsibleRoles).filter(Boolean).sort(),
+      costCenters: Array.from(group.costCenters).filter(Boolean).sort(),
+      dependencies: Array.from(group.dependencies).filter(Boolean).sort(),
+      assetCount: group.assetCount,
+      unitCount: group.unitCount,
+      movementCount: group.movementCount,
+      latestMovementAt: group.latestMovementAt,
+      assets: group.assets.sort((a, b) => {
+        if (a.dependencyName !== b.dependencyName) {
+          return String(a.dependencyName).localeCompare(String(b.dependencyName));
+        }
+        return String(a.internalCode).localeCompare(String(b.internalCode), undefined, {
+          numeric: true,
+          sensitivity: "base",
+        });
+      }),
+    }))
+    .sort((a, b) => {
+      if (a.responsibleName === "Sin asignar" && b.responsibleName !== "Sin asignar") {
+        return 1;
+      }
+      if (b.responsibleName === "Sin asignar" && a.responsibleName !== "Sin asignar") {
+        return -1;
+      }
+      const nameCompare = String(a.responsibleName).localeCompare(
+        String(b.responsibleName),
+        undefined,
+        { sensitivity: "base" }
+      );
+      if (nameCompare !== 0) return nameCompare;
+      return String(a.responsibleRut).localeCompare(String(b.responsibleRut), undefined, {
+        numeric: true,
+        sensitivity: "base",
+      });
+    });
+}
+
 // JSON
 router.get("/", async (req, res, next) => {
   try {
     const filters = parsePlanchetaFilters(req.query);
     const data = await getPlanchetaData(filters, req.user);
     const insights = await getPlanchetaInsights(filters, req.user, data);
+    const directory = buildPlanchetaDirectory(data);
 
     const first = data[0];
     const meta = first
@@ -75,7 +194,7 @@ router.get("/", async (req, res, next) => {
           establishment: first.establishment.name,
           rbd: first.establishment.rbd || "",
           commune: first.establishment.commune || "",
-          dependency: filters.dependencyId ? first.dependency.name : "Todas",
+          dependency: filters.dependencyId ? first.dependency.name : "Todos",
           dateRange: buildDateRangeLabel(filters),
         }
       : null;
@@ -84,6 +203,7 @@ router.get("/", async (req, res, next) => {
       count: data.length,
       meta,
       summary: buildPlanchetaSummary(data),
+      directory,
       insights,
       items: data,
     });
@@ -116,13 +236,13 @@ router.get("/excel", async (req, res, next) => {
       commune: assets[0].establishment.commune || "",
       dependency: filters.dependencyId
         ? assets[0].dependency.name
-        : "Todas",
+        : "Todos",
       dateRange: buildDateRangeLabel(filters),
-      responsibleName: filters.responsibleName || "Encargado de Dependencia",
-      chiefName: filters.chiefName || "Jefe de Dependencia",
+      responsibleName: filters.responsibleName || "Encargado de Sector",
+      chiefName: filters.chiefName || "Jefe de Sector",
       ministryText:
         filters.ministryText ||
-        "Certifico que el presente inventario corresponde a los bienes fisicos verificados en la dependencia indicada, en conformidad con lineamientos ministeriales vigentes.",
+        "Certifico que el presente inventario corresponde a los bienes fisicos verificados en el sector indicado, en conformidad con lineamientos ministeriales vigentes.",
       insights,
     };
 
@@ -168,13 +288,13 @@ router.get("/pdf", async (req, res, next) => {
       commune: assets[0].establishment.commune || "",
       dependency: filters.dependencyId
         ? assets[0].dependency.name
-        : "Todas",
+        : "Todos",
       dateRange: buildDateRangeLabel(filters),
-      responsibleName: filters.responsibleName || "Encargado de Dependencia",
-      chiefName: filters.chiefName || "Jefe de Dependencia",
+      responsibleName: filters.responsibleName || "Encargado de Sector",
+      chiefName: filters.chiefName || "Jefe de Sector",
       ministryText:
         filters.ministryText ||
-        "Certifico que el presente inventario corresponde a los bienes fisicos verificados en la dependencia indicada, en conformidad con lineamientos ministeriales vigentes.",
+        "Certifico que el presente inventario corresponde a los bienes fisicos verificados en el sector indicado, en conformidad con lineamientos ministeriales vigentes.",
       insights,
     };
 
@@ -190,6 +310,186 @@ router.get("/pdf", async (req, res, next) => {
     doc.end();
   } catch (e) {
     console.error("plancheta pdf error:", e);
+    next(e);
+  }
+});
+
+router.get("/compacta/excel", async (req, res, next) => {
+  try {
+    const filters = parsePlanchetaFilters(req.query);
+    const assets = await getPlanchetaData(filters, req.user);
+
+    if (!assets.length) {
+      return sendError(res, {
+        status: 404,
+        error: "No hay assets para exportar",
+        code: "PLANCHETA_EMPTY_EXPORT",
+        requestId: req.id,
+      });
+    }
+
+    const meta = {
+      institution: assets[0].establishment.institution.name,
+      establishment: assets[0].establishment.name,
+      rbd: assets[0].establishment.rbd || "",
+      commune: assets[0].establishment.commune || "",
+      dependency: filters.dependencyId ? assets[0].dependency.name : "Todos",
+      dateRange: buildDateRangeLabel(filters),
+      responsibleName: filters.responsibleName || "Encargado de Sector",
+      chiefName: filters.chiefName || "Jefe de Sector",
+      ministryText:
+        filters.ministryText ||
+        "Certifico que el presente inventario corresponde a los bienes fisicos verificados en el sector indicado, en conformidad con lineamientos ministeriales vigentes.",
+    };
+
+    const workbook = await buildPlanchetaCompactExcel(assets, meta);
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=plancheta_compacta_${Date.now()}.xlsx`
+    );
+
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (e) {
+    console.error("Excel plancheta compacta error:", e);
+    next(e);
+  }
+});
+
+router.get("/compacta/pdf", async (req, res, next) => {
+  try {
+    const filters = parsePlanchetaFilters(req.query);
+    const assets = await getPlanchetaData(filters, req.user);
+
+    if (!assets.length) {
+      return sendError(res, {
+        status: 404,
+        error: "No hay assets para exportar",
+        code: "PLANCHETA_EMPTY_EXPORT",
+        requestId: req.id,
+      });
+    }
+
+    const meta = {
+      institution: assets[0].establishment.institution.name,
+      establishment: assets[0].establishment.name,
+      rbd: assets[0].establishment.rbd || "",
+      commune: assets[0].establishment.commune || "",
+      dependency: filters.dependencyId ? assets[0].dependency.name : "Todos",
+      dateRange: buildDateRangeLabel(filters),
+      responsibleName: filters.responsibleName || "Encargado de Sector",
+      chiefName: filters.chiefName || "Jefe de Sector",
+      ministryText:
+        filters.ministryText ||
+        "Certifico que el presente inventario corresponde a los bienes fisicos verificados en el sector indicado, en conformidad con lineamientos ministeriales vigentes.",
+    };
+
+    const doc = buildPlanchetaCompactPdf(assets, meta);
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=plancheta_compacta_${Date.now()}.pdf`
+    );
+
+    doc.pipe(res);
+    doc.end();
+  } catch (e) {
+    console.error("plancheta compacta pdf error:", e);
+    next(e);
+  }
+});
+
+router.get("/directorio/excel", async (req, res, next) => {
+  try {
+    const filters = parsePlanchetaFilters(req.query);
+    const assets = await getPlanchetaData(filters, req.user);
+    const insights = await getPlanchetaInsights(filters, req.user, assets);
+    const directory = buildPlanchetaDirectory(assets);
+
+    if (!assets.length) {
+      return sendError(res, {
+        status: 404,
+        error: "No hay assets para exportar",
+        code: "PLANCHETA_EMPTY_EXPORT",
+        requestId: req.id,
+      });
+    }
+
+    const meta = {
+      institution: assets[0].establishment.institution.name,
+      establishment: assets[0].establishment.name,
+      rbd: assets[0].establishment.rbd || "",
+      commune: assets[0].establishment.commune || "",
+      dependency: filters.dependencyId ? assets[0].dependency.name : "Todos",
+      dateRange: buildDateRangeLabel(filters),
+      includeHistory: Boolean(filters.includeHistory),
+      insights,
+    };
+
+    const workbook = await buildPlanchetaDirectoryExcel(directory, meta);
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=plancheta_directorio_${Date.now()}.xlsx`
+    );
+
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (e) {
+    console.error("Excel plancheta directorio error:", e);
+    next(e);
+  }
+});
+
+router.get("/directorio/pdf", async (req, res, next) => {
+  try {
+    const filters = parsePlanchetaFilters(req.query);
+    const assets = await getPlanchetaData(filters, req.user);
+    const insights = await getPlanchetaInsights(filters, req.user, assets);
+    const directory = buildPlanchetaDirectory(assets);
+
+    if (!assets.length) {
+      return sendError(res, {
+        status: 404,
+        error: "No hay assets para exportar",
+        code: "PLANCHETA_EMPTY_EXPORT",
+        requestId: req.id,
+      });
+    }
+
+    const meta = {
+      institution: assets[0].establishment.institution.name,
+      establishment: assets[0].establishment.name,
+      rbd: assets[0].establishment.rbd || "",
+      commune: assets[0].establishment.commune || "",
+      dependency: filters.dependencyId ? assets[0].dependency.name : "Todos",
+      dateRange: buildDateRangeLabel(filters),
+      includeHistory: Boolean(filters.includeHistory),
+      insights,
+    };
+
+    const doc = buildPlanchetaDirectoryPdf(directory, meta);
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=plancheta_directorio_${Date.now()}.pdf`
+    );
+
+    doc.pipe(res);
+    doc.end();
+  } catch (e) {
+    console.error("plancheta directorio pdf error:", e);
     next(e);
   }
 });
@@ -212,7 +512,7 @@ router.get("/gerencial/excel", async (req, res, next) => {
     const meta = {
       institution: assets[0].establishment.institution.name,
       establishment: assets[0].establishment.name,
-      dependency: filters.dependencyId ? assets[0].dependency.name : "Todas",
+      dependency: filters.dependencyId ? assets[0].dependency.name : "Todos",
       dateRange: buildDateRangeLabel(filters),
       insights,
     };
@@ -254,7 +554,7 @@ router.get("/gerencial/pdf", async (req, res, next) => {
     const meta = {
       institution: assets[0].establishment.institution.name,
       establishment: assets[0].establishment.name,
-      dependency: filters.dependencyId ? assets[0].dependency.name : "Todas",
+      dependency: filters.dependencyId ? assets[0].dependency.name : "Todos",
       dateRange: buildDateRangeLabel(filters),
       insights,
     };

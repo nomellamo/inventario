@@ -6,12 +6,12 @@ Estado: `Base operativa`
 
 ## 1) Plancheta
 ### Objetivo
-Emitir inventario por establecimiento/dependencia en formato formal (preview, Excel, PDF), con texto ministerial, firmas y opcion de historial por asset.
+Emitir inventario por establecimiento/sector en formato formal (preview, Excel, PDF) y en version compacta sin graficos, con texto ministerial, firmas y opcion de historial por asset.
 
 ### Entradas
 - `institutionId` (filtro UI)
 - `establishmentId` (obligatorio para consulta/export)
-- `dependencyId` (opcional)
+- `dependencyId` (opcional, alias UI/compat: `sectorId`)
 - `includeHistory` (`true|false`)
 - `responsibleName` (firma 1)
 - `chiefName` (firma 2)
@@ -21,6 +21,7 @@ Emitir inventario por establecimiento/dependencia en formato formal (preview, Ex
 - JSON preview: `count`, `meta`, `items`
 - Excel: plancheta con datos, firmas, glosa y (opcional) historial
 - PDF: plancheta ministerial con firmas y (opcional) historial
+- Excel/PDF compacta: formato resumido sin graficos, optimizado para impresion en una hoja
 
 ### Errores esperados
 - `400` filtros invalidos o incompletos
@@ -29,19 +30,20 @@ Emitir inventario por establecimiento/dependencia en formato formal (preview, Ex
 
 ### Reglas de negocio
 - Solo assets activos (`isDeleted=false`)
-- Si no hay `dependencyId`, consulta por todo el establecimiento
+- Si no hay `dependencyId` ni `sectorId`, consulta por todo el establecimiento
 - Respeta alcance por rol
 - Texto ministerial y firmas deben ser parametrizables
+- La version compacta no debe incluir graficos ni bloques gerenciales pesados
 
 ### Criterios de aceptacion
 - Given un establecimiento con assets activos, When previsualizo, Then obtengo `count > 0` y `items`.
-- Given `dependencyId`, When exporto PDF, Then el documento solo incluye esa dependencia.
+- Given `sectorId` o `dependencyId`, When exporto PDF, Then el documento solo incluye ese sector.
 - Given `includeHistory=true`, When previsualizo/exporto, Then cada asset incluye resumen de movimientos recientes.
 - Given un filtro sin resultados, When exporto, Then recibo `404` con mensaje claro.
 
 ## 2) Transfer
 ### Objetivo
-Mover assets entre establecimiento/dependencia (misma institucion) con trazabilidad completa y evidencia obligatoria.
+Mover assets entre establecimiento/sector (misma institucion) con trazabilidad completa y evidencia obligatoria.
 
 ### Entradas
 - `assetId`
@@ -67,7 +69,7 @@ Mover assets entre establecimiento/dependencia (misma institucion) con trazabili
 - Evidencia obligatoria y asociada al movimiento en transaccion
 
 ### Criterios de aceptacion
-- Given transferencia valida, When confirmo, Then cambia establecimiento/dependencia y se registra `movementId`.
+- Given transferencia valida, When confirmo, Then cambia establecimiento/sector y se registra `movementId`.
 - Given mismo destino actual, When transfiero, Then recibo `409`.
 - Given sin evidencia, When transfiero, Then recibo `400` con `EVIDENCE_REQUIRED`.
 
@@ -99,6 +101,33 @@ Gestionar ciclo de vida de assets (baja y restauracion) con causal estructurada 
 - Given baja valida, When ejecuto, Then `isDeleted=true` y hay movimiento con `reasonCode`.
 - Given restore valido, When ejecuto, Then `isDeleted=false` y hay movimiento con `reasonCode`.
 - Given status a `BAJA` sin evidencia, When ejecuto, Then recibo `400`.
+
+## 3.5) Cierre Anual de Depreciacion
+### Objetivo
+Generar y guardar el cierre anual de depreciacion al `31-12` por institucion, manteniendo un libro historico de corridas.
+
+### Entradas
+- `fiscalYear`
+
+### Salidas
+- Resumen del cierre: `id`, `institutionId`, `fiscalYear`, `closingDate`, `closedAt`, `closedBy`, `totalAssets`, `totalAnnualDepreciation`, `totalClosingBookValue`, `itemsCount`
+- Listado de corridas recientes para consulta operativa
+
+### Errores esperados
+- `400` ano fiscal invalido o sin activos elegibles
+- `403` rol insuficiente
+- `409` ya existe un cierre para el mismo ano fiscal en la misma institucion
+
+### Reglas de negocio
+- Solo `ADMIN_CENTRAL` ejecuta el cierre.
+- El cierre se calcula al `31-12` del ano fiscal pedido.
+- El proceso usa el inventario activo de la institucion y guarda snapshots por asset.
+- Si ya hay una corrida para ese ano fiscal, no se duplica.
+
+### Criterios de aceptacion
+- Given un ano fiscal valido y activos elegibles, When cierro, Then recibo `201` con el resumen del cierre.
+- Given un cierre existente para el mismo ano fiscal, When cierro de nuevo, Then recibo `409`.
+- Given un usuario no central, When intenta cerrar, Then recibe `403`.
 
 ## 4) Importaciones
 ### Objetivo

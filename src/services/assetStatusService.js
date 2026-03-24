@@ -1,6 +1,7 @@
 const { prisma } = require("../prisma");
 const { canChangeAssetStatus, enforceEstablishmentScope } = require("../permissions/assetPermissions");
 const { snapshotAsset } = require("./assetAuditService");
+const { sendAccountingBajaEmail } = require("./mailerService");
 const { notFound, forbidden, conflict } = require("../utils/httpError");
 const { requireReasonCode } = require("../utils/movementReasonValidation");
 const { parseRequiredMovementEvidence } = require("../utils/movementEvidenceValidation");
@@ -23,6 +24,10 @@ async function changeAssetStatus(
 
   const asset = await prisma.asset.findUnique({
     where: { id: assetId },
+    include: {
+      dependency: { select: { id: true, name: true } },
+      establishment: { select: { id: true, name: true } },
+    },
   });
 
   if (!asset) throw notFound("Asset no encontrado");
@@ -112,6 +117,31 @@ async function changeAssetStatus(
 
     return { moved, movementId: movement.id };
   });
+
+  if (state.name === "BAJA") {
+    void sendAccountingBajaEmail({
+      asset,
+      movementId: updated.movementId,
+      reasonCode: normalizedReasonCode,
+      actor: user,
+    })
+      .then((result) => {
+        if (result?.status === "sent") {
+          console.log("[asset-status] aviso contable de baja enviado", {
+            assetId,
+            movementId: updated.movementId,
+            messageId: result.messageId || null,
+          });
+        }
+      })
+      .catch((error) => {
+        console.error("[asset-status] fallo aviso contable de baja", {
+          assetId,
+          movementId: updated.movementId,
+          error: error?.message || error,
+        });
+      });
+  }
 
   return {
     ...updated.moved,

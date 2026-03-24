@@ -4,6 +4,7 @@ const { snapshotAsset } = require("./assetAuditService");
 const {
   validateAcquisitionDate,
   validateAcquisitionValue,
+  validateDateNotFuture,
   validateStringMax,
   MAX_NAME_LENGTH,
   MAX_SHORT_TEXT,
@@ -63,8 +64,18 @@ async function createAsset(input, user) {
 
   const valueError = validateAcquisitionValue(input.acquisitionValue);
   assert(!valueError, badRequest(valueError));
-  const dateError = validateAcquisitionDate(new Date(input.acquisitionDate));
+  const acquisitionDate = new Date(input.acquisitionDate);
+  const dateError = validateAcquisitionDate(acquisitionDate);
   assert(!dateError, badRequest(dateError));
+  const depreciationStartDate =
+    input.depreciationStartDate === undefined || input.depreciationStartDate === null
+      ? acquisitionDate
+      : new Date(input.depreciationStartDate);
+  const depreciationStartDateError = validateDateNotFuture(
+    "depreciationStartDate",
+    depreciationStartDate
+  );
+  assert(!depreciationStartDateError, badRequest(depreciationStartDateError));
   const nameError = validateStringMax("name", input.name, MAX_NAME_LENGTH);
   assert(!nameError, badRequest(nameError));
   const brandError = validateStringMax("brand", input.brand, MAX_SHORT_TEXT);
@@ -150,11 +161,11 @@ async function createAsset(input, user) {
       where: { id: input.dependencyId },
       select: { id: true, establishmentId: true, isActive: true },
     });
-    assert(dependency, notFound("Dependency no existe"));
-    assert(dependency.isActive, badRequest("Dependency inactiva"));
+    assert(dependency, notFound("Sector no existe"));
+    assert(dependency.isActive, badRequest("Sector inactivo"));
     assert(
       dependency.establishmentId === input.establishmentId,
-      badRequest("Dependency no pertenece al establishment")
+      badRequest("Sector no pertenece al establishment")
     );
 
     const state = await tx.assetState.findUnique({
@@ -271,7 +282,8 @@ async function createAsset(input, user) {
               responsibleRole: input.responsibleRole ?? null,
               costCenter: normalizedCostCenter,
               acquisitionValue: input.acquisitionValue,
-              acquisitionDate: new Date(input.acquisitionDate),
+              acquisitionDate,
+              depreciationStartDate,
               usefulLifeYears: depreciationResolution.usefulLifeYears,
               depreciationAnnualValue: depreciationResolution.depreciationAnnualValue,
               assetTypeId: input.assetTypeId,

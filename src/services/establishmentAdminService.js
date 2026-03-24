@@ -193,7 +193,7 @@ async function deleteEstablishment(id, user) {
             activeAssets: blockedAssetsByDep.get(Number(dep.id)) || 0,
           }));
         throw conflict(
-          "No se puede dar de baja: hay dependencias activas con activos vigentes asociados",
+          "No se puede dar de baja: hay sectores activos con activos vigentes asociados",
           ESTABLISHMENT_CONFLICT_CODES.HAS_ACTIVE_DEPENDENCIES,
           {
             activeDependencies: activeDependencies.length,

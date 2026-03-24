@@ -36,7 +36,7 @@ function summarizeAssets(assets) {
     totalValue,
     totalAnnualDepreciation,
     states: aggregate((item) => item?.assetState?.name, "Sin estado"),
-    dependencies: aggregate((item) => item?.dependency?.name, "Sin dependencia"),
+    dependencies: aggregate((item) => item?.dependency?.name, "Sin sector"),
     types: aggregate((item) => item?.assetType?.name, "Sin tipo"),
     brands: aggregate((item) => item?.brand, "Sin marca"),
     responsibles: aggregate((item) => item?.responsibleName, "Sin responsable"),
@@ -173,7 +173,7 @@ function buildPlanchetaExecutivePdf(assets, meta) {
 
   doc.fillColor("#0F172A").font("Helvetica-Bold").fontSize(18).text("PLANCHETA GERENCIAL", left, 34);
   doc.fillColor("#475569").font("Helvetica").fontSize(9).text(
-    `${meta.institution} | ${meta.establishment} | Dependencia: ${meta.dependency}`,
+    `${meta.institution} | ${meta.establishment} | Sector: ${meta.dependency}`,
     left,
     58,
     { width: pageWidth }
@@ -225,7 +225,7 @@ function buildPlanchetaExecutivePdf(assets, meta) {
     x: left + colW + colGap,
     y: sectionY,
     width: colW,
-    title: "Dependencias",
+    title: "Sectores",
     rows: summary.dependencies,
     totalUnits: summary.totalUnits,
   });

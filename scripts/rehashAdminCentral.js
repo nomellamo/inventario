@@ -4,7 +4,7 @@ const { prisma } = require("../src/prisma");
 const { hashPassword } = require("../src/utils/password");
 
 async function main() {
-  const email = "admin@cordillera.local";
+  const email = "admin-central@inventacore.cl";
   const newPassword = "admin123";
 
   const hashed = await hashPassword(newPassword);

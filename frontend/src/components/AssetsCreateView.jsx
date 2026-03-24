@@ -122,13 +122,13 @@ function AssetCreateFormCard(props) {
       </div>
 
       <div className="select-wrap">
-        <label>Dependencia</label>
+        <label>Sector</label>
         <select
           value={assetForm.dependencyId}
           onChange={(e) => setAssetForm((prev) => ({ ...prev, dependencyId: e.target.value }))}
           disabled={!assetForm.establishmentId}
         >
-          <option value="">Selecciona dependencia</option>
+          <option value="">Selecciona sector</option>
           {assetDependencies.map((dep) => (
             <option key={dep.id} value={dep.id}>
               {dep.name}
@@ -433,7 +433,13 @@ function AssetCreateFormCard(props) {
         <input
           type="date"
           value={assetForm.acquisitionDate}
-          onChange={(e) => setAssetForm((prev) => ({ ...prev, acquisitionDate: e.target.value }))}
+          onChange={(e) =>
+            setAssetForm((prev) => ({
+              ...prev,
+              acquisitionDate: e.target.value,
+              depreciationStartDate: prev.depreciationStartDate || e.target.value,
+            }))
+          }
         />
         {assetErrors.acquisitionDate && <p className="error">{assetErrors.acquisitionDate}</p>}
       </div>
@@ -482,6 +488,9 @@ function AssetCreateFormCard(props) {
             }
           />
           <p className="muted">Si no se informa, se considera la fecha de adquisicion.</p>
+          {assetErrors.depreciationStartDate && (
+            <p className="error">{assetErrors.depreciationStartDate}</p>
+          )}
         </div>
         {!assetMultiProductEnabled && depreciationPreview && (
           <div className="muted">

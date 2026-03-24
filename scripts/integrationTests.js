@@ -6,8 +6,10 @@ if (typeof fetch !== "function") {
 }
 
 let BASE_URL = process.env.API_BASE_URL || null;
-const EMAIL = process.env.TEST_EMAIL || "a.nunezu.n@gmail.com";
-const PASSWORD = process.env.TEST_PASSWORD || "123456789";
+const EMAIL =
+  process.env.TEST_EMAIL || process.env.TEST_CENTRAL_EMAIL || "admin-central@inventacore.cl";
+const PASSWORD =
+  process.env.TEST_PASSWORD || process.env.TEST_CENTRAL_PASSWORD || "admin123";
 const DEFAULT_ESTABLISHMENT_ID = Number(process.env.TEST_ESTABLISHMENT_ID || 3);
 
 async function request(path, opts = {}) {
@@ -93,6 +95,7 @@ async function run() {
     analyticCode: "AN-001",
     acquisitionValue: 100000,
     acquisitionDate: new Date().toISOString(),
+    depreciationStartDate: new Date().toISOString(),
   };
   const created = await request("/assets", {
     method: "POST",
@@ -102,12 +105,59 @@ async function run() {
   assert(created.res.ok, `Crear asset fallo: ${created.res.status} ${JSON.stringify(created.body)}`);
   const assetId = created.body.id;
   assert(assetId, "Crear asset no devolvio id");
+  assert(
+    String(created.body?.depreciationStartDate || "").slice(0, 10) ===
+      String(assetPayload.depreciationStartDate).slice(0, 10),
+    "Crear asset no devolvio depreciationStartDate persistida"
+  );
+
+  console.log("[5.1] Ficha tecnica publica");
+  const publicSheet = await request(`/assets/public/${assetId}/technical-sheet`);
+  assert(publicSheet.res.ok, `Ficha tecnica publica fallo: ${publicSheet.res.status}`);
+  assert(
+    !String(publicSheet.body || "").includes("InventaCore"),
+    "La ficha tecnica publica sigue mostrando branding de InventaCore"
+  );
+
+  console.log("[5.2] Cierre anual de depreciacion");
+  const fiscalYear = new Date().getFullYear();
+  const closeDep = await request("/assets/depreciation/runs/close", {
+    method: "POST",
+    headers: { ...authHeaders, "Content-Type": "application/json" },
+    body: JSON.stringify({ fiscalYear }),
+  });
+  if (closeDep.res.status === 201) {
+    assert(
+      closeDep.body?.fiscalYear === fiscalYear,
+      `Cierre depreciacion devolvio fiscalYear inesperado: ${closeDep.body?.fiscalYear}`
+    );
+    assert(
+      Number(closeDep.body?.totalAssets || 0) > 0,
+      "Cierre depreciacion no incluyo activos"
+    );
+  } else {
+    assert(
+      closeDep.res.status === 409,
+      `Cierre depreciacion debio ser 201 o 409, obtuvo ${closeDep.res.status}`
+    );
+    const runs = await request("/assets/depreciation/runs?take=5", { headers: authHeaders });
+    assert(runs.res.ok, `Listado de cierres fallo: ${runs.res.status}`);
+    assert(
+      Number(runs.body?.items?.[0]?.fiscalYear || 0) === fiscalYear,
+      "El ultimo cierre no coincide con el ano fiscal esperado"
+    );
+  }
 
   console.log("[6] Planchetas JSON");
   const plancheta = await request(`/planchetas?establishmentId=${establishmentId}`, {
     headers: authHeaders,
   });
   assert(plancheta.res.ok, `Planchetas JSON fallo: ${plancheta.res.status}`);
+  assert(Array.isArray(plancheta.body?.directory), "Planchetas no devolvio directory");
+  assert(
+    plancheta.body.directory.length > 0,
+    "Planchetas directory quedo vacio con activos disponibles"
+  );
 
   console.log("[7] Planchetas Excel");
   const excel = await request(
@@ -116,11 +166,53 @@ async function run() {
   );
   assert(excel.res.ok, `Planchetas Excel fallo: ${excel.res.status}`);
 
+  console.log("[7.2] Planchetas Compacta Excel");
+  const compactExcel = await request(
+    `/planchetas/compacta/excel?establishmentId=${establishmentId}`,
+    { headers: authHeaders }
+  );
+  assert(compactExcel.res.ok, `Compacta Excel fallo: ${compactExcel.res.status}`);
+  assert(
+    String(compactExcel.contentType || "").includes("spreadsheetml.sheet"),
+    `Compacta Excel content-type inesperado: ${compactExcel.contentType}`
+  );
+
+  console.log("[7.3] Planchetas Directorio Excel");
+  const directoryExcel = await request(
+    `/planchetas/directorio/excel?establishmentId=${establishmentId}`,
+    { headers: authHeaders }
+  );
+  assert(directoryExcel.res.ok, `Directorio Excel fallo: ${directoryExcel.res.status}`);
+  assert(
+    String(directoryExcel.contentType || "").includes("spreadsheetml.sheet"),
+    `Directorio Excel content-type inesperado: ${directoryExcel.contentType}`
+  );
+
   console.log("[8] Planchetas PDF");
   const pdf = await request(`/planchetas/pdf?dependencyId=${dependencyId}`, {
     headers: authHeaders,
   });
   assert(pdf.res.ok, `Planchetas PDF fallo: ${pdf.res.status}`);
+
+  console.log("[8.2] Planchetas Compacta PDF");
+  const compactPdf = await request(`/planchetas/compacta/pdf?dependencyId=${dependencyId}`, {
+    headers: authHeaders,
+  });
+  assert(compactPdf.res.ok, `Compacta PDF fallo: ${compactPdf.res.status}`);
+  assert(
+    String(compactPdf.contentType || "").includes("application/pdf"),
+    `Compacta PDF content-type inesperado: ${compactPdf.contentType}`
+  );
+
+  console.log("[8.3] Planchetas Directorio PDF");
+  const directoryPdf = await request(`/planchetas/directorio/pdf?dependencyId=${dependencyId}`, {
+    headers: authHeaders,
+  });
+  assert(directoryPdf.res.ok, `Directorio PDF fallo: ${directoryPdf.res.status}`);
+  assert(
+    String(directoryPdf.contentType || "").includes("application/pdf"),
+    `Directorio PDF content-type inesperado: ${directoryPdf.contentType}`
+  );
 
   console.log("[9] Rechazo fuera de establecimiento");
   const badCreate = await request("/assets", {

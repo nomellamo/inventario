@@ -7,8 +7,11 @@ function toInt(v) {
 
 function parsePlanchetaFilters(query) {
   const includeHistoryRaw = String(query.includeHistory ?? "true").toLowerCase();
+  const dependencyId = toInt(query.dependencyId ?? query.sectorId);
+  const sectorId = toInt(query.sectorId ?? query.dependencyId);
   return {
-    dependencyId: toInt(query.dependencyId),
+    dependencyId,
+    sectorId,
     establishmentId: toInt(query.establishmentId),
     fromDate: String(query.fromDate || "").trim(),
     toDate: String(query.toDate || "").trim(),

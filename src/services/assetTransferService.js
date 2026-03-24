@@ -58,7 +58,7 @@ async function transferAsset(
     asset.dependencyId === toDependencyId
   ) {
     throw conflict(
-      "El asset ya esta en ese establecimiento y dependencia",
+      "El asset ya esta en ese establecimiento y sector",
       ASSET_TRANSFER_CONFLICT_CODES.SAME_DESTINATION
     );
   }
@@ -78,11 +78,11 @@ async function transferAsset(
     where: { id: toDependencyId },
     select: { id: true, establishmentId: true, isActive: true },
   });
-  if (!toDependency) throw notFound("Dependency destino no existe");
-  if (!toDependency.isActive) throw badRequest("Dependency destino inactiva");
+  if (!toDependency) throw notFound("Sector destino no existe");
+  if (!toDependency.isActive) throw badRequest("Sector destino inactivo");
 
   if (toDependency.establishmentId !== toEstablishmentId) {
-    throw badRequest("Dependency no pertenece al establishment destino");
+    throw badRequest("Sector no pertenece al establishment destino");
   }
 
   const updated = await prisma.$transaction(async (tx) => {

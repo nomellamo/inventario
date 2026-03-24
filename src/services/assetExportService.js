@@ -24,9 +24,10 @@ async function exportAssetsToExcel(query, user) {
     { header: "Tipo", key: "assetType", width: 15 },
     { header: "Estado", key: "assetState", width: 15 },
     { header: "Establecimiento", key: "establishment", width: 35 },
-    { header: "Dependencia", key: "dependency", width: 25 },
+    { header: "Sector", key: "dependency", width: 25 },
     { header: "Valor Adquisicion", key: "acquisitionValue", width: 20 },
     { header: "Fecha Adquisicion", key: "acquisitionDate", width: 20 },
+    { header: "Fecha Inicio Depreciacion", key: "depreciationStartDate", width: 22 },
     { header: "Depreciacion Anual CLP", key: "depreciationAnnualValue", width: 22 },
     { header: "Tasa Depreciacion Anual (%)", key: "depreciationAnnualRate", width: 24 },
     { header: "Vida Util (años)", key: "usefulLifeYears", width: 18 },
@@ -53,6 +54,9 @@ async function exportAssetsToExcel(query, user) {
       dependency: a.dependency?.name || "",
       acquisitionValue: a.acquisitionValue,
       acquisitionDate: new Date(a.acquisitionDate).toISOString().split("T")[0],
+      depreciationStartDate: a.depreciationStartDate
+        ? new Date(a.depreciationStartDate).toISOString().split("T")[0]
+        : "",
       depreciationAnnualValue: a.depreciationAnnualValue ?? "",
       depreciationAnnualRate:
         a.depreciationAnnualValue && a.acquisitionValue
@@ -87,6 +91,7 @@ async function exportAssetsToExcel(query, user) {
 
   sheet.getColumn("acquisitionValue").numFmt = "#,##0";
   sheet.getColumn("acquisitionDate").numFmt = "yyyy-mm-dd";
+  sheet.getColumn("depreciationStartDate").numFmt = "yyyy-mm-dd";
   sheet.getColumn("depreciationAnnualValue").numFmt = "#,##0.00";
   sheet.getColumn("depreciationAnnualRate").numFmt = "0.0000";
 

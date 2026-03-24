@@ -1,4 +1,4 @@
-# Runbook de Despliegue (Vercel + Render)
+ï»¿# Runbook de Despliegue (Vercel + Render)
 
 Este documento resume el flujo estable para desplegar el sistema y resolver los errores mas comunes (CORS, 401, Prisma, DNS).
 
@@ -60,7 +60,7 @@ vercel --prod
 ```
 
 5. Copia la URL nueva de Vercel.
-6. Si esa URL no esta en `CORS_ORIGIN`, agrégala en Render y redeploy backend.
+6. Si esa URL no esta en `CORS_ORIGIN`, agregala en Render y redeploy backend.
 7. Prueba login en frontend.
 
 ## 4) Validacion post-deploy
@@ -71,7 +71,7 @@ En DevTools > Network:
 2. Debe existir `Set-Cookie` de `refresh_token`.
 3. `POST /auth/refresh` debe funcionar despues de login.
 
-Si `refresh` da `REFRESH_TOKEN_REQUIRED`, normalmente login falló antes o no se guardó cookie.
+Si `refresh` da `REFRESH_TOKEN_REQUIRED`, normalmente login fallo antes o no se guardo cookie.
 
 ## 5) Seed y usuarios iniciales
 
@@ -83,8 +83,8 @@ node prisma/seed.js
 
 Usuarios seed:
 
-- `admin@cordillera.local` / `admin123`
-- `a.nunezu.n@gmail.com` / `123456789`
+- `admin-central@inventacore.cl` / `admin123`
+- `enzo-sanchez-contreras@inventacore.cl` / `123456789`
 
 Importante sobre seed:
 
@@ -132,7 +132,7 @@ Solucion: ejecutar seed y usar credenciales seed.
 2. Deploy backend.
 3. Verificar logs backend.
 4. Deploy frontend (`vercel --prod`).
-5. Actualizar `CORS_ORIGIN` si cambió URL Vercel.
+5. Actualizar `CORS_ORIGIN` si cambio URL Vercel.
 6. Probar login.
 7. Verificar cookie refresh.
 8. Confirmar flujo funcional.

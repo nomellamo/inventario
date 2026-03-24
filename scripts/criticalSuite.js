@@ -255,7 +255,7 @@ async function run() {
 
   if (!targetEstablishment) {
     targetEstablishment = sourceEstablishment;
-    const newDepName = `QA Transfer Dep ${Date.now()}`;
+    const newDepName = `Test Transfer Dep ${Date.now()}`;
     const createDep = await authRequest("/admin/dependencies", centralToken, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -280,7 +280,7 @@ async function run() {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      name: `QA Guard Institution ${guardSuffix}`,
+      name: `Test Guard Institution ${guardSuffix}`,
     }),
   });
   assert(
@@ -295,8 +295,8 @@ async function run() {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      name: `QA Guard Establishment ${guardSuffix}`,
-      type: "QA",
+      name: `Test Guard Establishment ${guardSuffix}`,
+      type: "TEST",
       institutionId: guardInstitutionId,
     }),
   });
@@ -312,7 +312,7 @@ async function run() {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      name: `QA Guard Dependency ${guardSuffix}`,
+      name: `Test Guard Dependency ${guardSuffix}`,
       establishmentId: guardEstablishmentId,
     }),
   });
@@ -324,6 +324,49 @@ async function run() {
   );
   const guardDependencyId = guardDependencyRes.body.id;
 
+  const guardCatalogRes = await authRequest("/admin/catalog-items", centralToken, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: `Test Catalog Asset ${guardSuffix}`,
+      category: "MUEBLE",
+      subcategory: "OFICINA",
+      brand: "MarcaTest",
+      modelName: "ModeloTest",
+      unit: "unidad",
+    }),
+  });
+  assert(
+    guardCatalogRes.res.status === 201 && guardCatalogRes.body?.id,
+    `Create catalog item guard fallo: ${guardCatalogRes.res.status} ${JSON.stringify(
+      guardCatalogRes.body
+    )}`
+  );
+  const guardCatalogId = guardCatalogRes.body.id;
+
+  const depreciationSuggestionRes = await authRequest("/assets/depreciation/suggest", centralToken, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      catalogItemId: guardCatalogId,
+      assetTypeId: controlType.id,
+      accountingAccount: "ACC-GUARD",
+      acquisitionValue: 1000,
+      acquisitionDate: new Date().toISOString(),
+    }),
+  });
+  assert(
+    depreciationSuggestionRes.res.ok,
+    `Sugerencia depreciacion fallo: ${depreciationSuggestionRes.res.status} ${JSON.stringify(
+      depreciationSuggestionRes.body
+    )}`
+  );
+  assert(
+    Number.isInteger(Number(depreciationSuggestionRes.body?.usefulLifeYears)) &&
+      Number(depreciationSuggestionRes.body.usefulLifeYears) > 0,
+    "La sugerencia de depreciacion no devolvio vida util valida"
+  );
+
   const guardAssetRes = await authRequest("/assets", centralToken, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -332,7 +375,8 @@ async function run() {
       dependencyId: sourceDependencyId,
       assetStateId: bueno.id,
       assetTypeId: controlType.id,
-      name: `QA Guard Asset ${guardSuffix}`,
+      catalogItemId: guardCatalogId,
+      name: `Test Guard Asset ${guardSuffix}`,
       accountingAccount: "ACC-GUARD",
       analyticCode: "AN-GUARD",
       acquisitionValue: 1000,
@@ -342,6 +386,16 @@ async function run() {
   assert(
     guardAssetRes.res.status === 201 && guardAssetRes.body?.id,
     `Create asset guard fallo: ${guardAssetRes.res.status} ${JSON.stringify(guardAssetRes.body)}`
+  );
+  assert(
+    Number.isInteger(Number(guardAssetRes.body?.usefulLifeYears)) &&
+      Number(guardAssetRes.body.usefulLifeYears) > 0,
+    "Create asset guard no devolvio usefulLifeYears auto-sugerida"
+  );
+  assert(
+    String(guardAssetRes.body?.depreciationStartDate || "").slice(0, 10) ===
+      String(guardAssetRes.body?.acquisitionDate || "").slice(0, 10),
+    "Create asset guard no guardo depreciationStartDate por defecto"
   );
 
   const depActiveReactivateRes = await authRequest(
@@ -456,14 +510,14 @@ async function run() {
 
   console.log("[5] Usuarios create/update/list/deactivate/includeInactive");
   const suffix = Date.now();
-  const managedEmail = `qa.user.${suffix}@example.local`;
-  const managedPassword = "QaPass123!";
+  const managedEmail = `test.user.${suffix}@inventacore.cl`;
+  const managedPassword = "TestPass123!";
 
   const createUserRes = await authRequest("/admin/users", centralToken, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      name: "QA User",
+      name: "Test User",
       email: managedEmail,
       password: managedPassword,
       roleType: "ADMIN_ESTABLISHMENT",
@@ -480,14 +534,14 @@ async function run() {
   const updateUserRes = await authRequest(`/admin/users/${managedUserId}`, centralToken, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: "QA User Updated" }),
+    body: JSON.stringify({ name: "Test User Updated" }),
   });
   assert(
     updateUserRes.res.ok,
     `Update user fallo: ${updateUserRes.res.status} ${JSON.stringify(updateUserRes.body)}`
   );
   assert(
-    updateUserRes.body?.name === "QA User Updated",
+    updateUserRes.body?.name === "Test User Updated",
     "Update user no aplico nombre esperado"
   );
 
@@ -577,9 +631,10 @@ async function run() {
       dependencyId: sourceDependencyId,
       assetStateId: bueno.id,
       assetTypeId: controlType.id,
-      name: `QA Asset ${suffix}`,
-      accountingAccount: "ACC-QA",
-      analyticCode: "AN-QA",
+      catalogItemId: guardCatalogId,
+      name: `Test Asset ${suffix}`,
+      accountingAccount: "ACC-TEST",
+      analyticCode: "AN-TEST",
       acquisitionValue: 150000,
       acquisitionDate: new Date().toISOString(),
     }),
@@ -590,6 +645,11 @@ async function run() {
   );
   const assetId = createAssetRes.body?.id;
   assert(assetId, "Create asset no devolvio id");
+  assert(
+    Number.isInteger(Number(createAssetRes.body?.usefulLifeYears)) &&
+      Number(createAssetRes.body.usefulLifeYears) > 0,
+    "Create asset no devolvio usefulLifeYears auto-sugerida"
+  );
 
   const transferNoEvidenceRes = await authRequest(`/assets/${assetId}/transfer`, centralToken, {
     method: "PUT",
@@ -745,6 +805,30 @@ async function run() {
   assert(restoreRes.body?.movementId, "Restore no devolvio movementId");
   await uploadEvidence(restoreRes.body.movementId, "FACTURA", `factura_restore_${suffix}.pdf`);
 
+  const transferActaRes = await authRequest(
+    `/assets/${assetId}/movements/${transferRes.body.movementId}/acta`,
+    centralToken
+  );
+  assert(transferActaRes.res.ok, `Acta transfer fallo: ${transferActaRes.res.status}`);
+  assert(
+    String(transferActaRes.contentType || "").includes("text/html"),
+    `Acta transfer content-type inesperado: ${transferActaRes.contentType}`
+  );
+  assert(
+    String(transferActaRes.body || "").includes("Acta de entrega"),
+    "Acta transfer no contiene el titulo esperado"
+  );
+
+  const restoreActaRes = await authRequest(
+    `/assets/${assetId}/movements/${restoreRes.body.movementId}/acta`,
+    centralToken
+  );
+  assert(restoreActaRes.res.ok, `Acta restore fallo: ${restoreActaRes.res.status}`);
+  assert(
+    String(restoreActaRes.body || "").includes("Acta de devolucion"),
+    "Acta restore no contiene el titulo esperado"
+  );
+
   const historyRes = await authRequest(`/assets/${assetId}/history`, centralToken);
   assert(historyRes.res.ok, `History asset fallo: ${historyRes.res.status}`);
   const historyItems = historyRes.body?.movements || historyRes.body?.items || [];
@@ -774,6 +858,35 @@ async function run() {
     "No se registraron evidencias esperadas"
   );
 
+  console.log("[7.1] Cierre anual de depreciacion");
+  const fiscalYear = new Date().getFullYear();
+  const closeDepRes = await authRequest("/assets/depreciation/runs/close", centralToken, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fiscalYear }),
+  });
+  if (closeDepRes.res.status === 201) {
+    assert(
+      closeDepRes.body?.fiscalYear === fiscalYear,
+      `Cierre depreciacion devolvio fiscalYear inesperado: ${closeDepRes.body?.fiscalYear}`
+    );
+    assert(
+      Number(closeDepRes.body?.totalAssets || 0) > 0,
+      "Cierre depreciacion no incluyo activos"
+    );
+  } else {
+    assert(
+      closeDepRes.res.status === 409,
+      `Cierre depreciacion debio ser 201 o 409, obtuvo ${closeDepRes.res.status}`
+    );
+    const runsRes = await authRequest("/assets/depreciation/runs?take=5", centralToken);
+    assert(runsRes.res.ok, `Listado de cierres fallo: ${runsRes.res.status}`);
+    assert(
+      Number(runsRes.body?.items?.[0]?.fiscalYear || 0) === fiscalYear,
+      "El ultimo cierre no coincide con el ano fiscal esperado"
+    );
+  }
+
   console.log("[8] Import catalogo (excel)");
   const catalogWb = new ExcelJS.Workbook();
   const catalogSheet = catalogWb.addWorksheet("CATALOGO_IMPORT");
@@ -787,11 +900,11 @@ async function run() {
     "unit",
   ]);
   catalogSheet.addRow([
-    `QA Catalog Item ${suffix}`,
-    "QA",
+    `Test Catalog Item ${suffix}`,
+    "TEST",
     "Pruebas",
-    "MarcaQA",
-    "ModeloQA",
+    "MarcaTest",
+    "ModeloTest",
     "Creado por suite critica",
     "unidad",
   ]);
@@ -834,8 +947,8 @@ async function run() {
   ]);
   preseedSheet.addRow([
     `EXIST-${suffix}`,
-    `QA Existing ${suffix}`,
-    "QA",
+    `Test Existing ${suffix}`,
+    "TEST",
     "Seed",
     "MarcaSeed",
     "ModeloSeed",
@@ -875,8 +988,8 @@ async function run() {
   ]);
   dedupeSheet.addRow([
     `OFF-${suffix}`,
-    `QA Official A ${suffix}`,
-    "QA",
+    `Test Official A ${suffix}`,
+    "TEST",
     "Dedupe",
     "MarcaO",
     "ModeloO",
@@ -885,8 +998,8 @@ async function run() {
   ]);
   dedupeSheet.addRow([
     `OFF-${suffix}`,
-    `QA Official B ${suffix}`,
-    "QA",
+    `Test Official B ${suffix}`,
+    "TEST",
     "Dedupe",
     "MarcaOX",
     "ModeloOX",
@@ -895,8 +1008,8 @@ async function run() {
   ]);
   dedupeSheet.addRow([
     "",
-    `QA Composite ${suffix}`,
-    "QA",
+    `Test Composite ${suffix}`,
+    "TEST",
     "Comp",
     "MarcaC",
     "ModeloC",
@@ -905,8 +1018,8 @@ async function run() {
   ]);
   dedupeSheet.addRow([
     "",
-    `QA Composite ${suffix}`,
-    "QA",
+    `Test Composite ${suffix}`,
+    "TEST",
     "Comp",
     "MarcaC",
     "ModeloC",
@@ -915,8 +1028,8 @@ async function run() {
   ]);
   dedupeSheet.addRow([
     `EXIST-${suffix}`,
-    `QA Existing Changed ${suffix}`,
-    "QA",
+    `Test Existing Changed ${suffix}`,
+    "TEST",
     "Seed",
     "MarcaSeed",
     "ModeloSeedX",
@@ -925,7 +1038,7 @@ async function run() {
   ]);
   dedupeSheet.addRow([
     "",
-    `QA Missing Category ${suffix}`,
+    `Test Missing Category ${suffix}`,
     "",
     "Comp",
     "MarcaX",
@@ -935,8 +1048,8 @@ async function run() {
   ]);
   dedupeSheet.addRow([
     `NEW-${suffix}`,
-    `QA New ${suffix}`,
-    "QA",
+    `Test New ${suffix}`,
+    "TEST",
     "Dedupe",
     "MarcaN",
     "ModeloN",
@@ -1000,8 +1113,8 @@ async function run() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       officialKey: `UPD-A-${suffix}`,
-      name: `QA Update A ${suffix}`,
-      category: "QA",
+      name: `Test Update A ${suffix}`,
+      category: "TEST",
       subcategory: "Update",
       brand: "MarcaU",
       modelName: "ModeloU-A",
@@ -1018,8 +1131,8 @@ async function run() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       officialKey: `UPD-B-${suffix}`,
-      name: `QA Update B ${suffix}`,
-      category: "QA",
+      name: `Test Update B ${suffix}`,
+      category: "TEST",
       subcategory: "Update",
       brand: "MarcaU",
       modelName: "ModeloU-B",
@@ -1057,8 +1170,8 @@ async function run() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       officialKey: `UPD-A-${suffix}`,
-      name: `QA Duplicate Create ${suffix}`,
-      category: "QA",
+      name: `Test Duplicate Create ${suffix}`,
+      category: "TEST",
       subcategory: "Update",
       brand: "MarcaU",
       modelName: "ModeloU-C",
@@ -1102,7 +1215,7 @@ async function run() {
     bueno.id,
     controlType.id,
     "",
-    `QA Asset Import ${suffix}`,
+    `Test Asset Import ${suffix}`,
     "MarcaI",
     "ModeloI",
     `SER-${suffix}`,

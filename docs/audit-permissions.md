@@ -7,7 +7,7 @@ Este documento resume que puede ver y hacer cada rol y como usar los endpoints d
 ### ADMIN_CENTRAL
 - Puede crear, mover y cambiar estado de assets.
 - Puede ver auditoria global (movimientos y auditoria de assets).
-- Puede ver catalogo completo (instituciones, establecimientos y dependencias).
+- Puede ver catalogo completo (instituciones, establecimientos y sectores).
 
 ### ADMIN_ESTABLISHMENT
 - Puede crear assets solo dentro de su establecimiento.

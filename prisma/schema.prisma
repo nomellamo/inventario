@@ -7,14 +7,15 @@ datasource db {
 }
 
 model Institution {
-  id              Int              @id @default(autoincrement())
-  name            String
-  createdAt       DateTime         @default(now())
-  isActive        Boolean          @default(true)
-  assetSequence   AssetSequence?
-  establishments  Establishment[]
-  supportRequests SupportRequest[]
-  users           User[]
+  id               Int               @id @default(autoincrement())
+  name             String
+  createdAt        DateTime          @default(now())
+  isActive         Boolean           @default(true)
+  assetSequence    AssetSequence?
+  depreciationRuns DepreciationRun[]
+  establishments   Establishment[]
+  supportRequests  SupportRequest[]
+  users            User[]
 }
 
 model Establishment {
@@ -67,41 +68,43 @@ model AssetState {
 }
 
 model Asset {
-  id                Int             @id @default(autoincrement())
-  internalCode      Int             @unique
-  name              String
-  brand             String?
-  modelName         String?
-  serialNumber      String?
-  acquisitionValue  Float
-  acquisitionDate   DateTime
-  assetTypeId       Int
-  assetStateId      Int
-  establishmentId   Int
-  dependencyId      Int
-  createdAt         DateTime        @default(now())
-  accountingAccount String?
-  analyticCode      String?
-  catalogItemId     Int?
-  deletedAt         DateTime?
-  deletedById       Int?
-  isDeleted         Boolean         @default(false)
-  quantity          Int             @default(1)
-  responsibleName   String?
-  responsibleRut    String?
-  responsibleRole   String?
-  costCenter        String?
-  usefulLifeYears   Int?
+  id                      Int                   @id @default(autoincrement())
+  internalCode            Int                   @unique
+  name                    String
+  brand                   String?
+  modelName               String?
+  serialNumber            String?
+  acquisitionValue        Float
+  acquisitionDate         DateTime
+  depreciationStartDate   DateTime?
+  assetTypeId             Int
+  assetStateId            Int
+  establishmentId         Int
+  dependencyId            Int
+  createdAt               DateTime              @default(now())
+  accountingAccount       String?
+  analyticCode            String?
+  catalogItemId           Int?
+  deletedAt               DateTime?
+  deletedById             Int?
+  isDeleted               Boolean               @default(false)
+  quantity                Int                   @default(1)
+  responsibleName         String?
+  responsibleRut          String?
+  responsibleRole         String?
+  costCenter              String?
+  usefulLifeYears         Int?
   depreciationAnnualValue Float?
-  assetState        AssetState      @relation(fields: [assetStateId], references: [id])
-  assetType         AssetType       @relation(fields: [assetTypeId], references: [id])
-  catalogItem       CatalogItem?    @relation(fields: [catalogItemId], references: [id])
-  deletedBy         User?           @relation("DeletedBy", fields: [deletedById], references: [id])
-  dependency        Dependency      @relation(fields: [dependencyId], references: [id])
-  establishment     Establishment   @relation(fields: [establishmentId], references: [id])
-  audits            AssetAudit[]
-  evidences         AssetEvidence[]
-  movements         Movement[]
+  assetState              AssetState            @relation(fields: [assetStateId], references: [id])
+  assetType               AssetType             @relation(fields: [assetTypeId], references: [id])
+  catalogItem             CatalogItem?          @relation(fields: [catalogItemId], references: [id])
+  deletedBy               User?                 @relation("DeletedBy", fields: [deletedById], references: [id])
+  dependency              Dependency            @relation(fields: [dependencyId], references: [id])
+  establishment           Establishment         @relation(fields: [establishmentId], references: [id])
+  audits                  AssetAudit[]
+  evidences               AssetEvidence[]
+  depreciationRunItems    DepreciationRunItem[]
+  movements               Movement[]
 
   @@index([establishmentId])
   @@index([dependencyId])
@@ -114,25 +117,74 @@ model Asset {
 }
 
 model DepreciationPolicy {
-  id               Int      @id @default(autoincrement())
-  policyKey        String   @unique
+  id                Int      @id @default(autoincrement())
+  policyKey         String   @unique
   accountingAccount String
-  accountName      String
-  category         String?
-  subcategory      String?
-  usefulLifeYears  Int
-  annualRatePct    Float
-  method           String   @default("LINEAL")
-  residualRatePct  Float    @default(0)
-  appliesFrom      DateTime
-  observations     String?
-  status           String   @default("VIGENTE")
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  accountName       String
+  category          String?
+  subcategory       String?
+  usefulLifeYears   Int
+  annualRatePct     Float
+  method            String   @default("LINEAL")
+  residualRatePct   Float    @default(0)
+  appliesFrom       DateTime
+  observations      String?
+  status            String   @default("VIGENTE")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   @@index([status])
   @@index([accountingAccount])
   @@index([appliesFrom])
+}
+
+model DepreciationRun {
+  id                      Int                   @id @default(autoincrement())
+  institutionId           Int
+  fiscalYear              Int
+  closingDate             DateTime
+  closedAt                DateTime              @default(now())
+  closedById              Int?
+  totalAssets             Int                   @default(0)
+  totalAnnualDepreciation Float                 @default(0)
+  totalClosingBookValue   Float                 @default(0)
+  institution             Institution           @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  closedBy                User?                 @relation("DepreciationRunClosedBy", fields: [closedById], references: [id], onDelete: SetNull)
+  items                   DepreciationRunItem[]
+
+  @@unique([institutionId, fiscalYear])
+  @@index([institutionId])
+  @@index([fiscalYear])
+}
+
+model DepreciationRunItem {
+  id                              Int             @id @default(autoincrement())
+  depreciationRunId               Int
+  assetId                         Int?
+  assetInternalCode               Int
+  assetName                       String
+  establishmentId                 Int?
+  establishmentName               String?
+  dependencyId                    Int?
+  dependencyName                  String?
+  acquisitionValueSnapshot        Float
+  depreciationStartDateSnapshot   DateTime?
+  usefulLifeYearsSnapshot         Int?
+  depreciationAnnualValueSnapshot Float?
+  residualAmountSnapshot          Float           @default(0)
+  openingBookValue                Float
+  annualDepreciation              Float
+  closingBookValue                Float
+  accumulatedDepreciation         Float
+  periodStart                     DateTime?
+  periodEnd                       DateTime?
+  createdAt                       DateTime        @default(now())
+  depreciationRun                 DepreciationRun @relation(fields: [depreciationRunId], references: [id], onDelete: Cascade)
+  asset                           Asset?          @relation(fields: [assetId], references: [id], onDelete: SetNull)
+
+  @@unique([depreciationRunId, assetId])
+  @@index([depreciationRunId])
+  @@index([assetId])
 }
 
 model Movement {
@@ -173,6 +225,7 @@ model User {
   assetAudits             AssetAudit[]
   assetEvidences          AssetEvidence[]
   assetImports            AssetImportBatch[]
+  depreciationRunsClosed  DepreciationRun[]       @relation("DepreciationRunClosedBy")
   loginAudits             LoginAudit[]
   movements               Movement[]
   refreshTokens           RefreshToken[]

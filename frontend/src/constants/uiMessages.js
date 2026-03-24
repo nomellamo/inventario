@@ -1,9 +1,9 @@
 export const UI_STATUS = {
   catalogBulkImportCompleted: 'Carga masiva de cat\u00e1logo completada.',
-  dependencyDeactivated: 'Dependencia dada de baja.',
-  dependencyDeleted: 'Dependencia eliminada definitivamente.',
-  dependencyReactivated: 'Dependencia reactivada.',
-  dependencyUpdated: 'Dependencia actualizada.',
+  dependencyDeactivated: 'Sector dado de baja.',
+  dependencyDeleted: 'Sector eliminado definitivamente.',
+  dependencyReactivated: 'Sector reactivado.',
+  dependencyUpdated: 'Sector actualizado.',
   forceDeleteCompleted: 'Eliminaci\u00f3n forzada completada.',
   importCompleted: 'Importaci\u00f3n completada.',
   institutionDeactivated: 'Instituci\u00f3n dada de baja.',
@@ -27,7 +27,7 @@ export const UI_ERROR = {
 export const UI_SUCCESS = {
   assetRestored: (name) => `Activo fijo restaurado: ${name}`,
   catalogItemUpdated: (id) => `\u00cdtem #${id} actualizado.`,
-  dependencyCreated: (name) => `Dependencia creada: ${name}`,
+  dependencyCreated: (name) => `Sector creado: ${name}`,
   establishmentCreated: (name) => `Establecimiento creado: ${name}`,
   institutionCreated: (name) => `Instituci\u00f3n creada: ${name}`,
   userCreated: (email) => `Usuario creado: ${email}`,

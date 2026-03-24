@@ -28,7 +28,7 @@ async function relocateAsset(assetId, toDependencyId, user) {
 
   if (asset.dependencyId === toDependencyId) {
     throw conflict(
-      "El asset ya esta en esa dependencia",
+      "El asset ya esta en ese sector",
       ASSET_RELOCATE_CONFLICT_CODES.SAME_DEPENDENCY
     );
   }
@@ -37,10 +37,10 @@ async function relocateAsset(assetId, toDependencyId, user) {
     where: { id: toDependencyId },
   });
 
-  if (!toDependency) throw notFound("Dependencia destino no existe");
+  if (!toDependency) throw notFound("Sector destino no existe");
   if (!toDependency.isActive) {
     throw conflict(
-      "Dependencia destino inactiva",
+      "Sector destino inactivo",
       ASSET_RELOCATE_CONFLICT_CODES.TARGET_DEPENDENCY_INACTIVE
     );
   }

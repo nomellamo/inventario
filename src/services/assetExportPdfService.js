@@ -26,7 +26,7 @@ async function exportAssetsToPdf(query, user) {
     "Cant.",
     "Estado",
     "Estab.",
-    "Dep.",
+    "Sector",
   ];
   const colW = [46, 142, 90, 76, 74, 78, 44, 82, 82, 54];
   const cellPadding = 4;

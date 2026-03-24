@@ -4,7 +4,7 @@ async function main() {
   const dryRun = process.argv.includes("--dry-run");
 
   const institutions = await prisma.institution.findMany({
-    where: { name: { contains: "QA", mode: "insensitive" } },
+    where: { name: { contains: "TEST", mode: "insensitive" } },
     select: { id: true, name: true, isActive: true },
     orderBy: { id: "asc" },
   });
@@ -16,7 +16,7 @@ async function main() {
         {
           ok: true,
           dryRun,
-          message: "No hay instituciones que contengan QA.",
+          message: "No hay instituciones que contengan TEST.",
         },
         null,
         2

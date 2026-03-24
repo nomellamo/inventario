@@ -1,29 +1,9 @@
 const { prisma } = require("../prisma");
 const { notFound } = require("../utils/httpError");
-const fs = require("fs");
-const path = require("path");
-
-let inventacoreLogoDataUrlCache = null;
-
-function getInventacoreLogoDataUrl() {
-  if (inventacoreLogoDataUrlCache !== null) return inventacoreLogoDataUrlCache;
-  const candidates = [
-    path.resolve(process.cwd(), "frontend/src/assets/images/logo-inventacore.png"),
-    path.resolve(__dirname, "../../frontend/src/assets/images/logo-inventacore.png"),
-  ];
-  for (const filePath of candidates) {
-    try {
-      if (!fs.existsSync(filePath)) continue;
-      const buffer = fs.readFileSync(filePath);
-      inventacoreLogoDataUrlCache = `data:image/png;base64,${buffer.toString("base64")}`;
-      return inventacoreLogoDataUrlCache;
-    } catch (_) {
-      // Try next candidate path.
-    }
-  }
-  inventacoreLogoDataUrlCache = "";
-  return inventacoreLogoDataUrlCache;
-}
+const {
+  getOfficialBrandLogoDataUrl,
+  getOfficialBrandName,
+} = require("../utils/officialBranding");
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -98,7 +78,8 @@ async function buildPublicAssetTechnicalSheetHtml(assetId) {
     Number.isFinite(Number(asset.quantity)) && Number(asset.quantity) > 0
       ? String(asset.quantity)
       : "1";
-  const logoDataUrl = getInventacoreLogoDataUrl();
+  const logoDataUrl = getOfficialBrandLogoDataUrl();
+  const brandName = getOfficialBrandName();
   const faviconHtml = `<link rel="icon" type="image/png" href="/assets/public/favicon.ico" />
   <link rel="shortcut icon" type="image/png" href="/assets/public/favicon.ico" />`;
 
@@ -116,11 +97,13 @@ async function buildPublicAssetTechnicalSheetHtml(assetId) {
     row("Tipo", asset.assetType?.name),
     row("Institucion", asset.establishment?.institution?.name),
     row("Establecimiento", asset.establishment?.name),
-    row("Dependencia", asset.dependency?.name),
+    row("Sector", asset.dependency?.name),
     row("Responsable", asset.responsibleName),
     row("Rut responsable", asset.responsibleRut),
     row("Cargo responsable", asset.responsibleRole),
     row("Fecha adquisicion", formatDate(asset.acquisitionDate)),
+    row("Fecha inicio depreciacion", formatDate(asset.depreciationStartDate || asset.acquisitionDate)),
+    row("Vida util (anios)", asset.usefulLifeYears ? String(asset.usefulLifeYears) : null),
     row("Fecha registro", formatDate(asset.createdAt)),
   ].join("");
 
@@ -261,11 +244,11 @@ async function buildPublicAssetTechnicalSheetHtml(assetId) {
   <main class="wrap">
     <article class="card">
       <header class="head">
-        ${
+      ${
           logoDataUrl
             ? `<div class="head-brand">
-        <img src="${logoDataUrl}" alt="Logo InventaCore" />
-        <span>InventaCore</span>
+        <img src="${logoDataUrl}" alt="Logo institucional" />
+        <span>${escapeHtml(brandName)}</span>
       </div>`
             : ""
         }
