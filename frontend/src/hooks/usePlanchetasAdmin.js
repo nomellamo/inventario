@@ -49,8 +49,11 @@ function usePlanchetasAdmin({
 
   const planchetaQuery = useMemo(() => {
     const params = new URLSearchParams()
-    if (!planchetaFilters.establishmentId) return ''
-    params.set('establishmentId', planchetaFilters.establishmentId)
+    if (!planchetaFilters.institutionId) return ''
+    params.set('institutionId', planchetaFilters.institutionId)
+    if (planchetaFilters.establishmentId) {
+      params.set('establishmentId', planchetaFilters.establishmentId)
+    }
     if (planchetaFilters.dependencyId) params.set('sectorId', planchetaFilters.dependencyId)
     if (planchetaFilters.fromDate) params.set('fromDate', planchetaFilters.fromDate)
     if (planchetaFilters.toDate) params.set('toDate', planchetaFilters.toDate)
@@ -76,7 +79,7 @@ function usePlanchetasAdmin({
     setLoadingPlancheta(true)
     planchetaInstitutionsPromiseRef.current = (async () => {
       try {
-        const data = await api('/catalog/institutions?take=100&includeInactive=true')
+        const data = await api('/catalog/institutions?take=10000&includeInactive=true')
         const institutions = data.items || []
         setPlanchetaInstitutions(institutions)
         planchetaInstitutionsLoadedRef.current = true
@@ -121,7 +124,7 @@ function usePlanchetasAdmin({
     try {
       const params = new URLSearchParams()
       params.set('institutionId', String(institutionId))
-      params.set('take', '100')
+      params.set('take', '10000')
       params.set('includeInactive', 'true')
       const data = await api(`/catalog/establishments?${params.toString()}`)
       const establishments = data.items || []
@@ -176,7 +179,7 @@ function usePlanchetasAdmin({
     try {
       const params = new URLSearchParams()
       params.set('establishmentId', String(establishmentId))
-      params.set('take', '100')
+      params.set('take', '10000')
       params.set('includeInactive', 'true')
       const data = await api(`/catalog/dependencies?${params.toString()}`)
       const items = data.items || []
@@ -194,7 +197,7 @@ function usePlanchetasAdmin({
 
   async function loadPlanchetaPreview() {
     if (!planchetaQuery) {
-      setPlanchetaMessage('Selecciona establecimiento para previsualizar.')
+      setPlanchetaMessage('Selecciona institucion para previsualizar.')
       setPlanchetaPreview([])
       setPlanchetaSummary([])
       setPlanchetaDirectory([])
@@ -246,7 +249,7 @@ function usePlanchetasAdmin({
 
   async function downloadPlancheta(kind, variant = 'formal') {
     if (!planchetaQuery) {
-      const message = 'Selecciona establecimiento para descargar plancheta.'
+      const message = 'Selecciona institucion para descargar plancheta.'
       setPlanchetaMessage(message)
       setErr(message)
       return

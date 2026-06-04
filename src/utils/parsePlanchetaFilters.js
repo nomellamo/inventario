@@ -12,6 +12,7 @@ function parsePlanchetaFilters(query) {
   return {
     dependencyId,
     sectorId,
+    institutionId: toInt(query.institutionId),
     establishmentId: toInt(query.establishmentId),
     fromDate: String(query.fromDate || "").trim(),
     toDate: String(query.toDate || "").trim(),

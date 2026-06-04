@@ -2,7 +2,7 @@ const { prisma } = require("../prisma");
 const { forbidden, badRequest } = require("../utils/httpError");
 
 function clampTake(take) {
-  return Math.min(Math.max(take || 20, 1), 100);
+  return Math.min(Math.max(take || 20, 1), 10000);
 }
 
 function clampSkip(skip) {

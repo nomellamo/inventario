@@ -13,25 +13,19 @@ function formatDate(value) {
   return date.toLocaleDateString("es-CL");
 }
 
-function formatCurrency(value) {
-  const amount = Number(value || 0);
-  if (!Number.isFinite(amount)) return "$0";
-  return `$${Math.round(amount).toLocaleString("es-CL")}`;
+function truncateText(value, maxLength) {
+  const text = String(value || "").trim();
+  return text.length <= maxLength ? text : `${text.slice(0, Math.max(1, maxLength - 1)).trim()}...`;
 }
 
-function buildAssetDescription(asset, maxLength = 46) {
-  const explicitDescription = String(asset?.catalogItem?.description || "").trim();
-  if (explicitDescription) {
-    const text = explicitDescription.trim();
-    return text.length <= maxLength ? text : `${text.slice(0, Math.max(1, maxLength - 1)).trim()}...`;
-  }
-  const parts = [String(asset?.name || "Activo").trim()];
+function buildAssetName(asset, maxLength = 46) {
+  const parts = [String(asset?.name || asset?.catalogItem?.name || "Activo").trim()];
   const brand = asset?.brand || asset?.catalogItem?.brand;
   const modelName = asset?.modelName || asset?.catalogItem?.modelName;
   if (brand) parts.push(String(brand).trim());
   if (modelName) parts.push(String(modelName).trim());
   const text = parts.filter(Boolean).join(" - ");
-  return text.length <= maxLength ? text : `${text.slice(0, Math.max(1, maxLength - 1)).trim()}...`;
+  return truncateText(text, maxLength);
 }
 
 function summarizeAssets(assets) {
@@ -40,11 +34,9 @@ function summarizeAssets(assets) {
     (acc, item) => {
       acc.totalAssets += 1;
       acc.totalUnits += Math.max(Number(item?.quantity) || 0, 1);
-      acc.totalValue += Math.max(Number(item?.acquisitionValue) || 0, 0);
-      acc.totalAnnualDepreciation += Math.max(Number(item?.depreciationAnnualValue) || 0, 0);
       return acc;
     },
-    { totalAssets: 0, totalUnits: 0, totalValue: 0, totalAnnualDepreciation: 0 }
+    { totalAssets: 0, totalUnits: 0 }
   );
 }
 
@@ -91,7 +83,7 @@ function drawTableHeader(doc, left, widths, y) {
 function drawAssetRow(doc, left, widths, y, asset, idx) {
   const values = [
     `INV-${asset.internalCode || ""}`,
-    buildAssetDescription(asset, 44),
+    buildAssetName(asset, 54),
     normalizeText(asset.responsibleName, "-"),
     normalizeText(asset.dependency?.name, "-"),
     normalizeText(asset.assetState?.name, "-"),
@@ -113,6 +105,43 @@ function drawAssetRow(doc, left, widths, y, asset, idx) {
     });
     cursor += widths[valueIdx];
   });
+}
+
+function drawSignatureLine(doc, x, y, width, title) {
+  doc.moveTo(x, y).lineTo(x + width, y).stroke("#0F172A");
+  doc.fillColor("#0F172A").font("Helvetica-Bold").fontSize(8.5).text(title, x, y + 8, {
+    width,
+    align: "center",
+  });
+}
+
+function drawSignatureSection(doc, y, left, pageWidth) {
+  const pageBottom = doc.page.height - doc.page.margins.bottom;
+  const requiredHeight = 112;
+  let sectionY = y;
+  if (sectionY + requiredHeight > pageBottom) {
+    doc.addPage();
+    sectionY = doc.page.margins.top + 8;
+  }
+
+  doc.fillColor("#0F172A").font("Helvetica-Bold").fontSize(12).text("FIRMAS Y SELLO", left, sectionY, {
+    width: pageWidth,
+    align: "center",
+  });
+
+  const gap = 28;
+  const lineWidth = (pageWidth - gap * 2) / 3;
+  const lineY = sectionY + 58;
+  drawSignatureLine(doc, left, lineY, lineWidth, "Encargado del Inventario");
+  drawSignatureLine(doc, left + lineWidth + gap, lineY, lineWidth, "DAF");
+  drawSignatureLine(doc, left + (lineWidth + gap) * 2, lineY, lineWidth, "Encargado del Sector");
+
+  doc.fillColor("#475569").font("Helvetica").fontSize(7.8).text(
+    "Responsabilidad: el funcionario responsable debe velar por el buen uso, custodia y resguardo de los recursos asignados.",
+    left,
+    lineY + 32,
+    { width: pageWidth, align: "center" }
+  );
 }
 
 function buildPlanchetaCompactPdf(assets, meta) {
@@ -166,33 +195,13 @@ function buildPlanchetaCompactPdf(assets, meta) {
   );
 
   const cardY = doc.y + 12;
-  const gap = 10;
-  const cardW = (pageWidth - gap * 3) / 4;
+  const gap = 14;
+  const cardW = (pageWidth - gap) / 2;
   drawMetricCard(doc, left, cardY, cardW, 66, "Registros", summary.totalAssets, "Activos listados");
   drawMetricCard(doc, left + cardW + gap, cardY, cardW, 66, "Bienes", summary.totalUnits, "Cantidad total");
-  drawMetricCard(
-    doc,
-    left + (cardW + gap) * 2,
-    cardY,
-    cardW,
-    66,
-    "Valor Adq.",
-    formatCurrency(summary.totalValue),
-    "Suma adquisicion"
-  );
-  drawMetricCard(
-    doc,
-    left + (cardW + gap) * 3,
-    cardY,
-    cardW,
-    66,
-    "Deprec. Anual",
-    formatCurrency(summary.totalAnnualDepreciation),
-    "Suma anual estimada"
-  );
 
   const tableTop = cardY + 82;
-  const widths = [48, 160, 100, 104, 52, 34, 64, 46];
+  const widths = [58, 200, 135, 125, 74, 44, 94, 66];
   doc.roundedRect(left, tableTop - 4, pageWidth, 26 + Math.min(normalizedAssets.length, 18) * 18, 8)
     .fill("#FFFFFF")
     .stroke("#CBD5E1");
@@ -214,16 +223,11 @@ function buildPlanchetaCompactPdf(assets, meta) {
   doc.fillColor("#64748B").font("Helvetica").fontSize(7.5).text(
     "Formato compacto sin graficos. Para detalle extendido usar la plancheta formal.",
     left,
-    rowY + 22,
+    rowY + 8,
     { width: pageWidth, align: "right" }
   );
 
-  doc.fillColor("#475569").font("Helvetica").fontSize(7.8).text(
-    "Responsabilidad: el funcionario responsable debe velar por el buen uso, custodia y resguardo de los recursos asignados.",
-    left,
-    rowY + 8,
-    { width: pageWidth - 80, align: "left" }
-  );
+  drawSignatureSection(doc, rowY + 42, left, pageWidth);
 
   return doc;
 }

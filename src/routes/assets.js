@@ -77,6 +77,7 @@ const {
   updateAssetBody,
   depreciationSuggestionBody,
   listAssetsQuery,
+  exportAssetsQuery,
   importHistoryQuery,
   evidenceListQuery,
   depreciationPoliciesQuery,
@@ -215,7 +216,7 @@ router.get(
 
 router.get(
   "/export/excel",
-  validateQuery(listAssetsQuery),
+  validateQuery(exportAssetsQuery),
   asyncHandler(async (req, res) => {
     const workbook = await exportAssetsToExcel(req.query, req.user);
 
@@ -232,7 +233,7 @@ router.get(
 
 router.get(
   "/export/pdf",
-  validateQuery(listAssetsQuery),
+  validateQuery(exportAssetsQuery),
   asyncHandler(async (req, res) => {
     const doc = await exportAssetsToPdf(req.query, req.user);
 
