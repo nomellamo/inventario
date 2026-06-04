@@ -53,6 +53,38 @@ function drawMetricCard(doc, x, y, width, height, title, value, note) {
   }
 }
 
+function drawPageBrandHeader(doc, { left, top, pageWidth, logo, title = "PLANCHETA COMPACTA", meta }) {
+  const logoWidth = 54;
+  let logoBottom = top;
+  if (logo) {
+    try {
+      const logoImage = doc.openImage(logo);
+      const logoHeight = (logoImage.height * logoWidth) / Math.max(logoImage.width, 1);
+      doc.image(logoImage, left, top - 2, { width: logoWidth });
+      logoBottom = top - 2 + logoHeight;
+    } catch {
+      // ignore logo errors
+    }
+  }
+
+  doc.fillColor("#0F172A").font("Helvetica-Bold").fontSize(15.5).text(title, left, top + 4, {
+    width: pageWidth,
+    align: "center",
+  });
+  const subtitleY = Math.max(doc.y + 4, logoBottom - 16);
+  doc.fillColor("#475569").font("Helvetica").fontSize(8).text(
+    `${meta.institution || getOfficialBrandName()} | ${meta.establishment || ""} | Sector: ${
+      meta.dependency || "Todos"
+    }`,
+    left,
+    subtitleY,
+    { width: pageWidth, align: "center" }
+  );
+  const dividerY = Math.max(doc.y + 8, logoBottom + 4);
+  doc.strokeColor("#E2E8F0").lineWidth(0.7).moveTo(left, dividerY).lineTo(left + pageWidth, dividerY).stroke();
+  return dividerY + 12;
+}
+
 function drawTableHeader(doc, left, widths, y) {
   const headers = [
     "Codigo",
@@ -171,10 +203,10 @@ function drawSignatureSection(doc, y, left, pageWidth) {
     sectionY = doc.page.margins.top + 8;
   }
 
-  const panelX = left + 18;
-  const panelW = pageWidth - 36;
-  doc.roundedRect(panelX, sectionY, panelW, requiredHeight, 10).fill("#F8FAFC").stroke("#CBD5E1");
-  doc.fillColor("#0F172A").font("Helvetica-Bold").fontSize(12.5).text("FIRMAS Y SELLO", panelX, sectionY + 14, {
+  const panelX = left + 34;
+  const panelW = pageWidth - 68;
+  doc.roundedRect(panelX, sectionY, panelW, requiredHeight, 12).fill("#F8FAFC").stroke("#CBD5E1");
+  doc.fillColor("#0F172A").font("Helvetica-Bold").fontSize(13).text("FIRMAS Y SELLO", panelX, sectionY + 14, {
     width: panelW,
     align: "center",
   });
@@ -213,40 +245,8 @@ function buildPlanchetaCompactPdf(assets, meta) {
   const left = doc.page.margins.left;
   const top = doc.page.margins.top;
   const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-  const logoX = left;
-  const logoY = top - 2;
-  const logoWidth = 70;
-  let logoBottom = top;
-
   const logo = getOfficialBrandLogoBuffer();
-  if (logo) {
-    try {
-      const logoImage = doc.openImage(logo);
-      const logoHeight = (logoImage.height * logoWidth) / Math.max(logoImage.width, 1);
-      doc.image(logoImage, logoX, logoY, { width: logoWidth });
-      logoBottom = logoY + logoHeight;
-    } catch {
-      // ignore logo errors
-    }
-  }
-
-  doc.fillColor("#0F172A").font("Helvetica-Bold").fontSize(17).text(
-    "PLANCHETA COMPACTA",
-    left,
-    top + 8,
-    { width: pageWidth, align: "center" }
-  );
-  const titleBottom = doc.y;
-  const metadataStartY = Math.max(titleBottom + 6, logoBottom + 8);
-
-  doc.fillColor("#475569").font("Helvetica").fontSize(9).text(
-    `${meta.institution || getOfficialBrandName()} | ${meta.establishment || ""} | Sector: ${
-      meta.dependency || "Todos"
-    }`,
-    left,
-    metadataStartY,
-    { width: pageWidth, align: "center" }
-  );
+  drawPageBrandHeader(doc, { left, top, pageWidth, logo, meta });
   doc.text(
     `Rango: ${meta.dateRange || "Sin filtro"} | ${
       meta.ministryText || "Resumen de bienes verificados en el sector indicado."
@@ -274,7 +274,7 @@ function buildPlanchetaCompactPdf(assets, meta) {
   normalizedAssets.forEach((asset, idx) => {
     if (rowY + 18 > pageBottom() - 8) {
       doc.addPage();
-      rowY = doc.page.margins.top;
+      rowY = drawPageBrandHeader(doc, { left, top: doc.page.margins.top, pageWidth, logo, meta }) + 8;
       drawTableHeader(doc, left, widths, rowY);
       rowY += 18;
     }
@@ -290,7 +290,15 @@ function buildPlanchetaCompactPdf(assets, meta) {
   );
 
   doc.addPage();
-  drawSignatureSection(doc, doc.page.margins.top + 24, left, pageWidth);
+  const signatureStartY = drawPageBrandHeader(doc, {
+    left,
+    top: doc.page.margins.top,
+    pageWidth,
+    logo,
+    title: "PLANCHETA COMPACTA",
+    meta,
+  }) + 28;
+  drawSignatureSection(doc, signatureStartY, left, pageWidth);
 
   return doc;
 }
