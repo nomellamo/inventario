@@ -1,5 +1,5 @@
 const PDFDocument = require("pdfkit");
-const { getOfficialBrandLogoBuffer } = require("../utils/officialBranding");
+const { getOfficialBrandLogoBuffer, getOfficialBrandName } = require("../utils/officialBranding");
 
 function normalizeStateName(value) {
   return String(value || "")
@@ -203,6 +203,7 @@ function buildPlanchetaPdf(assets, meta) {
   const logoWidth = 78;
   let logoBottom = headerTop;
   let titleBottom = headerTop;
+
   const logo = getOfficialBrandLogoBuffer();
   if (logo) {
     try {
@@ -257,14 +258,14 @@ function buildPlanchetaPdf(assets, meta) {
   ];
   const printHeader = () => {
     const y = doc.y;
-    const headerPadding = 4;
+    const headerPadding = 3;
     doc.font("Helvetica-Bold");
-    doc.fontSize(8.5);
+    doc.fontSize(8);
     const headerHeights = headers.map((t, i) =>
       doc.heightOfString(String(t), { width: widths[i] - headerPadding * 2 })
     );
     const headerHeight = Math.max(
-      18,
+      15,
       ...headerHeights.map((height) => height + headerPadding * 2)
     );
     doc.rect(tableLeft, y, tableWidth, headerHeight).fill("#E9EFF6");
@@ -276,27 +277,28 @@ function buildPlanchetaPdf(assets, meta) {
       });
     });
     doc.fillColor("black");
-    doc.y = y + headerHeight + 4;
+    doc.y = y + headerHeight + 2;
     doc.font("Helvetica");
-    doc.fontSize(7.8);
+    doc.fontSize(7.2);
   };
 
   printHeader();
 
   normalizedAssets.forEach((a, index) => {
+    const depreciationNote = formatCurrency(a.depreciationAnnualValue);
     const row = [
       `INV-${a.internalCode}`,
-      `${buildAssetDescription(a, 74)}\nDeprec. anual: ${formatCurrency(a.depreciationAnnualValue)}`,
+      `${buildAssetDescription(a, 66)} | Deprec.: ${depreciationNote}`,
       a.responsibleName || "",
       a.responsibleRut || "",
       a.assetState?.name || "",
       a.dependency?.name || "",
     ];
-    const cellPadding = 4;
-    const maxRowHeight = 68;
+    const cellPadding = 2.5;
+    const maxRowHeight = 42;
     const rowHeight = Math.min(
       maxRowHeight,
-      Math.max(18, ...row.map((v, i) => doc.heightOfString(String(v ?? ""), {
+      Math.max(14, ...row.map((v, i) => doc.heightOfString(String(v ?? ""), {
         width: widths[i] - cellPadding * 2,
       }) + cellPadding * 2))
     );
@@ -316,9 +318,10 @@ function buildPlanchetaPdf(assets, meta) {
       doc.text(String(v ?? ""), colX[i] + cellPadding, y + cellPadding, {
         width: widths[i] - cellPadding * 2,
         height: rowHeight - cellPadding * 2,
+        lineGap: 0,
       });
     });
-    doc.y = y + rowHeight + 3;
+    doc.y = y + rowHeight + 1;
   });
 
   const totalLineY = doc.y + 6;

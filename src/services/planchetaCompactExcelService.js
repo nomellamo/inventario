@@ -6,25 +6,19 @@ function normalizeText(value, fallback = "-") {
   return text || fallback;
 }
 
-function buildAssetDescription(asset, maxLength = 48) {
-  const explicitDescription = String(asset?.catalogItem?.description || "").trim();
-  if (explicitDescription) {
-    const text = explicitDescription.trim();
-    return text.length <= maxLength ? text : `${text.slice(0, Math.max(1, maxLength - 1)).trim()}...`;
-  }
-  const parts = [String(asset?.name || "Activo").trim()];
+function truncateText(value, maxLength) {
+  const text = String(value || "").trim();
+  return text.length <= maxLength ? text : `${text.slice(0, Math.max(1, maxLength - 1)).trim()}...`;
+}
+
+function buildAssetName(asset, maxLength = 48) {
+  const parts = [String(asset?.name || asset?.catalogItem?.name || "Activo").trim()];
   const brand = asset?.brand || asset?.catalogItem?.brand;
   const modelName = asset?.modelName || asset?.catalogItem?.modelName;
   if (brand) parts.push(String(brand).trim());
   if (modelName) parts.push(String(modelName).trim());
   const text = parts.filter(Boolean).join(" - ");
-  return text.length <= maxLength ? text : `${text.slice(0, Math.max(1, maxLength - 1)).trim()}...`;
-}
-
-function formatCurrency(value) {
-  const amount = Number(value || 0);
-  if (!Number.isFinite(amount)) return "$0";
-  return `$${Math.round(amount).toLocaleString("es-CL")}`;
+  return truncateText(text, maxLength);
 }
 
 function summarizeAssets(assets) {
@@ -33,11 +27,9 @@ function summarizeAssets(assets) {
     (acc, item) => {
       acc.totalAssets += 1;
       acc.totalUnits += Math.max(Number(item?.quantity) || 0, 1);
-      acc.totalValue += Math.max(Number(item?.acquisitionValue) || 0, 0);
-      acc.totalAnnualDepreciation += Math.max(Number(item?.depreciationAnnualValue) || 0, 0);
       return acc;
     },
-    { totalAssets: 0, totalUnits: 0, totalValue: 0, totalAnnualDepreciation: 0 }
+    { totalAssets: 0, totalUnits: 0 }
   );
 }
 
@@ -107,9 +99,9 @@ async function buildPlanchetaCompactExcel(assets, meta) {
 
   sheet.columns = [
     { width: 12 },
-    { width: 30 },
-    { width: 22 },
-    { width: 22 },
+    { width: 34 },
+    { width: 24 },
+    { width: 24 },
     { width: 14 },
     { width: 8 },
     { width: 14 },
@@ -133,13 +125,17 @@ async function buildPlanchetaCompactExcel(assets, meta) {
   sheet.getCell("A2").alignment = { horizontal: "center", vertical: "middle" };
 
   sheet.addRow([]);
-  sheet.addRow(["Institucion:", meta.institution || ""]);
-  sheet.addRow(["Establecimiento:", meta.establishment || ""]);
-  sheet.addRow(["Sector:", meta.dependency || ""]);
-  sheet.addRow(["Rango adquisicion:", meta.dateRange || "Sin filtro"]);
-  sheet.addRow(["Encargado:", meta.responsibleName || "Encargado de Sector"]);
-  sheet.addRow(["Jefe:", meta.chiefName || "Jefe de Sector"]);
-  sheet.addRow(["Glosa:", meta.ministryText || "Resumen institucional de bienes verificados."]);
+  sheet.addRow([
+    "Encabezado:",
+    `${meta.institution || ""} | ${meta.establishment || ""} | Sector: ${meta.dependency || "Todos"}`,
+  ]);
+  sheet.addRow([
+    "Rango:",
+    `${meta.dateRange || "Sin filtro"} | ${
+      meta.ministryText || "Resumen institucional de bienes verificados."
+    }`,
+  ]);
+  sheet.addRow(["Fecha:", new Date().toLocaleDateString("es-CL")]);
   const responsibilityRow = sheet.addRow([
     "Responsabilidad:",
     "El funcionario responsable debe velar por el buen uso, custodia y resguardo de los recursos asignados.",
@@ -165,15 +161,16 @@ async function buildPlanchetaCompactExcel(assets, meta) {
   const metrics = sheet.addRow([
     `Registros: ${summary.totalAssets}`,
     `Bienes: ${summary.totalUnits}`,
-    `Valor adq: ${formatCurrency(summary.totalValue)}`,
-    `Deprec anual: ${formatCurrency(summary.totalAnnualDepreciation)}`,
     "",
     "",
     "",
     "",
   ]);
   metrics.font = { bold: true };
-  for (let i = 1; i <= 4; i += 1) {
+  sheet.mergeCells(`A${metrics.number}:D${metrics.number}`);
+  sheet.mergeCells(`E${metrics.number}:H${metrics.number}`);
+  metrics.getCell(5).value = `Bienes: ${summary.totalUnits}`;
+  for (let i = 1; i <= 8; i += 1) {
     const cell = metrics.getCell(i);
     cell.fill = {
       type: "pattern",
@@ -205,7 +202,7 @@ async function buildPlanchetaCompactExcel(assets, meta) {
   normalizedAssets.forEach((asset, idx) => {
     const row = sheet.addRow([
       `INV-${asset.internalCode || ""}`,
-      buildAssetDescription(asset, 46),
+      buildAssetName(asset, 52),
       normalizeText(asset.responsibleName, "-"),
       normalizeText(asset.dependency?.name, "-"),
       normalizeText(asset.assetState?.name, "-"),
@@ -227,6 +224,54 @@ async function buildPlanchetaCompactExcel(assets, meta) {
   sheet.getColumn(7).alignment = { vertical: "middle" };
   sheet.getColumn(8).alignment = { vertical: "middle" };
   sheet.views = [{ state: "frozen", ySplit: header.number }];
+
+  sheet.addRow([]);
+  const signatureTitle = sheet.addRow(["FIRMAS Y SELLO"]);
+  sheet.mergeCells(`A${signatureTitle.number}:H${signatureTitle.number}`);
+  signatureTitle.getCell(1).font = { bold: true, size: 14 };
+  signatureTitle.getCell(1).alignment = { horizontal: "center", vertical: "middle" };
+
+  sheet.addRow([]);
+  const signatureLine = sheet.addRow(["", "", "", "", "", "", "", ""]);
+  signatureLine.height = 34;
+  [
+    { cell: 1, label: "Encargado del Inventario" },
+    { cell: 4, label: "DAF" },
+    { cell: 7, label: "Encargado del Sector" },
+  ].forEach(({ cell }) => {
+    const lineCell = signatureLine.getCell(cell);
+    lineCell.border = { bottom: { style: "thin", color: { argb: "FF0F172A" } } };
+  });
+  sheet.mergeCells(`A${signatureLine.number}:C${signatureLine.number}`);
+  sheet.mergeCells(`D${signatureLine.number}:F${signatureLine.number}`);
+  sheet.mergeCells(`G${signatureLine.number}:H${signatureLine.number}`);
+  const signatureLabels = sheet.addRow([
+    "Encargado del Inventario",
+    "",
+    "",
+    "DAF",
+    "",
+    "",
+    "Encargado del Sector",
+    "",
+  ]);
+  signatureLabels.font = { bold: true };
+  signatureLabels.alignment = { horizontal: "center", vertical: "middle" };
+  sheet.mergeCells(`A${signatureLabels.number}:C${signatureLabels.number}`);
+  sheet.mergeCells(`D${signatureLabels.number}:F${signatureLabels.number}`);
+  sheet.mergeCells(`G${signatureLabels.number}:H${signatureLabels.number}`);
+
+  const signatureResponsibility = sheet.addRow([
+    "Responsabilidad:",
+    "El funcionario responsable debe velar por el buen uso, custodia y resguardo de los recursos asignados.",
+  ]);
+  sheet.mergeCells(`B${signatureResponsibility.number}:H${signatureResponsibility.number}`);
+  signatureResponsibility.getCell(1).font = { bold: true, color: { argb: "FF1B4332" } };
+  signatureResponsibility.getCell(2).alignment = {
+    horizontal: "center",
+    vertical: "middle",
+    wrapText: true,
+  };
 
   return workbook;
 }

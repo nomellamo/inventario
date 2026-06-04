@@ -157,12 +157,16 @@ async function buildPlanchetaDirectoryExcel(directory, meta) {
   };
 
   sheet.addRow([]);
-  sheet.addRow(["Institucion:", meta.institution || ""]);
-  sheet.addRow(["Establecimiento:", meta.establishment || ""]);
-  sheet.addRow(["RBD:", meta.rbd || ""]);
-  sheet.addRow(["Comuna:", meta.commune || ""]);
-  sheet.addRow(["Sector:", meta.dependency || "Todos"]);
-  sheet.addRow(["Rango adquisicion:", meta.dateRange || "Sin filtro"]);
+  sheet.addRow([
+    "Encabezado:",
+    `${meta.institution || ""} | ${meta.establishment || ""} | Sector: ${meta.dependency || "Todos"}`,
+  ]);
+  sheet.addRow([
+    "Rango:",
+    `${meta.dateRange || "Sin filtro"} | ${
+      meta.ministryText || "Resumen de bienes verificados en el sector indicado."
+    }`,
+  ]);
   sheet.addRow(["Historial:", meta.includeHistory ? "Incluido" : "Desactivado"]);
   sheet.addRow(["Fecha:", new Date().toLocaleDateString("es-CL")]);
 
@@ -570,13 +574,22 @@ function buildPlanchetaDirectoryPdf(directory, meta) {
     { width: pageWidth, align: "center" }
   );
   doc.text(
-    `Rango: ${meta.dateRange || "Sin filtro"} | Historial: ${
-      meta.includeHistory ? "Incluido" : "Desactivado"
-    } | Fecha: ${new Date().toLocaleDateString("es-CL")}`,
+    `Rango: ${meta.dateRange || "Sin filtro"} | ${
+      meta.ministryText || "Resumen de bienes verificados en el sector indicado."
+    }`,
     left,
     doc.y + 2,
     { width: pageWidth, align: "center" }
   );
+  doc.fillColor("#64748B").font("Helvetica").fontSize(8).text(
+    `Historial: ${meta.includeHistory ? "Incluido" : "Desactivado"} | Fecha: ${new Date().toLocaleDateString(
+      "es-CL"
+    )}`,
+    left,
+    doc.y + 2,
+    { width: pageWidth, align: "center" }
+  );
+
   const cardY = doc.y + 16;
   const gap = 12;
   const cardW = (pageWidth - gap * 3) / 4;

@@ -12,7 +12,6 @@ function AssetCatalogModal(props) {
     copyStatusDetailsJson,
     copyTechnicalSheetLink,
     openPrintLabel,
-    downloadLabelPdf,
     openCatalogAction,
     isCentral,
     catalogAction,
@@ -153,9 +152,6 @@ function AssetCatalogModal(props) {
                       <button className="ghost" onClick={openPrintLabel}>
                         Imprimir etiqueta
                       </button>
-                      <button className="ghost" onClick={downloadLabelPdf}>
-                        Descargar PDF
-                      </button>
                     </div>
                   </div>
                 ) : (
@@ -172,9 +168,6 @@ function AssetCatalogModal(props) {
                       </button>
                       <button className="ghost" disabled>
                         Imprimir etiqueta
-                      </button>
-                      <button className="ghost" disabled>
-                        Descargar PDF
                       </button>
                     </div>
                   </>

@@ -319,7 +319,11 @@ function useAssetsAdminData({
       const movements = Array.isArray(data.movements) ? data.movements : []
       setAssetMovements(movements)
       const evidenceCandidates = movements.filter(
-        (movement) => movement.type === 'TRANSFER' || movement.type === 'STATUS_CHANGE'
+        (movement) =>
+          movement.type === 'TRANSFER' ||
+          movement.type === 'RELOCATION' ||
+          movement.type === 'STATUS_CHANGE' ||
+          movement.type === 'INVENTORY_CHECK'
       )
       const latestEvidenceMovement =
         evidenceCandidates.length > 0 ? evidenceCandidates[evidenceCandidates.length - 1] : null

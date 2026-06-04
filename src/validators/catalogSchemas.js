@@ -4,7 +4,7 @@ const { booleanLike } = require("./boolean");
 const pagination = z.object({
   q: z.string().optional(),
   includeInactive: booleanLike,
-  take: z.coerce.number().int().min(1).max(100).optional(),
+  take: z.coerce.number().int().min(1).max(10000).optional(),
   skip: z.coerce.number().int().min(0).optional(),
 });
 

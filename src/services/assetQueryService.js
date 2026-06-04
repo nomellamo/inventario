@@ -60,7 +60,7 @@ async function listAssets(query, user) {
       ? true
       : false;
 
-  const take = Math.min(Math.max(toInt(query.take) || 20, 1), 100);
+  const take = Math.min(Math.max(toInt(query.take) || 20, 1), 10000);
   const skip = Math.max(toInt(query.skip) || 0, 0);
 
   // Permisos por rol (modo simple)

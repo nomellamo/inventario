@@ -100,11 +100,17 @@ async function buildPlanchetaExecutiveExcel(assets, meta) {
   sheet.getCell("A1").fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0F172A" } };
 
   sheet.addRow([]);
-  sheet.addRow(["Institucion", meta.institution || ""]);
-  sheet.addRow(["Establecimiento", meta.establishment || ""]);
-  sheet.addRow(["Sector", meta.dependency || ""]);
-  sheet.addRow(["Rango", meta.dateRange || "Sin filtro"]);
-  sheet.addRow(["Fecha", new Date().toLocaleDateString()]);
+  sheet.addRow([
+    "Encabezado",
+    `${meta.institution || ""} | ${meta.establishment || ""} | Sector: ${meta.dependency || "Todos"}`,
+  ]);
+  sheet.addRow([
+    "Rango",
+    `${meta.dateRange || "Sin filtro"} | ${
+      meta.ministryText || "Resumen de bienes verificados en el sector indicado."
+    }`,
+  ]);
+  sheet.addRow(["Fecha", new Date().toLocaleDateString("es-CL")]);
 
   sheet.addRow([]);
   const metrics = sheet.addRow([

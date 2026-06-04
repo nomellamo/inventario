@@ -47,12 +47,12 @@ function parseDateEnd(dateText) {
 }
 
 async function getPlanchetaData(
-  { dependencyId, sectorId, establishmentId, includeHistory, fromDate, toDate },
+  { dependencyId, sectorId, institutionId, establishmentId, includeHistory, fromDate, toDate },
   user
 ) {
   const effectiveDependencyId = dependencyId || sectorId;
   const { scopeWhere, fromDateParsed, toDateParsed } = await resolvePlanchetaScope(
-    { dependencyId: effectiveDependencyId, sectorId, establishmentId, fromDate, toDate },
+    { dependencyId: effectiveDependencyId, sectorId, institutionId, establishmentId, fromDate, toDate },
     user
   );
 
@@ -113,12 +113,13 @@ async function getPlanchetaData(
 }
 
 async function resolvePlanchetaScope(
-  { dependencyId, sectorId, establishmentId, fromDate, toDate },
+  { dependencyId, sectorId, institutionId, establishmentId, fromDate, toDate },
   user
 ) {
   const effectiveDependencyId = dependencyId || sectorId;
-  if (!effectiveDependencyId && !establishmentId) {
-    throw badRequest("Debe indicar sectorId/dependencyId o establishmentId");
+  let effectiveEstablishmentId = establishmentId;
+  if (!effectiveDependencyId && !establishmentId && !institutionId) {
+    throw badRequest("Debe indicar institutionId, sectorId/dependencyId o establishmentId");
   }
 
   const fromDateParsed = parseDateStart(fromDate);
@@ -135,6 +136,10 @@ async function resolvePlanchetaScope(
     if (establishmentId && establishmentId !== user.establishmentId) {
       throw forbidden("No autorizado para este establecimiento");
     }
+    if (institutionId && user.institutionId && institutionId !== user.institutionId) {
+      throw forbidden("No autorizado para esta institucion");
+    }
+    effectiveEstablishmentId = user.establishmentId;
 
     if (effectiveDependencyId) {
       const dep = await prisma.dependency.findUnique({
@@ -151,7 +156,8 @@ async function resolvePlanchetaScope(
   return {
     scopeWhere: {
       ...(effectiveDependencyId ? { dependencyId: effectiveDependencyId } : {}),
-      ...(establishmentId ? { establishmentId } : {}),
+      ...(effectiveEstablishmentId ? { establishmentId: effectiveEstablishmentId } : {}),
+      ...(institutionId && !effectiveEstablishmentId ? { establishment: { institutionId } } : {}),
     },
     fromDateParsed,
     toDateParsed,

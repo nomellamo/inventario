@@ -144,17 +144,17 @@ async function buildPlanchetaExcel(assets, meta) {
   };
 
   sheet.addRow([]);
-  sheet.addRow(["Institucion:", meta.institution || ""]);
-  sheet.addRow(["Establecimiento:", meta.establishment || ""]);
-  sheet.addRow(["RBD:", meta.rbd || ""]);
-  sheet.addRow(["Comuna:", meta.commune || ""]);
-  sheet.addRow(["Sector:", meta.dependency || ""]);
-  sheet.addRow(["Rango adquisicion:", meta.dateRange || "Sin filtro"]);
-  sheet.addRow(["Fecha:", new Date().toLocaleDateString()]);
   sheet.addRow([
-    "Descripcion:",
-    meta.ministryText || "Resumen de bienes verificados en el sector indicado.",
+    "Encabezado:",
+    `${meta.institution || ""} | ${meta.establishment || ""} | Sector: ${meta.dependency || "Todos"}`,
   ]);
+  sheet.addRow([
+    "Rango:",
+    `${meta.dateRange || "Sin filtro"} | ${
+      meta.ministryText || "Resumen de bienes verificados en el sector indicado."
+    }`,
+  ]);
+  sheet.addRow(["Fecha:", new Date().toLocaleDateString("es-CL")]);
   const responsibilityRow = sheet.addRow([
     "Responsabilidad:",
     "El funcionario responsable debe velar por el buen uso, custodia y resguardo de los recursos asignados.",

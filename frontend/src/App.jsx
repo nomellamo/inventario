@@ -2385,7 +2385,11 @@ function App() {
   const activeMiniManual = miniManualByTab[activeTab]
   const modalCatalogItem = selectedCatalogItem || createdAsset?.catalogItem || null
   const assetEvidenceMovements = assetMovements.filter(
-    (m) => m.type === 'TRANSFER' || m.type === 'STATUS_CHANGE'
+    (m) =>
+      m.type === 'TRANSFER' ||
+      m.type === 'RELOCATION' ||
+      m.type === 'STATUS_CHANGE' ||
+      m.type === 'INVENTORY_CHECK'
   )
   const multiProductsTotalQuantity = assetMultiProducts.reduce((acc, row) => {
     const qty = Number(row?.quantity)

@@ -159,6 +159,10 @@ const listAssetsQuery = z.object({
   skip: z.coerce.number().int().min(0).optional(),
 });
 
+const exportAssetsQuery = listAssetsQuery.extend({
+  take: z.coerce.number().int().min(1).max(10000).optional(),
+});
+
 const importHistoryQuery = z.object({
   userId: z.coerce.number().int().positive().optional(),
   fromDate: z.coerce.date().optional(),
@@ -198,6 +202,7 @@ module.exports = {
   createAssetBody,
   updateAssetBody,
   listAssetsQuery,
+  exportAssetsQuery,
   importHistoryQuery,
   evidenceListQuery,
   depreciationPoliciesQuery,

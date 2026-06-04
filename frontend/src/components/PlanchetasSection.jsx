@@ -242,7 +242,10 @@ function PlanchetasSection(props) {
               ))}
             </select>
           </div>
-          <p className="muted">Si no eliges sector, la plancheta se genera por establecimiento.</p>
+          <p className="muted">
+            Si no eliges establecimiento, la plancheta se genera por institucion. Si no eliges sector,
+            se genera por establecimiento.
+          </p>
           <div className="split">
             <div className="select-wrap">
               <label>Fecha de adquisición desde (opcional)</label>
@@ -455,9 +458,9 @@ function PlanchetasSection(props) {
         <div className="table">
           <div className="table-head">
             <h4>Resumen por sector y producto</h4>
-            <span className="muted">Vista resumida (hasta 100 filas)</span>
+            <span className="muted">Vista resumida ({planchetaSummary.length} filas)</span>
           </div>
-          {planchetaSummary.slice(0, 100).map((row, idx) => (
+          {planchetaSummary.map((row, idx) => (
             <div
               key={`plancheta-summary-${row.dependencyId}-${row.productName}-${idx}`}
               className="row"
@@ -498,17 +501,7 @@ function PlanchetasSection(props) {
                 {' | '}CC: {item.costCenter || '-'}
               </div>
               <div className="muted">
-                Valor adq: $
-                {Number(item.acquisitionValue || 0).toLocaleString('es-CL', {
-                  minimumFractionDigits: 0,
-                  maximumFractionDigits: 0,
-                })}
-                {' | '}Deprec. anual: $
-                {Number(item.depreciationAnnualValue || 0).toLocaleString('es-CL', {
-                  minimumFractionDigits: 0,
-                  maximumFractionDigits: 0,
-                })}
-                {' | '}Vida útil: {item.usefulLifeYears || '-'} años
+                Vida util: {item.usefulLifeYears || '-'} anos
               </div>
               {planchetaFilters.includeHistory && (
                 <div className="muted">
