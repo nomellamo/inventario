@@ -104,8 +104,12 @@ function drawAssetRow(doc, left, widths, y, asset, idx) {
 }
 
 function drawSignatureLine(doc, x, y, width, title) {
-  doc.moveTo(x, y).lineTo(x + width, y).stroke("#0F172A");
-  doc.fillColor("#0F172A").font("Helvetica-Bold").fontSize(8.5).text(title, x, y + 8, {
+  doc.strokeColor("#334155").lineWidth(1.1).moveTo(x, y).lineTo(x + width, y).stroke();
+  doc.fillColor("#0F172A").font("Helvetica-Bold").fontSize(8.8).text(title, x, y + 10, {
+    width,
+    align: "center",
+  });
+  doc.fillColor("#64748B").font("Helvetica").fontSize(7).text("Nombre, firma y timbre", x, y + 24, {
     width,
     align: "center",
   });
@@ -113,30 +117,34 @@ function drawSignatureLine(doc, x, y, width, title) {
 
 function drawSignatureSection(doc, y, left, pageWidth) {
   const pageBottom = doc.page.height - doc.page.margins.bottom;
-  const requiredHeight = 112;
+  const requiredHeight = 132;
   let sectionY = y;
   if (sectionY + requiredHeight > pageBottom) {
     doc.addPage();
     sectionY = doc.page.margins.top + 8;
   }
 
-  doc.fillColor("#0F172A").font("Helvetica-Bold").fontSize(12).text("FIRMAS Y SELLO", left, sectionY, {
+  doc.roundedRect(left, sectionY, pageWidth, requiredHeight, 8).fill("#F8FAFC").stroke("#CBD5E1");
+  doc.fillColor("#0F172A").font("Helvetica-Bold").fontSize(12).text("FIRMAS Y SELLO", left, sectionY + 14, {
     width: pageWidth,
     align: "center",
   });
+  doc.strokeColor("#94A3B8").lineWidth(0.7).moveTo(left + 36, sectionY + 36).lineTo(left + pageWidth - 36, sectionY + 36).stroke();
 
-  const gap = 28;
-  const lineWidth = (pageWidth - gap * 2) / 3;
-  const lineY = sectionY + 58;
-  drawSignatureLine(doc, left, lineY, lineWidth, "Encargado del Inventario");
-  drawSignatureLine(doc, left + lineWidth + gap, lineY, lineWidth, "DAF");
-  drawSignatureLine(doc, left + (lineWidth + gap) * 2, lineY, lineWidth, "Encargado del Sector");
+  const innerLeft = left + 36;
+  const innerWidth = pageWidth - 72;
+  const gap = 32;
+  const lineWidth = (innerWidth - gap * 2) / 3;
+  const lineY = sectionY + 82;
+  drawSignatureLine(doc, innerLeft, lineY, lineWidth, "Encargado del Inventario");
+  drawSignatureLine(doc, innerLeft + lineWidth + gap, lineY, lineWidth, "DAF");
+  drawSignatureLine(doc, innerLeft + (lineWidth + gap) * 2, lineY, lineWidth, "Encargado del Sector");
 
   doc.fillColor("#475569").font("Helvetica").fontSize(7.8).text(
     "Responsabilidad: el funcionario responsable debe velar por el buen uso, custodia y resguardo de los recursos asignados.",
-    left,
-    lineY + 32,
-    { width: pageWidth, align: "center" }
+    left + 24,
+    sectionY + requiredHeight - 22,
+    { width: pageWidth - 48, align: "center" }
   );
 }
 

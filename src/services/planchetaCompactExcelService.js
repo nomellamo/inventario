@@ -217,19 +217,51 @@ async function buildPlanchetaCompactExcel(assets, meta) {
   sheet.addRow([]);
   const signatureTitle = sheet.addRow(["FIRMAS Y SELLO"]);
   sheet.mergeCells(`A${signatureTitle.number}:F${signatureTitle.number}`);
-  signatureTitle.getCell(1).font = { bold: true, size: 14 };
+  signatureTitle.height = 24;
+  signatureTitle.getCell(1).font = { bold: true, size: 14, color: { argb: "FF0F172A" } };
+  signatureTitle.getCell(1).fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFF8FAFC" },
+  };
   signatureTitle.getCell(1).alignment = { horizontal: "center", vertical: "middle" };
+  signatureTitle.getCell(1).border = {
+    top: { style: "thin", color: { argb: "FFCBD5E1" } },
+    left: { style: "thin", color: { argb: "FFCBD5E1" } },
+    right: { style: "thin", color: { argb: "FFCBD5E1" } },
+  };
 
-  sheet.addRow([]);
+  const signatureSpace = sheet.addRow(["", "", "", "", "", ""]);
+  signatureSpace.height = 30;
+  sheet.mergeCells(`A${signatureSpace.number}:F${signatureSpace.number}`);
+  signatureSpace.getCell(1).fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFF8FAFC" },
+  };
+  signatureSpace.getCell(1).border = {
+    left: { style: "thin", color: { argb: "FFCBD5E1" } },
+    right: { style: "thin", color: { argb: "FFCBD5E1" } },
+  };
+
   const signatureLine = sheet.addRow(["", "", "", "", "", ""]);
-  signatureLine.height = 34;
+  signatureLine.height = 18;
   [
     { cell: 1 },
     { cell: 3 },
     { cell: 5 },
   ].forEach(({ cell }) => {
     const lineCell = signatureLine.getCell(cell);
-    lineCell.border = { bottom: { style: "thin", color: { argb: "FF0F172A" } } };
+    lineCell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFF8FAFC" },
+    };
+    lineCell.border = {
+      bottom: { style: "medium", color: { argb: "FF334155" } },
+      left: { style: "thin", color: { argb: "FFCBD5E1" } },
+      right: { style: "thin", color: { argb: "FFCBD5E1" } },
+    };
   });
   sheet.mergeCells(`A${signatureLine.number}:B${signatureLine.number}`);
   sheet.mergeCells(`C${signatureLine.number}:D${signatureLine.number}`);
@@ -242,11 +274,49 @@ async function buildPlanchetaCompactExcel(assets, meta) {
     "Encargado del Sector",
     "",
   ]);
-  signatureLabels.font = { bold: true };
+  signatureLabels.height = 20;
+  signatureLabels.font = { bold: true, color: { argb: "FF0F172A" } };
+  signatureLabels.eachCell((cell) => {
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFF8FAFC" },
+    };
+    cell.border = {
+      left: { style: "thin", color: { argb: "FFCBD5E1" } },
+      right: { style: "thin", color: { argb: "FFCBD5E1" } },
+    };
+  });
   signatureLabels.alignment = { horizontal: "center", vertical: "middle" };
   sheet.mergeCells(`A${signatureLabels.number}:B${signatureLabels.number}`);
   sheet.mergeCells(`C${signatureLabels.number}:D${signatureLabels.number}`);
   sheet.mergeCells(`E${signatureLabels.number}:F${signatureLabels.number}`);
+
+  const signatureHint = sheet.addRow([
+    "Nombre, firma y timbre",
+    "",
+    "Nombre, firma y timbre",
+    "",
+    "Nombre, firma y timbre",
+    "",
+  ]);
+  signatureHint.height = 18;
+  signatureHint.font = { italic: true, size: 9, color: { argb: "FF64748B" } };
+  signatureHint.alignment = { horizontal: "center", vertical: "middle" };
+  signatureHint.eachCell((cell) => {
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFF8FAFC" },
+    };
+    cell.border = {
+      left: { style: "thin", color: { argb: "FFCBD5E1" } },
+      right: { style: "thin", color: { argb: "FFCBD5E1" } },
+    };
+  });
+  sheet.mergeCells(`A${signatureHint.number}:B${signatureHint.number}`);
+  sheet.mergeCells(`C${signatureHint.number}:D${signatureHint.number}`);
+  sheet.mergeCells(`E${signatureHint.number}:F${signatureHint.number}`);
 
   const signatureResponsibility = sheet.addRow([
     "Responsabilidad:",
@@ -254,11 +324,28 @@ async function buildPlanchetaCompactExcel(assets, meta) {
   ]);
   sheet.mergeCells(`B${signatureResponsibility.number}:F${signatureResponsibility.number}`);
   signatureResponsibility.getCell(1).font = { bold: true, color: { argb: "FF1B4332" } };
+  signatureResponsibility.getCell(1).fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFF8FAFC" },
+  };
+  signatureResponsibility.getCell(2).fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFF8FAFC" },
+  };
   signatureResponsibility.getCell(2).alignment = {
     horizontal: "center",
     vertical: "middle",
     wrapText: true,
   };
+  signatureResponsibility.eachCell((cell) => {
+    cell.border = {
+      bottom: { style: "thin", color: { argb: "FFCBD5E1" } },
+      left: { style: "thin", color: { argb: "FFCBD5E1" } },
+      right: { style: "thin", color: { argb: "FFCBD5E1" } },
+    };
+  });
 
   return workbook;
 }
