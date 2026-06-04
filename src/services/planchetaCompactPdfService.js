@@ -97,7 +97,7 @@ function drawAssetRow(doc, left, widths, y, asset, idx) {
     normalizeText(asset.assetState?.name, "-"),
     String(Number(asset.quantity || 0)),
   ];
-  const rowHeight = 20;
+  const rowHeight = 18;
   const tableWidth = widths.reduce((acc, val) => acc + val, 0);
   doc.rect(left, y, tableWidth, rowHeight).fill(idx % 2 === 0 ? "#FFFFFF" : "#F8FBFF");
   doc.strokeColor("#E2E8F0").lineWidth(0.5).moveTo(left, y + rowHeight).lineTo(left + tableWidth, y + rowHeight).stroke();
@@ -107,13 +107,13 @@ function drawAssetRow(doc, left, widths, y, asset, idx) {
     if (valueIdx === 4) {
       const state = resolveStateStyle(value);
       const pillW = Math.min(widths[valueIdx] - 14, Math.max(38, doc.widthOfString(state.text) + 16));
-      doc.roundedRect(cursor + 6, y + 4, pillW, 12, 6).fill(state.fill);
-      doc.fillColor(state.color).font("Helvetica-Bold").fontSize(6.8).text(state.text, cursor + 6, y + 6, {
+      doc.roundedRect(cursor + 6, y + 3, pillW, 12, 6).fill(state.fill);
+      doc.fillColor(state.color).font("Helvetica-Bold").fontSize(6.8).text(state.text, cursor + 6, y + 5, {
         width: pillW,
         align: "center",
       });
     } else {
-      doc.fillColor(valueIdx === 0 ? "#1D4ED8" : "#334155").font(valueIdx === 0 ? "Helvetica-Bold" : "Helvetica").fontSize(7.4).text(value, cursor + 6, y + 5, {
+      doc.fillColor(valueIdx === 0 ? "#1D4ED8" : "#334155").font(valueIdx === 0 ? "Helvetica-Bold" : "Helvetica").fontSize(7.2).text(value, cursor + 6, y + 4, {
         width: widths[valueIdx] - 12,
         height: rowHeight - 8,
         ellipsis: true,
@@ -272,14 +272,14 @@ function buildPlanchetaCompactPdf(assets, meta) {
   const pageBottom = () => doc.page.height - doc.page.margins.bottom;
 
   normalizedAssets.forEach((asset, idx) => {
-    if (rowY + 20 > pageBottom() - 8) {
+    if (rowY + 18 > pageBottom() - 8) {
       doc.addPage();
       rowY = doc.page.margins.top;
       drawTableHeader(doc, left, widths, rowY);
       rowY += 18;
     }
     drawAssetRow(doc, left, widths, rowY, asset, idx);
-    rowY += 20;
+    rowY += 18;
   });
 
   doc.fillColor("#64748B").font("Helvetica").fontSize(7.5).text(
@@ -289,7 +289,8 @@ function buildPlanchetaCompactPdf(assets, meta) {
     { width: pageWidth, align: "right" }
   );
 
-  drawSignatureSection(doc, rowY + 42, left, pageWidth);
+  doc.addPage();
+  drawSignatureSection(doc, doc.page.margins.top + 24, left, pageWidth);
 
   return doc;
 }
