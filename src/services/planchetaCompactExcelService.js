@@ -99,16 +99,14 @@ async function buildPlanchetaCompactExcel(assets, meta) {
 
   sheet.columns = [
     { width: 12 },
-    { width: 34 },
-    { width: 24 },
-    { width: 24 },
-    { width: 14 },
-    { width: 8 },
-    { width: 14 },
+    { width: 42 },
+    { width: 28 },
+    { width: 28 },
+    { width: 16 },
     { width: 10 },
   ];
 
-  sheet.mergeCells("A1:H1");
+  sheet.mergeCells("A1:F1");
   sheet.getCell("A1").value = "PLANCHETA COMPACTA";
   sheet.getCell("A1").font = { bold: true, size: 15, color: { argb: "FFFFFFFF" } };
   sheet.getCell("A1").alignment = { horizontal: "center", vertical: "middle" };
@@ -118,7 +116,7 @@ async function buildPlanchetaCompactExcel(assets, meta) {
     fgColor: { argb: "FF1B4332" },
   };
 
-  sheet.mergeCells("A2:H2");
+  sheet.mergeCells("A2:F2");
   sheet.getCell("A2").value =
     "Formato sin graficos, resumido para una sola hoja de impresion";
   sheet.getCell("A2").font = { italic: true, color: { argb: "FF475569" } };
@@ -140,7 +138,7 @@ async function buildPlanchetaCompactExcel(assets, meta) {
     "Responsabilidad:",
     "El funcionario responsable debe velar por el buen uso, custodia y resguardo de los recursos asignados.",
   ]);
-  sheet.mergeCells(`B${responsibilityRow.number}:H${responsibilityRow.number}`);
+  sheet.mergeCells(`B${responsibilityRow.number}:F${responsibilityRow.number}`);
   sheet.getCell(`A${responsibilityRow.number}`).font = {
     bold: true,
     color: { argb: "FF1B4332" },
@@ -163,14 +161,12 @@ async function buildPlanchetaCompactExcel(assets, meta) {
     `Bienes: ${summary.totalUnits}`,
     "",
     "",
-    "",
-    "",
   ]);
   metrics.font = { bold: true };
-  sheet.mergeCells(`A${metrics.number}:D${metrics.number}`);
-  sheet.mergeCells(`E${metrics.number}:H${metrics.number}`);
-  metrics.getCell(5).value = `Bienes: ${summary.totalUnits}`;
-  for (let i = 1; i <= 8; i += 1) {
+  sheet.mergeCells(`A${metrics.number}:C${metrics.number}`);
+  sheet.mergeCells(`D${metrics.number}:F${metrics.number}`);
+  metrics.getCell(4).value = `Bienes: ${summary.totalUnits}`;
+  for (let i = 1; i <= 6; i += 1) {
     const cell = metrics.getCell(i);
     cell.fill = {
       type: "pattern",
@@ -194,8 +190,6 @@ async function buildPlanchetaCompactExcel(assets, meta) {
     "Sector",
     "Estado",
     "Cant.",
-    "Adquisicion",
-    "Vida util",
   ]);
   paintHeader(header, "FF475569");
 
@@ -207,10 +201,7 @@ async function buildPlanchetaCompactExcel(assets, meta) {
       normalizeText(asset.dependency?.name, "-"),
       normalizeText(asset.assetState?.name, "-"),
       Number(asset.quantity || 0),
-      asset.acquisitionDate ? new Date(asset.acquisitionDate) : "-",
-      asset.usefulLifeYears || "-",
     ]);
-    row.getCell(7).numFmt = "dd/mm/yyyy";
     row.height = 18;
     paintBodyRow(row, idx % 2 === 0 ? "FFF8FBF8" : null);
   });
@@ -221,51 +212,47 @@ async function buildPlanchetaCompactExcel(assets, meta) {
   sheet.getColumn(4).alignment = { vertical: "top", wrapText: true };
   sheet.getColumn(5).alignment = { vertical: "middle", wrapText: true };
   sheet.getColumn(6).alignment = { vertical: "middle" };
-  sheet.getColumn(7).alignment = { vertical: "middle" };
-  sheet.getColumn(8).alignment = { vertical: "middle" };
   sheet.views = [{ state: "frozen", ySplit: header.number }];
 
   sheet.addRow([]);
   const signatureTitle = sheet.addRow(["FIRMAS Y SELLO"]);
-  sheet.mergeCells(`A${signatureTitle.number}:H${signatureTitle.number}`);
+  sheet.mergeCells(`A${signatureTitle.number}:F${signatureTitle.number}`);
   signatureTitle.getCell(1).font = { bold: true, size: 14 };
   signatureTitle.getCell(1).alignment = { horizontal: "center", vertical: "middle" };
 
   sheet.addRow([]);
-  const signatureLine = sheet.addRow(["", "", "", "", "", "", "", ""]);
+  const signatureLine = sheet.addRow(["", "", "", "", "", ""]);
   signatureLine.height = 34;
   [
-    { cell: 1, label: "Encargado del Inventario" },
-    { cell: 4, label: "DAF" },
-    { cell: 7, label: "Encargado del Sector" },
+    { cell: 1 },
+    { cell: 3 },
+    { cell: 5 },
   ].forEach(({ cell }) => {
     const lineCell = signatureLine.getCell(cell);
     lineCell.border = { bottom: { style: "thin", color: { argb: "FF0F172A" } } };
   });
-  sheet.mergeCells(`A${signatureLine.number}:C${signatureLine.number}`);
-  sheet.mergeCells(`D${signatureLine.number}:F${signatureLine.number}`);
-  sheet.mergeCells(`G${signatureLine.number}:H${signatureLine.number}`);
+  sheet.mergeCells(`A${signatureLine.number}:B${signatureLine.number}`);
+  sheet.mergeCells(`C${signatureLine.number}:D${signatureLine.number}`);
+  sheet.mergeCells(`E${signatureLine.number}:F${signatureLine.number}`);
   const signatureLabels = sheet.addRow([
     "Encargado del Inventario",
     "",
-    "",
     "DAF",
-    "",
     "",
     "Encargado del Sector",
     "",
   ]);
   signatureLabels.font = { bold: true };
   signatureLabels.alignment = { horizontal: "center", vertical: "middle" };
-  sheet.mergeCells(`A${signatureLabels.number}:C${signatureLabels.number}`);
-  sheet.mergeCells(`D${signatureLabels.number}:F${signatureLabels.number}`);
-  sheet.mergeCells(`G${signatureLabels.number}:H${signatureLabels.number}`);
+  sheet.mergeCells(`A${signatureLabels.number}:B${signatureLabels.number}`);
+  sheet.mergeCells(`C${signatureLabels.number}:D${signatureLabels.number}`);
+  sheet.mergeCells(`E${signatureLabels.number}:F${signatureLabels.number}`);
 
   const signatureResponsibility = sheet.addRow([
     "Responsabilidad:",
     "El funcionario responsable debe velar por el buen uso, custodia y resguardo de los recursos asignados.",
   ]);
-  sheet.mergeCells(`B${signatureResponsibility.number}:H${signatureResponsibility.number}`);
+  sheet.mergeCells(`B${signatureResponsibility.number}:F${signatureResponsibility.number}`);
   signatureResponsibility.getCell(1).font = { bold: true, color: { argb: "FF1B4332" } };
   signatureResponsibility.getCell(2).alignment = {
     horizontal: "center",

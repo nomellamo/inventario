@@ -61,8 +61,6 @@ function drawTableHeader(doc, left, widths, y) {
     "Sector",
     "Estado",
     "Cant.",
-    "Adquisicion",
-    "Vida util",
   ];
   headers.forEach((header, idx) => {
     doc.rect(left + widths.slice(0, idx).reduce((acc, val) => acc + val, 0), y, widths[idx], 18)
@@ -88,8 +86,6 @@ function drawAssetRow(doc, left, widths, y, asset, idx) {
     normalizeText(asset.dependency?.name, "-"),
     normalizeText(asset.assetState?.name, "-"),
     String(Number(asset.quantity || 0)),
-    formatDate(asset.acquisitionDate),
-    asset.usefulLifeYears ? String(asset.usefulLifeYears) : "-",
   ];
   const rowHeight = 18;
   let cursor = left;
@@ -201,7 +197,7 @@ function buildPlanchetaCompactPdf(assets, meta) {
   drawMetricCard(doc, left + cardW + gap, cardY, cardW, 66, "Bienes", summary.totalUnits, "Cantidad total");
 
   const tableTop = cardY + 82;
-  const widths = [58, 200, 135, 125, 74, 44, 94, 66];
+  const widths = [70, 270, 170, 165, 100, 68];
   doc.roundedRect(left, tableTop - 4, pageWidth, 26 + Math.min(normalizedAssets.length, 18) * 18, 8)
     .fill("#FFFFFF")
     .stroke("#CBD5E1");
