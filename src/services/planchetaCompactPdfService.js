@@ -53,7 +53,7 @@ function drawMetricCard(doc, x, y, width, height, title, value, note) {
   }
 }
 
-function drawPageBrandHeader(doc, { left, top, pageWidth, logo, title = "SUBSECRETARIA DE LA NINEZ", meta }) {
+function drawPageBrandHeader(doc, { left, top, pageWidth, logo, title = "SUBSECRETARÍA DE LA NIÑEZ", meta }) {
   const logoWidth = 54;
   let logoBottom = top;
   if (logo) {
@@ -295,7 +295,7 @@ function buildPlanchetaCompactPdf(assets, meta) {
     top: doc.page.margins.top,
     pageWidth,
     logo,
-    title: "SUBSECRETARIA DE LA NINEZ",
+    title: "SUBSECRETARÍA DE LA NIÑEZ",
     meta,
   }) + 28;
   drawSignatureSection(doc, signatureStartY, left, pageWidth);
