@@ -217,7 +217,7 @@ async function buildPlanchetaCompactExcel(assets, meta) {
   sheet.addRow([]);
   const signatureTitle = sheet.addRow(["FIRMAS Y SELLO"]);
   sheet.mergeCells(`A${signatureTitle.number}:F${signatureTitle.number}`);
-  signatureTitle.height = 24;
+  signatureTitle.height = 28;
   signatureTitle.getCell(1).font = { bold: true, size: 14, color: { argb: "FF0F172A" } };
   signatureTitle.getCell(1).fill = {
     type: "pattern",
@@ -232,7 +232,7 @@ async function buildPlanchetaCompactExcel(assets, meta) {
   };
 
   const signatureSpace = sheet.addRow(["", "", "", "", "", ""]);
-  signatureSpace.height = 30;
+  signatureSpace.height = 38;
   sheet.mergeCells(`A${signatureSpace.number}:F${signatureSpace.number}`);
   signatureSpace.getCell(1).fill = {
     type: "pattern",
@@ -245,7 +245,7 @@ async function buildPlanchetaCompactExcel(assets, meta) {
   };
 
   const signatureLine = sheet.addRow(["", "", "", "", "", ""]);
-  signatureLine.height = 18;
+  signatureLine.height = 22;
   [
     { cell: 1 },
     { cell: 3 },
@@ -259,6 +259,7 @@ async function buildPlanchetaCompactExcel(assets, meta) {
     };
     lineCell.border = {
       bottom: { style: "medium", color: { argb: "FF334155" } },
+      top: { style: "thin", color: { argb: "FFE2E8F0" } },
       left: { style: "thin", color: { argb: "FFCBD5E1" } },
       right: { style: "thin", color: { argb: "FFCBD5E1" } },
     };
@@ -274,7 +275,7 @@ async function buildPlanchetaCompactExcel(assets, meta) {
     "Encargado del Sector",
     "",
   ]);
-  signatureLabels.height = 20;
+  signatureLabels.height = 22;
   signatureLabels.font = { bold: true, color: { argb: "FF0F172A" } };
   signatureLabels.eachCell((cell) => {
     cell.fill = {
@@ -300,7 +301,7 @@ async function buildPlanchetaCompactExcel(assets, meta) {
     "Nombre, firma y timbre",
     "",
   ]);
-  signatureHint.height = 18;
+  signatureHint.height = 20;
   signatureHint.font = { italic: true, size: 9, color: { argb: "FF64748B" } };
   signatureHint.alignment = { horizontal: "center", vertical: "middle" };
   signatureHint.eachCell((cell) => {
@@ -322,17 +323,18 @@ async function buildPlanchetaCompactExcel(assets, meta) {
     "Responsabilidad:",
     "El funcionario responsable debe velar por el buen uso, custodia y resguardo de los recursos asignados.",
   ]);
+  signatureResponsibility.height = 24;
   sheet.mergeCells(`B${signatureResponsibility.number}:F${signatureResponsibility.number}`);
   signatureResponsibility.getCell(1).font = { bold: true, color: { argb: "FF1B4332" } };
   signatureResponsibility.getCell(1).fill = {
     type: "pattern",
     pattern: "solid",
-    fgColor: { argb: "FFF8FAFC" },
+    fgColor: { argb: "FFEEF4FA" },
   };
   signatureResponsibility.getCell(2).fill = {
     type: "pattern",
     pattern: "solid",
-    fgColor: { argb: "FFF8FAFC" },
+    fgColor: { argb: "FFEEF4FA" },
   };
   signatureResponsibility.getCell(2).alignment = {
     horizontal: "center",

@@ -103,48 +103,66 @@ function drawAssetRow(doc, left, widths, y, asset, idx) {
   });
 }
 
-function drawSignatureLine(doc, x, y, width, title) {
-  doc.strokeColor("#334155").lineWidth(1.1).moveTo(x, y).lineTo(x + width, y).stroke();
-  doc.fillColor("#0F172A").font("Helvetica-Bold").fontSize(8.8).text(title, x, y + 10, {
-    width,
+function drawSignatureCard(doc, x, y, width, height, title) {
+  doc.roundedRect(x, y, width, height, 7).fill("#FFFFFF").stroke("#D8E0EA");
+  const lineY = y + 36;
+  const lineMargin = 16;
+  doc.strokeColor("#334155")
+    .lineWidth(1.15)
+    .moveTo(x + lineMargin, lineY)
+    .lineTo(x + width - lineMargin, lineY)
+    .stroke();
+  doc.fillColor("#0F172A").font("Helvetica-Bold").fontSize(8.8).text(title, x + 10, lineY + 11, {
+    width: width - 20,
     align: "center",
   });
-  doc.fillColor("#64748B").font("Helvetica").fontSize(7).text("Nombre, firma y timbre", x, y + 24, {
-    width,
+  doc.fillColor("#64748B").font("Helvetica").fontSize(7).text("Nombre, firma y timbre", x + 10, lineY + 26, {
+    width: width - 20,
     align: "center",
   });
 }
 
 function drawSignatureSection(doc, y, left, pageWidth) {
   const pageBottom = doc.page.height - doc.page.margins.bottom;
-  const requiredHeight = 132;
+  const requiredHeight = 164;
   let sectionY = y;
   if (sectionY + requiredHeight > pageBottom) {
     doc.addPage();
     sectionY = doc.page.margins.top + 8;
   }
 
-  doc.roundedRect(left, sectionY, pageWidth, requiredHeight, 8).fill("#F8FAFC").stroke("#CBD5E1");
-  doc.fillColor("#0F172A").font("Helvetica-Bold").fontSize(12).text("FIRMAS Y SELLO", left, sectionY + 14, {
-    width: pageWidth,
+  const panelX = left + 18;
+  const panelW = pageWidth - 36;
+  doc.roundedRect(panelX, sectionY, panelW, requiredHeight, 10).fill("#F8FAFC").stroke("#CBD5E1");
+  doc.fillColor("#0F172A").font("Helvetica-Bold").fontSize(12.5).text("FIRMAS Y SELLO", panelX, sectionY + 14, {
+    width: panelW,
     align: "center",
   });
-  doc.strokeColor("#94A3B8").lineWidth(0.7).moveTo(left + 36, sectionY + 36).lineTo(left + pageWidth - 36, sectionY + 36).stroke();
+  doc.strokeColor("#94A3B8")
+    .lineWidth(0.75)
+    .moveTo(panelX + 34, sectionY + 38)
+    .lineTo(panelX + panelW - 34, sectionY + 38)
+    .stroke();
 
-  const innerLeft = left + 36;
-  const innerWidth = pageWidth - 72;
-  const gap = 32;
-  const lineWidth = (innerWidth - gap * 2) / 3;
-  const lineY = sectionY + 82;
-  drawSignatureLine(doc, innerLeft, lineY, lineWidth, "Encargado del Inventario");
-  drawSignatureLine(doc, innerLeft + lineWidth + gap, lineY, lineWidth, "DAF");
-  drawSignatureLine(doc, innerLeft + (lineWidth + gap) * 2, lineY, lineWidth, "Encargado del Sector");
+  const innerLeft = panelX + 28;
+  const innerWidth = panelW - 56;
+  const gap = 22;
+  const cardW = (innerWidth - gap * 2) / 3;
+  const cardY = sectionY + 56;
+  const cardH = 70;
+  drawSignatureCard(doc, innerLeft, cardY, cardW, cardH, "Encargado del Inventario");
+  drawSignatureCard(doc, innerLeft + cardW + gap, cardY, cardW, cardH, "DAF");
+  drawSignatureCard(doc, innerLeft + (cardW + gap) * 2, cardY, cardW, cardH, "Encargado del Sector");
 
+  const noteX = panelX + 28;
+  const noteY = sectionY + requiredHeight - 32;
+  const noteW = panelW - 56;
+  doc.roundedRect(noteX, noteY, noteW, 20, 5).fill("#EEF4FA").stroke("#D8E0EA");
   doc.fillColor("#475569").font("Helvetica").fontSize(7.8).text(
     "Responsabilidad: el funcionario responsable debe velar por el buen uso, custodia y resguardo de los recursos asignados.",
-    left + 24,
-    sectionY + requiredHeight - 22,
-    { width: pageWidth - 48, align: "center" }
+    noteX + 10,
+    noteY + 6,
+    { width: noteW - 20, align: "center" }
   );
 }
 
